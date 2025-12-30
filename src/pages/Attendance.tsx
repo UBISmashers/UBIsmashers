@@ -1,4 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@/contexts/AuthContext";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -14,49 +16,75 @@ import {
   Calendar as CalendarIcon,
   Save,
   Clock,
+  Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
 
 interface Member {
+  _id?: string;
   id: string;
   name: string;
   email: string;
   isPresent: boolean;
 }
 
-const initialMembers: Member[] = [
-  { id: "1", name: "John Doe", email: "john@email.com", isPresent: true },
-  { id: "2", name: "Mike Smith", email: "mike@email.com", isPresent: true },
-  { id: "3", name: "Sarah Lee", email: "sarah@email.com", isPresent: true },
-  { id: "4", name: "Tom Wilson", email: "tom@email.com", isPresent: false },
-  { id: "5", name: "Anna Kumar", email: "anna@email.com", isPresent: true },
-  { id: "6", name: "Chris Park", email: "chris@email.com", isPresent: true },
-  { id: "7", name: "Emily Chen", email: "emily@email.com", isPresent: false },
-  { id: "8", name: "David Brown", email: "david@email.com", isPresent: true },
-  { id: "9", name: "Lisa Wang", email: "lisa@email.com", isPresent: true },
-  { id: "10", name: "James Miller", email: "james@email.com", isPresent: false },
-  { id: "11", name: "Rachel Green", email: "rachel@email.com", isPresent: true },
-  { id: "12", name: "Kevin Hart", email: "kevin@email.com", isPresent: true },
-];
-
-interface AttendanceHistory {
-  date: string;
-  present: number;
-  total: number;
-}
-
-const attendanceHistory: AttendanceHistory[] = [
-  { date: "2024-12-26", present: 18, total: 40 },
-  { date: "2024-12-25", present: 22, total: 40 },
-  { date: "2024-12-24", present: 15, total: 40 },
-  { date: "2024-12-23", present: 20, total: 40 },
-  { date: "2024-12-22", present: 25, total: 40 },
-];
-
 export default function Attendance() {
+  const { api } = useAuth();
+  const queryClient = useQueryClient();
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
-  const [members, setMembers] = useState<Member[]>(initialMembers);
+  const [members, setMembers] = useState<Member[]>([]);
   const [isSaving, setIsSaving] = useState(false);
+
+  const dateKey = format(selectedDate, "yyyy-MM-dd");
+
+  // Fetch all members
+  const { data: allMembers = [], isLoading: membersLoading } = useQuery({
+    queryKey: ["members"],
+    queryFn: () => api.getMembers(),
+  });
+
+  // Fetch attendance for selected date
+  const { data: attendanceData = [] } = useQuery({
+    queryKey: ["attendance", dateKey],
+    queryFn: () => api.getAttendanceByDate(dateKey),
+  });
+
+  // Create/update attendance mutation
+  const saveAttendanceMutation = useMutation({
+    mutationFn: (data: any[]) => api.createAttendance(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["attendance"] });
+      setIsSaving(false);
+      toast.success("Attendance saved successfully!", {
+        description: `${members.filter((m) => m.isPresent).length} members marked present for ${format(selectedDate, "MMMM d, yyyy")}`,
+      });
+    },
+    onError: (error: any) => {
+      setIsSaving(false);
+      toast.error("Failed to save attendance", {
+        description: error.message || "An error occurred",
+      });
+    },
+  });
+
+  // Initialize members with attendance data
+  useEffect(() => {
+    if (allMembers.length > 0) {
+      const membersWithAttendance = allMembers.map((member: any) => {
+        const attendance = attendanceData.find(
+          (a: any) => a.memberId?._id === member._id || a.memberId?._id === member.id
+        );
+        return {
+          _id: member._id,
+          id: member._id || member.id,
+          name: member.name,
+          email: member.email,
+          isPresent: attendance?.isPresent || false,
+        };
+      });
+      setMembers(membersWithAttendance);
+    }
+  }, [allMembers, attendanceData, dateKey]);
 
   const presentCount = members.filter((m) => m.isPresent).length;
   const totalMembers = members.length;
@@ -79,12 +107,12 @@ export default function Attendance() {
 
   const saveAttendance = async () => {
     setIsSaving(true);
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    setIsSaving(false);
-    toast.success("Attendance saved successfully!", {
-      description: `${presentCount} members marked present for ${format(selectedDate, "MMMM d, yyyy")}`,
-    });
+    const attendanceData = members.map((member) => ({
+      date: dateKey,
+      memberId: member._id || member.id,
+      isPresent: member.isPresent,
+    }));
+    saveAttendanceMutation.mutate(attendanceData);
   };
 
   return (
@@ -99,8 +127,17 @@ export default function Attendance() {
             </p>
           </div>
           <Button onClick={saveAttendance} disabled={isSaving}>
-            <Save className="h-4 w-4 mr-2" />
-            {isSaving ? "Saving..." : "Save Attendance"}
+            {isSaving || saveAttendanceMutation.isPending ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              <>
+                <Save className="h-4 w-4 mr-2" />
+                Save Attendance
+              </>
+            )}
           </Button>
         </div>
 
@@ -177,26 +214,44 @@ export default function Attendance() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
-                {attendanceHistory.map((record) => (
-                  <div
-                    key={record.date}
-                    className="flex items-center justify-between py-2 border-b last:border-0"
-                  >
-                    <span className="text-sm">
-                      {format(new Date(record.date), "MMM d, yyyy")}
-                    </span>
-                    <Badge
-                      variant="outline"
-                      className={
-                        record.present / record.total > 0.5
-                          ? "border-success/30 text-success"
-                          : "border-warning/30 text-warning"
-                      }
-                    >
-                      {record.present}/{record.total}
-                    </Badge>
-                  </div>
-                ))}
+                {(() => {
+                  // Get last 7 days of attendance
+                  const last7Days = Array.from({ length: 7 }, (_, i) => {
+                    const date = new Date();
+                    date.setDate(date.getDate() - i);
+                    return format(date, "yyyy-MM-dd");
+                  });
+
+                  return last7Days.map((date) => {
+                    const dayAttendance = attendanceData.filter((a: any) => {
+                      const attDate = format(new Date(a.date), "yyyy-MM-dd");
+                      return attDate === date;
+                    });
+                    const present = dayAttendance.filter((a: any) => a.isPresent).length;
+                    const total = dayAttendance.length || totalMembers;
+
+                    return (
+                      <div
+                        key={date}
+                        className="flex items-center justify-between py-2 border-b last:border-0"
+                      >
+                        <span className="text-sm">
+                          {format(new Date(date), "MMM d, yyyy")}
+                        </span>
+                        <Badge
+                          variant="outline"
+                          className={
+                            total > 0 && present / total > 0.5
+                              ? "border-success/30 text-success"
+                              : "border-warning/30 text-warning"
+                          }
+                        >
+                          {present}/{total}
+                        </Badge>
+                      </div>
+                    );
+                  });
+                })()}
               </CardContent>
             </Card>
           </div>
@@ -221,8 +276,17 @@ export default function Attendance() {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="grid gap-2 sm:grid-cols-2">
-                {members.map((member) => (
+              {membersLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                </div>
+              ) : members.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-8">
+                  No members found. Add members first.
+                </p>
+              ) : (
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {members.map((member) => (
                   <div
                     key={member.id}
                     onClick={() => toggleAttendance(member.id)}
@@ -265,8 +329,9 @@ export default function Attendance() {
                       <XCircle className="h-5 w-5 text-muted-foreground/40 shrink-0" />
                     )}
                   </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>

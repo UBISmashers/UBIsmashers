@@ -178,7 +178,7 @@ export default function Settings() {
               </div>
               <div className="space-y-2">
                 <Label>Default Court Fee ($)</Label>
-                <Input type="number" defaultValue="60" />
+                <Input type="number" defaultValue="0" placeholder="0.00" />
               </div>
             </div>
             <div className="flex items-center justify-between">

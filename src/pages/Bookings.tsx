@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@/contexts/AuthContext";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -20,8 +22,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ChevronLeft, ChevronRight, Plus, Clock, Users } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { ChevronLeft, ChevronRight, Plus, Clock, Users, Loader2 } from "lucide-react";
 import { format, addDays, startOfWeek, isSameDay } from "date-fns";
+import { toast } from "sonner";
 
 interface TimeSlot {
   id: string;
@@ -38,34 +43,74 @@ const timeSlots = [
   "4:00 PM", "5:00 PM", "6:00 PM", "7:00 PM", "8:00 PM"
 ];
 
-// Mock bookings data
-const mockBookings: Record<string, TimeSlot[]> = {
-  "2024-12-27": [
-    { id: "1", time: "6:00 AM", court: "Court 1", status: "booked", bookedBy: "John D.", players: 4 },
-    { id: "2", time: "6:00 AM", court: "Court 2", status: "available" },
-    { id: "3", time: "7:00 AM", court: "Court 1", status: "pending", bookedBy: "Mike S.", players: 2 },
-    { id: "4", time: "5:00 PM", court: "Court 1", status: "booked", bookedBy: "Sarah L.", players: 6 },
-    { id: "5", time: "6:00 PM", court: "Court 2", status: "booked", bookedBy: "Anna K.", players: 4 },
-  ],
-};
-
 export default function Bookings() {
+  const { api } = useAuth();
+  const queryClient = useQueryClient();
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [isBookingOpen, setIsBookingOpen] = useState(false);
   const [selectedCourt, setSelectedCourt] = useState<string>("");
   const [selectedTime, setSelectedTime] = useState<string>("");
+  const [players, setPlayers] = useState<number>(4);
 
   const weekStart = startOfWeek(selectedDate, { weekStartsOn: 1 });
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
 
   const dateKey = format(selectedDate, "yyyy-MM-dd");
-  const dayBookings = mockBookings[dateKey] || [];
+
+  // Fetch bookings for selected date
+  const { data: bookings = [], isLoading } = useQuery({
+    queryKey: ["bookings", dateKey],
+    queryFn: () => api.getBookings({ date: dateKey }),
+  });
+
+  // Create booking mutation
+  const createBookingMutation = useMutation({
+    mutationFn: (data: any) => api.createBooking(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["bookings"] });
+      setIsBookingOpen(false);
+      setSelectedCourt("");
+      setSelectedTime("");
+      setPlayers(4);
+      toast.success("Booking created successfully!");
+    },
+    onError: (error: any) => {
+      toast.error("Failed to create booking", {
+        description: error.message || "This time slot may already be booked",
+      });
+    },
+  });
+
+  // Convert API bookings to TimeSlot format
+  const dayBookings: TimeSlot[] = bookings.map((booking: any) => ({
+    id: booking._id || booking.id,
+    time: booking.time,
+    court: booking.court,
+    status: booking.status,
+    bookedBy: booking.bookedBy?.name || "Unknown",
+    players: booking.players,
+  }));
 
   const getSlotStatus = (court: string, time: string): TimeSlot => {
     const booking = dayBookings.find(
       (b) => b.court === court && b.time === time
     );
     return booking || { id: `${court}-${time}`, time, court, status: "available" };
+  };
+
+  const handleCreateBooking = () => {
+    if (!selectedCourt || !selectedTime) {
+      toast.error("Please select a court and time");
+      return;
+    }
+
+    createBookingMutation.mutate({
+      date: dateKey,
+      court: selectedCourt,
+      time: selectedTime,
+      players: players,
+      status: "booked",
+    });
   };
 
   const statusStyles = {
@@ -122,7 +167,7 @@ export default function Bookings() {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Time Slot</label>
+                  <Label>Time Slot</Label>
                   <Select value={selectedTime} onValueChange={setSelectedTime}>
                     <SelectTrigger>
                       <SelectValue placeholder="Select time" />
@@ -136,13 +181,36 @@ export default function Bookings() {
                     </SelectContent>
                   </Select>
                 </div>
+                <div className="space-y-2">
+                  <Label>Number of Players</Label>
+                  <Input
+                    type="number"
+                    min="1"
+                    value={players}
+                    onChange={(e) => setPlayers(parseInt(e.target.value) || 4)}
+                  />
+                </div>
               </div>
               <DialogFooter>
-                <Button variant="outline" onClick={() => setIsBookingOpen(false)}>
+                <Button
+                  variant="outline"
+                  onClick={() => setIsBookingOpen(false)}
+                  disabled={createBookingMutation.isPending}
+                >
                   Cancel
                 </Button>
-                <Button onClick={() => setIsBookingOpen(false)}>
-                  Confirm Booking
+                <Button
+                  onClick={handleCreateBooking}
+                  disabled={createBookingMutation.isPending || !selectedCourt || !selectedTime}
+                >
+                  {createBookingMutation.isPending ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Booking...
+                    </>
+                  ) : (
+                    "Confirm Booking"
+                  )}
                 </Button>
               </DialogFooter>
             </DialogContent>
@@ -215,26 +283,32 @@ export default function Bookings() {
               </div>
             </CardHeader>
             <CardContent>
-              {/* Week View Tabs */}
-              <div className="flex gap-1 mb-6 overflow-x-auto pb-2">
-                {weekDays.map((day) => (
-                  <button
-                    key={day.toISOString()}
-                    onClick={() => setSelectedDate(day)}
-                    className={`flex flex-col items-center px-4 py-2 rounded-lg transition-all min-w-[70px] ${
-                      isSameDay(day, selectedDate)
-                        ? "bg-primary text-primary-foreground"
-                        : "hover:bg-secondary"
-                    }`}
-                  >
-                    <span className="text-xs font-medium">{format(day, "EEE")}</span>
-                    <span className="text-lg font-bold">{format(day, "d")}</span>
-                  </button>
-                ))}
-              </div>
+              {isLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                </div>
+              ) : (
+                <>
+                  {/* Week View Tabs */}
+                  <div className="flex gap-1 mb-6 overflow-x-auto pb-2">
+                    {weekDays.map((day) => (
+                      <button
+                        key={day.toISOString()}
+                        onClick={() => setSelectedDate(day)}
+                        className={`flex flex-col items-center px-4 py-2 rounded-lg transition-all min-w-[70px] ${
+                          isSameDay(day, selectedDate)
+                            ? "bg-primary text-primary-foreground"
+                            : "hover:bg-secondary"
+                        }`}
+                      >
+                        <span className="text-xs font-medium">{format(day, "EEE")}</span>
+                        <span className="text-lg font-bold">{format(day, "d")}</span>
+                      </button>
+                    ))}
+                  </div>
 
-              {/* Court Schedule Grid */}
-              <div className="overflow-x-auto">
+                  {/* Court Schedule Grid */}
+                  <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead>
                     <tr>
@@ -310,6 +384,8 @@ export default function Bookings() {
                   </tbody>
                 </table>
               </div>
+                </>
+              )}
             </CardContent>
           </Card>
         </div>
