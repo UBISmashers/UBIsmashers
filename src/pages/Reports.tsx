@@ -533,36 +533,18 @@ export default function Reports() {
         </div>
 
         {/* Top Contributors */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Top Attendance This Month</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-4 sm:grid-cols-5">
-              {[
-                { name: "David Brown", rate: 98, sessions: 23 },
-                { name: "Sarah Lee", rate: 95, sessions: 22 },
-                { name: "John Doe", rate: 92, sessions: 22 },
-                { name: "Emily Chen", rate: 90, sessions: 21 },
-                { name: "Mike Smith", rate: 88, sessions: 21 },
-              ].map((member, i) => (
-                <div
-                  key={member.name}
-                  className="text-center p-4 rounded-lg bg-secondary/30"
-                >
-                  <div className="w-12 h-12 mx-auto mb-3 rounded-full gradient-primary flex items-center justify-center text-primary-foreground font-bold">
-                    #{i + 1}
-                  </div>
-                  <p className="font-medium text-sm">{member.name}</p>
-                  <p className="text-2xl font-bold text-primary">{member.rate}%</p>
-                  <p className="text-xs text-muted-foreground">
-                    {member.sessions} sessions
-                  </p>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+{/* Top Contributors */}
+<Card>
+  <CardHeader>
+    <CardTitle>Top Attendance This Month</CardTitle>
+  </CardHeader>
+  <CardContent>
+    <div className="flex items-center justify-center h-32 text-muted-foreground text-sm">
+      No attendance data available for the selected period
+    </div>
+  </CardContent>
+</Card>
+
       </div>
     </MainLayout>
   );
