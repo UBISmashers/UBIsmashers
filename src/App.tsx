@@ -11,7 +11,7 @@ import Attendance from "./pages/Attendance";
 import Expenses from "./pages/Expenses";
 import Members from "./pages/Members";
 import Reports from "./pages/Reports";
-//import Settings from "./pages/Settings";
+import Settings from "./pages/Settings";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import NotFound from "./pages/NotFound";
