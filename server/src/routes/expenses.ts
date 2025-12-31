@@ -40,11 +40,28 @@ router.get('/', authenticate, async (req: Request, res: Response) => {
       query.status = status;
     }
 
-    // Members can see all expenses (for transparency)
-    const expenses = await Expense.find(query)
-      .populate('paidBy', 'name email')
-      .populate('selectedMembers', 'name email')
-      .sort({ date: -1 });
+    // Admin can see all expenses, members can only see their own
+    let expenses;
+    if (req.user?.role === 'admin') {
+      expenses = await Expense.find(query)
+        .populate('paidBy', 'name email')
+        .populate('selectedMembers', 'name email')
+        .sort({ date: -1 });
+    } else {
+      // Members can only see expenses where they are in selectedMembers
+      const member = await Member.findOne({ userId: req.user?.id });
+      if (!member) {
+        return res.json([]);
+      }
+      
+      expenses = await Expense.find({
+        ...query,
+        selectedMembers: member._id,
+      })
+        .populate('paidBy', 'name email')
+        .populate('selectedMembers', 'name email')
+        .sort({ date: -1 });
+    }
 
     res.json(expenses);
   } catch (error) {
@@ -143,6 +160,29 @@ router.post('/', authenticate, authorize('admin'), async (req: Request, res: Res
 
     await expense.populate('paidBy', 'name email');
     await expense.populate('selectedMembers', 'name email');
+
+    // Create notifications for members about new expense
+    const { Notification } = await import('../models/Notification.js');
+    const { User } = await import('../models/User.js');
+    
+    await Promise.all(
+      selectedMemberIds.map(async (memberId) => {
+        const shareMember = await Member.findById(memberId);
+        if (shareMember && shareMember.userId) {
+          await Notification.create({
+            userId: shareMember.userId,
+            memberId: memberId,
+            type: 'expense_added',
+            title: 'New Expense Added',
+            message: `A new expense "${expense.description}" of $${perMemberShare.toFixed(2)} has been added.`,
+            data: {
+              expenseId: expense._id.toString(),
+              amount: perMemberShare,
+            },
+          });
+        }
+      })
+    );
 
     res.status(201).json(expense);
   } catch (error) {

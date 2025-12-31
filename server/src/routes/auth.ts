@@ -43,6 +43,16 @@ router.post('/login', async (req: Request, res: Response) => {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 
+    // Get member info to check status
+    let member = await Member.findOne({ userId: user._id });
+    
+    // Check if member is inactive (block login)
+    if (member && member.status !== 'active') {
+      return res.status(403).json({ 
+        error: 'Your account is inactive. Please contact an administrator to activate your account.' 
+      });
+    }
+
     // Check if password change is required (first login for members)
     if (user.mustChangePassword && user.role === 'member') {
       return res.status(200).json({
@@ -67,7 +77,7 @@ router.post('/login', async (req: Request, res: Response) => {
     await user.save();
 
     // Get member info
-    const member = await Member.findOne({ userId: user._id });
+    member = await Member.findOne({ userId: user._id });
 
     res.json({
       message: 'Login successful',
@@ -184,7 +194,7 @@ router.post('/change-password', async (req: Request, res: Response) => {
     await user.save();
 
     // Get member info
-    const member = await Member.findOne({ userId: user._id });
+     let member = await Member.findOne({ userId: user._id });
 
     res.json({
       message: 'Password changed successfully',

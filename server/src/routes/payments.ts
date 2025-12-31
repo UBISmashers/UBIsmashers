@@ -108,7 +108,13 @@ router.get('/all', authenticate, authorize('admin'), async (req: Request, res: R
     const memberPayments: Record<string, any> = {};
     
     expenseShares.forEach(share => {
+      if (!share.memberId) {
+        console.warn('ExpenseShare has no member linked:', share._id);
+        return;
+      }
+    
       const memberId = (share.memberId as any)._id.toString();
+    
       if (!memberPayments[memberId]) {
         memberPayments[memberId] = {
           member: share.memberId,
@@ -118,15 +124,17 @@ router.get('/all', authenticate, authorize('admin'), async (req: Request, res: R
           totalUnpaid: 0,
         };
       }
+    
       memberPayments[memberId].expenseShares.push(share);
       memberPayments[memberId].totalShare += share.amount;
+    
       if (share.paidStatus) {
         memberPayments[memberId].totalPaid += share.amount;
       } else {
         memberPayments[memberId].totalUnpaid += share.amount;
       }
     });
-
+    
     res.json({
       memberPayments: Object.values(memberPayments),
     });
