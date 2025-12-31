@@ -237,7 +237,7 @@ const Index = () => {
         <div>
           <h1 className="text-3xl font-display font-bold">Dashboard</h1>
           <p className="text-muted-foreground mt-1">
-            Welcome back! Here's what's happening with your tennis group.
+            Welcome back! Here's what's happening with our club.
           </p>
         </div>
 
