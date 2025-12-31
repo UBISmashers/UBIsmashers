@@ -135,6 +135,21 @@ export default function Members() {
     },
   });
 
+  // Update member status mutation
+  const updateMemberStatusMutation = useMutation({
+    mutationFn: ({ id, status }: { id: string; status: "active" | "inactive" }) =>
+      api.updateMember(id, { status }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["members"] });
+      toast.success("Member status updated successfully!");
+    },
+    onError: (error: any) => {
+      toast.error("Failed to update member status", {
+        description: error.message || "An error occurred",
+      });
+    },
+  });
+
   // Delete member mutation
   const deleteMemberMutation = useMutation({
     mutationFn: (id: string) => api.deleteMember(id),
@@ -558,9 +573,26 @@ export default function Members() {
                                 <DollarSign className="h-4 w-4 mr-2" />
                                 View Payments
                               </DropdownMenuItem>
-                              <DropdownMenuItem>
-                                <Edit className="h-4 w-4 mr-2" />
-                                Edit
+                              <DropdownMenuItem
+                                onClick={() =>
+                                  updateMemberStatusMutation.mutate({
+                                    id: member._id,
+                                    status: member.status === "active" ? "inactive" : "active",
+                                  })
+                                }
+                                disabled={updateMemberStatusMutation.isPending}
+                              >
+                                {member.status === "active" ? (
+                                  <>
+                                    <UserX className="h-4 w-4 mr-2" />
+                                    Deactivate
+                                  </>
+                                ) : (
+                                  <>
+                                    <UserCheck className="h-4 w-4 mr-2" />
+                                    Activate
+                                  </>
+                                )}
                               </DropdownMenuItem>
                               <DropdownMenuItem
                                 className="text-destructive"

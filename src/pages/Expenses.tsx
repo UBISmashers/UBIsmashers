@@ -50,6 +50,7 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
+import { exportToExcel } from "@/lib/exportUtils";
 
 interface Expense {
   _id?: string;
@@ -72,7 +73,7 @@ const categoryInfo = {
 };
 
 export default function Expenses() {
-  const { api, user } = useAuth();
+  const { api, user, member } = useAuth();
   const queryClient = useQueryClient();
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [filterCategory, setFilterCategory] = useState<string>("all");
@@ -84,11 +85,28 @@ export default function Expenses() {
     selectedMemberIds: [] as string[],
   });
 
-  // Fetch expenses
-  const { data: expenses = [], isLoading } = useQuery({
+  // Fetch expenses - filter by member if not admin
+  const { data: allExpenses = [], isLoading } = useQuery({
     queryKey: ["expenses"],
     queryFn: () => api.getExpenses(),
   });
+
+  // Filter expenses based on role
+  const expenses = user?.role === "admin" 
+    ? allExpenses 
+    : allExpenses.filter((expense: any) => {
+        // Members should only see expenses where they are in selectedMembers
+        const memberId = member?._id || member?.id;
+        if (!memberId) return false;
+        
+        const selectedMemberIds = expense.selectedMembers?.map((m: any) => 
+          m._id || m.id || m
+        ) || [];
+        
+        return selectedMemberIds.some((id: any) => 
+          id?.toString() === memberId.toString()
+        );
+      });
 
   // Fetch members for checkbox list
   const { data: members = [] } = useQuery({
@@ -201,7 +219,59 @@ export default function Expenses() {
             </p>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline">
+            <Button 
+              variant="outline"
+              onClick={() => {
+                try {
+                  // Export expenses
+                  const headers = user?.role === "admin" 
+                    ? ["Date", "Category", "Description", "Amount", "Paid By", "Present", "Per Member", "Status"]
+                    : ["Date", "Category", "Description", "Amount", "Your Share", "Status"];
+                  
+                  const exportData = user?.role === "admin" 
+                    ? expenses
+                    : expenses.filter((exp: any) => {
+                        const memberId = member?._id || member?.id;
+                        const selectedMemberIds = exp.selectedMembers?.map((m: any) => m._id || m.id || m) || [];
+                        return selectedMemberIds.some((id: any) => id?.toString() === memberId?.toString());
+                      });
+
+                  exportToExcel(
+                    exportData,
+                    `UBISmashers_Expenses_${format(new Date(), "yyyy-MM-dd")}`,
+                    headers,
+                    (expense: any) => {
+                      if (user?.role === "admin") {
+                        return [
+                          format(new Date(expense.date), "yyyy-MM-dd"),
+                          expense.category,
+                          expense.description,
+                          `$${expense.amount.toFixed(2)}`,
+                          typeof expense.paidBy === "object" ? expense.paidBy?.name || "Unknown" : expense.paidBy || "Unknown",
+                          expense.presentMembers?.toString() || "0",
+                          `$${expense.perMemberShare?.toFixed(2) || "0.00"}`,
+                          expense.status,
+                        ];
+                      } else {
+                        return [
+                          format(new Date(expense.date), "yyyy-MM-dd"),
+                          expense.category,
+                          expense.description,
+                          `$${expense.amount.toFixed(2)}`,
+                          `$${expense.perMemberShare?.toFixed(2) || "0.00"}`,
+                          expense.status,
+                        ];
+                      }
+                    }
+                  );
+                  toast.success("Expenses exported successfully!");
+                } catch (error: any) {
+                  toast.error("Failed to export expenses", {
+                    description: error.message || "An error occurred",
+                  });
+                }
+              }}
+            >
               <Download className="h-4 w-4 mr-2" />
               Export
             </Button>

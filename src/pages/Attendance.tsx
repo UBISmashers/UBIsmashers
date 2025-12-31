@@ -123,7 +123,7 @@ export default function Attendance() {
           <div>
             <h1 className="text-3xl font-display font-bold">Attendance</h1>
             <p className="text-muted-foreground mt-1">
-              Mark daily attendance for expense calculations
+              Mark daily attendance for tracking member presence
             </p>
           </div>
           <Button onClick={saveAttendance} disabled={isSaving}>
@@ -166,21 +166,6 @@ export default function Attendance() {
                   </p>
                 </div>
                 <XCircle className="h-10 w-10 text-destructive/50" />
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">
-                    Per-Member Share
-                  </p>
-                  <p className="text-3xl font-bold font-display">
-                    ${presentCount > 0 ? (120 / presentCount).toFixed(2) : "0"}
-                  </p>
-                </div>
-                <Users className="h-10 w-10 text-muted-foreground/50" />
               </div>
             </CardContent>
           </Card>

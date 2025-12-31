@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { StatCard } from "@/components/dashboard/StatCard";
@@ -20,6 +21,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 
 const Index = () => {
   const { api, user, member } = useAuth();
+  const navigate = useNavigate();
 
   // Fetch members
   const { data: members = [] } = useQuery({
@@ -37,6 +39,13 @@ const Index = () => {
   const { data: bookings = [] } = useQuery({
     queryKey: ["bookings"],
     queryFn: () => api.getBookings(),
+  });
+
+  // Fetch all payments for admin dashboard
+  const { data: paymentData } = useQuery({
+    queryKey: ["allPayments"],
+    queryFn: () => api.getAllPayments(),
+    enabled: user?.role === "admin",
   });
 
   // Fetch today's attendance
@@ -80,6 +89,10 @@ const Index = () => {
 
   const todayPresent = todayAttendance.filter((a: any) => a.isPresent).length;
   const todayTotal = todayAttendance.length;
+
+  // Calculate pending payments and outstanding balances for admin
+  const totalPendingPayments = paymentData?.memberPayments?.reduce((sum: number, mp: any) => sum + mp.totalUnpaid, 0) || 0;
+  const pendingPaymentCount = paymentData?.memberPayments?.reduce((sum: number, mp: any) => sum + mp.unpaidCount, 0) || 0;
 
   // Member-specific dashboard
   if (user?.role === "member" && member) {
@@ -229,7 +242,7 @@ const Index = () => {
         </div>
 
         {/* Stats Grid */}
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
           <StatCard
             title="Total Members"
             value={totalMembers}
@@ -256,6 +269,15 @@ const Index = () => {
             icon={ClipboardCheck}
             variant="accent"
           />
+          {user?.role === "admin" && (
+            <StatCard
+              title="Pending Payments"
+              value={`$${totalPendingPayments.toFixed(2)}`}
+              description={`${pendingPaymentCount} unpaid expense${pendingPaymentCount !== 1 ? 's' : ''}`}
+              icon={DollarSign}
+              variant="destructive"
+            />
+          )}
         </div>
 
         {/* Main Content Grid */}
@@ -368,19 +390,31 @@ function QuickActionButton({
   icon: Icon,
   label,
   href,
+  onClick,
 }: {
   icon: React.ComponentType<{ className?: string }>;
   label: string;
   href: string;
+  onClick?: () => void;
 }) {
+  const navigate = useNavigate();
+  
+  const handleClick = () => {
+    if (onClick) {
+      onClick();
+    } else {
+      navigate(href);
+    }
+  };
+
   return (
-    <a
-      href={href}
-      className="flex flex-col items-center justify-center p-4 rounded-lg bg-card border hover:border-primary/30 hover:shadow-md transition-all duration-200 group"
+    <button
+      onClick={handleClick}
+      className="flex flex-col items-center justify-center p-4 rounded-lg bg-card border hover:border-primary/30 hover:shadow-md transition-all duration-200 group cursor-pointer"
     >
       <Icon className="h-6 w-6 text-primary mb-2 group-hover:scale-110 transition-transform" />
       <span className="text-sm font-medium">{label}</span>
-    </a>
+    </button>
   );
 }
 

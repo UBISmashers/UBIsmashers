@@ -30,9 +30,10 @@ import {
 import { Download, TrendingUp, TrendingDown, Calendar, Loader2 } from "lucide-react";
 import { format, subMonths, startOfMonth, endOfMonth, eachMonthOfInterval, eachWeekOfInterval, startOfWeek, endOfWeek } from "date-fns";
 import { toast } from "sonner";
+import { exportToExcel } from "@/lib/exportUtils";
 
 export default function Reports() {
-  const { api, user } = useAuth();
+  const { api, user, member } = useAuth();
   const [selectedPeriod, setSelectedPeriod] = useState<string>("current");
   const [reportType, setReportType] = useState<string>("financial");
 
@@ -183,6 +184,57 @@ export default function Reports() {
       endDate: dateRange.end,
     });
   };
+
+  const handleExportReport = () => {
+    try {
+      if (user?.role === "admin") {
+        // Admin export - all expenses
+        const headers = ["Date", "Category", "Description", "Amount", "Paid By", "Per Member Share", "Status"];
+        exportToExcel(
+          expenses,
+          `UBISmashers_Expense_Report_${format(new Date(), "yyyy-MM-dd")}`,
+          headers,
+          (expense: any) => [
+            format(new Date(expense.date), "yyyy-MM-dd"),
+            expense.category,
+            expense.description,
+            `$${expense.amount.toFixed(2)}`,
+            typeof expense.paidBy === "object" ? expense.paidBy?.name || "Unknown" : expense.paidBy || "Unknown",
+            `$${expense.perMemberShare?.toFixed(2) || "0.00"}`,
+            expense.status,
+          ]
+        );
+        toast.success("Report exported successfully!");
+      } else {
+        // Member export - only their expenses
+        const memberId = member?._id || member?.id;
+        const memberExpenses = expenses.filter((expense: any) => {
+          const selectedMemberIds = expense.selectedMembers?.map((m: any) => m._id || m.id || m) || [];
+          return selectedMemberIds.some((id: any) => id?.toString() === memberId?.toString());
+        });
+
+        const headers = ["Date", "Category", "Description", "Amount", "Your Share", "Status"];
+        exportToExcel(
+          memberExpenses,
+          `UBISmashers_My_Expenses_${format(new Date(), "yyyy-MM-dd")}`,
+          headers,
+          (expense: any) => [
+            format(new Date(expense.date), "yyyy-MM-dd"),
+            expense.category,
+            expense.description,
+            `$${expense.amount.toFixed(2)}`,
+            `$${expense.perMemberShare?.toFixed(2) || "0.00"}`,
+            expense.status,
+          ]
+        );
+        toast.success("Report exported successfully!");
+      }
+    } catch (error: any) {
+      toast.error("Failed to export report", {
+        description: error.message || "An error occurred",
+      });
+    }
+  };
   return (
     <MainLayout>
       <div className="space-y-6 animate-fade-in">
@@ -205,6 +257,13 @@ export default function Reports() {
                 <SelectItem value="last3">Last 3 Months</SelectItem>
               </SelectContent>
             </Select>
+            <Button
+              variant="outline"
+              onClick={handleExportReport}
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Export to Excel
+            </Button>
             {user?.role === "admin" && (
               <>
                 <Select value={reportType} onValueChange={setReportType}>

@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
-import { ChangePassword } from '@/components/auth/ChangePassword';
+  import { ChangePassword } from '@/components/auth/ChangePassword';
 
 export default function Login() {
   const [email, setEmail] = useState('');

@@ -27,6 +27,8 @@ class ApiClient {
     const token = this.getAuthToken();
     const url = `${this.baseURL}${endpoint}`;
 
+    console.log(`[API] ${options.method || 'GET'} ${url}`);
+
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
       ...options.headers,
@@ -41,6 +43,8 @@ class ApiClient {
         ...options,
         headers,
       });
+
+      console.log(`[API] Response status: ${response.status} for ${url}`);
 
       // Handle token refresh on 401
       if (response.status === 401 && token) {
@@ -69,9 +73,11 @@ class ApiClient {
         throw new Error(error.error || `HTTP error! status: ${response.status}`);
       }
 
-      return response.json();
+      const data = await response.json();
+      console.log(`[API] Response data for ${url}:`, data);
+      return data;
     } catch (error) {
-      console.error('API request error:', error);
+      console.error(`[API] Request error for ${url}:`, error);
       throw error;
     }
   }
@@ -320,6 +326,36 @@ class ApiClient {
     return this.request<{
       memberPayments: any[];
     }>('/payments/all');
+  }
+
+  // Notifications
+  async getNotifications() {
+    return this.request<{
+      notifications: any[];
+      unreadCount: number;
+    }>('/notifications');
+  }
+
+  async getUnreadNotificationCount() {
+    return this.request<{ count: number }>('/notifications/unread-count');
+  }
+
+  async markNotificationRead(id: string) {
+    return this.request<{ message: string; notification: any }>(`/notifications/${id}/read`, {
+      method: 'PATCH',
+    });
+  }
+
+  async markAllNotificationsRead() {
+    return this.request<{ message: string }>('/notifications/read-all', {
+      method: 'PATCH',
+    });
+  }
+
+  async deleteNotification(id: string) {
+    return this.request<{ message: string }>(`/notifications/${id}`, {
+      method: 'DELETE',
+    });
   }
 }
 
