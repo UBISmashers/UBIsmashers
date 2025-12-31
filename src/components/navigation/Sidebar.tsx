@@ -45,10 +45,10 @@ export function Sidebar({ className }: SidebarProps) {
         {!collapsed && (
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-lg gradient-primary flex items-center justify-center">
-              <span className="text-primary-foreground font-bold text-sm">TC</span>
+              <span className="text-primary-foreground font-bold text-sm">UBI</span>
             </div>
             <span className="font-display font-semibold text-sidebar-foreground">
-              Tennis Club
+              UBI Smashers
             </span>
           </div>
         )}
