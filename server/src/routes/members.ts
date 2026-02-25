@@ -5,11 +5,24 @@ import { Member } from '../models/Member.js';
 
 const router = express.Router();
 
+const optionalString = z.preprocess(
+  (value) => {
+    if (value === null || value === undefined) return undefined;
+    if (typeof value === 'string' && value.trim() === '') return undefined;
+    return value;
+  },
+  z.string().optional()
+);
+
 const memberSchema = z.object({
   name: z.string().min(1, 'Name is required'),
-  email: z.string().email('Invalid email address'),
-  phone: z.string().min(1, 'Phone is required'),
+  email: optionalString.refine((value) => !value || /^\S+@\S+\.\S+$/.test(value), {
+    message: 'Invalid email address',
+  }),
+  phone: optionalString,
   status: z.enum(['active', 'inactive']).optional(),
+  joiningFeeAmount: z.number().min(0).optional(),
+  joiningFeeNote: z.string().optional(),
 });
 
 router.use(authenticate, authorize('admin'));
@@ -41,19 +54,37 @@ router.post('/', async (req: Request, res: Response) => {
   try {
     const validatedData = memberSchema.parse(req.body);
 
-    const existingMember = await Member.findOne({ email: validatedData.email });
-    if (existingMember) {
-      return res.status(400).json({ error: 'Member already exists with this email' });
+    if (validatedData.email) {
+      const existingMember = await Member.findOne({ email: validatedData.email });
+      if (existingMember) {
+        return res.status(400).json({ error: 'Member already exists with this email' });
+      }
     }
 
-    const member = await Member.create({
+    const memberPayload: any = {
       name: validatedData.name,
-      email: validatedData.email,
-      phone: validatedData.phone,
       role: 'member',
       status: validatedData.status || 'active',
       userId: null,
-    });
+    };
+    if (validatedData.email) memberPayload.email = validatedData.email;
+    if (validatedData.phone) memberPayload.phone = validatedData.phone;
+
+    const member = await Member.create(memberPayload);
+
+    if (validatedData.joiningFeeAmount && validatedData.joiningFeeAmount > 0) {
+      const { JoiningFee } = await import('../models/JoiningFee.js');
+      const receivedBy = await Member.findOne({ userId: req.user?.id });
+      if (receivedBy) {
+        await JoiningFee.create({
+          memberId: member._id,
+          receivedBy: receivedBy._id,
+          amount: validatedData.joiningFeeAmount,
+          date: new Date(),
+          note: validatedData.joiningFeeNote,
+        });
+      }
+    }
 
     return res.status(201).json(member);
   } catch (error) {

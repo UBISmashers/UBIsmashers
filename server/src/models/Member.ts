@@ -2,8 +2,8 @@ import mongoose, { Document, Schema } from 'mongoose';
 
 export interface IMember extends Document {
   name: string;
-  email: string;
-  phone: string;
+  email?: string;
+  phone?: string;
   role: 'admin' | 'member';
   status: 'active' | 'inactive';
   joinDate: Date;
@@ -23,15 +23,20 @@ const memberSchema = new Schema<IMember>(
     },
     email: {
       type: String,
-      required: [true, 'Email is required'],
       unique: true,
+      sparse: true,
       lowercase: true,
       trim: true,
-      match: [/^\S+@\S+\.\S+$/, 'Please provide a valid email'],
+      validate: {
+        validator: (value: string) => {
+          if (!value) return true;
+          return /^\S+@\S+\.\S+$/.test(value);
+        },
+        message: 'Please provide a valid email',
+      },
     },
     phone: {
       type: String,
-      required: [true, 'Phone is required'],
       trim: true,
     },
     role: {

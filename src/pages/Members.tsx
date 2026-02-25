@@ -57,8 +57,8 @@ import { toast } from "sonner";
 interface Member {
   _id: string;
   name: string;
-  email: string;
-  phone: string;
+  email?: string;
+  phone?: string;
   role: "admin" | "member";
   status: "active" | "inactive";
   joinDate: string;
@@ -75,10 +75,10 @@ export default function Members() {
     name: "",
     email: "",
     phone: "",
-    temporaryPassword: "",
     role: "member" as "admin" | "member",
+    joiningFeeAmount: 0,
+    joiningFeeNote: "",
   });
-  const [createdMemberPassword, setCreatedMemberPassword] = useState<string | null>(null);
   const [selectedMemberForPayments, setSelectedMemberForPayments] = useState<Member | null>(null);
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
 
@@ -107,11 +107,8 @@ export default function Members() {
     mutationFn: (data: any) => api.createMember(data),
     onSuccess: (response: any) => {
       queryClient.invalidateQueries({ queryKey: ["members"] });
-      if (response.temporaryPassword) {
-        setCreatedMemberPassword(response.temporaryPassword);
-      }
-      setNewMember({ name: "", email: "", phone: "", temporaryPassword: "", role: "member" });
-      toast.success("Member added successfully! Temporary password: " + response.temporaryPassword);
+      setNewMember({ name: "", email: "", phone: "", role: "member", joiningFeeAmount: 0, joiningFeeNote: "" });
+      toast.success("Member added successfully!");
     },
     onError: (error: any) => {
       toast.error("Failed to add member", {
@@ -167,19 +164,15 @@ export default function Members() {
   const filteredMembers = members.filter(
     (m: Member) =>
       m.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      m.email.toLowerCase().includes(searchQuery.toLowerCase())
+      (m.email || "").toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const activeMembers = members.filter((m: Member) => m.status === "active").length;
   const adminCount = members.filter((m: Member) => m.role === "admin").length;
 
   const handleAddMember = () => {
-    if (!newMember.name || !newMember.email || !newMember.phone || !newMember.temporaryPassword) {
-      toast.error("Please fill in all fields including temporary password");
-      return;
-    }
-    if (newMember.temporaryPassword.length < 6) {
-      toast.error("Temporary password must be at least 6 characters");
+    if (!newMember.name) {
+      toast.error("Please enter name");
       return;
     }
     createMemberMutation.mutate(newMember);
@@ -250,7 +243,7 @@ export default function Members() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Email</Label>
+                  <Label>Email (Optional)</Label>
                   <Input
                     type="email"
                     placeholder="email@example.com"
@@ -261,7 +254,7 @@ export default function Members() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Phone</Label>
+                  <Label>Phone (Optional)</Label>
                   <Input
                     type="tel"
                     placeholder="+1 234-567-8900"
@@ -270,21 +263,6 @@ export default function Members() {
                       setNewMember({ ...newMember, phone: e.target.value })
                     }
                   />
-                </div>
-                <div className="space-y-2">
-                  <Label>Temporary Password</Label>
-                  <Input
-                    type="password"
-                    placeholder="Enter temporary password (min 6 characters)"
-                    value={newMember.temporaryPassword}
-                    onChange={(e) =>
-                      setNewMember({ ...newMember, temporaryPassword: e.target.value })
-                    }
-                    minLength={6}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Member will be required to change this on first login
-                  </p>
                 </div>
                 <div className="space-y-2">
                   <Label>Role</Label>
@@ -306,27 +284,32 @@ export default function Members() {
                     </SelectContent>
                   </Select>
                 </div>
-                {createdMemberPassword && (
-                  <div className="p-3 bg-primary/10 rounded-md">
-                    <p className="text-sm font-medium">Temporary Password Created:</p>
-                    <p className="text-sm font-mono mt-1">{createdMemberPassword}</p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Share this with the member. They must change it on first login.
-                    </p>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="mt-2"
-                      onClick={() => {
-                        setCreatedMemberPassword(null);
-                        setIsAddOpen(false);
-                      }}
-                    >
-                      Close
-                    </Button>
-                  </div>
-                )}
+                <div className="space-y-2">
+                  <Label>Joining Fee (Optional)</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    placeholder="0.00"
+                    value={newMember.joiningFeeAmount || ""}
+                    onChange={(e) =>
+                      setNewMember({
+                        ...newMember,
+                        joiningFeeAmount: parseFloat(e.target.value) || 0,
+                      })
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Joining Fee Note (Optional)</Label>
+                  <Input
+                    placeholder="Payment note..."
+                    value={newMember.joiningFeeNote}
+                    onChange={(e) =>
+                      setNewMember({ ...newMember, joiningFeeNote: e.target.value })
+                    }
+                  />
+                </div>
               </div>
               <DialogFooter>
                 <Button
@@ -463,11 +446,11 @@ export default function Members() {
                         <div className="space-y-1">
                           <div className="flex items-center gap-1 text-sm">
                             <Mail className="h-3 w-3 text-muted-foreground" />
-                            {member.email}
+                            {member.email || "-"}
                           </div>
                           <div className="flex items-center gap-1 text-sm text-muted-foreground">
                             <Phone className="h-3 w-3" />
-                            {member.phone}
+                            {member.phone || "-"}
                           </div>
                         </div>
                       </TableCell>
