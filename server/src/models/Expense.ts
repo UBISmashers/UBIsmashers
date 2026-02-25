@@ -10,6 +10,10 @@ export interface IExpense extends Document {
   selectedMembers: mongoose.Types.ObjectId[]; // Array of member IDs who share the expense
   perMemberShare: number;
   status: 'pending' | 'completed';
+  isInventory?: boolean;
+  itemName?: string;
+  quantityPurchased?: number;
+  quantityUsed?: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -60,6 +64,24 @@ const expenseSchema = new Schema<IExpense>(
       type: String,
       enum: ['pending', 'completed'],
       default: 'pending',
+    },
+    isInventory: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    itemName: {
+      type: String,
+      trim: true,
+    },
+    quantityPurchased: {
+      type: Number,
+      min: [0, 'Quantity must be positive'],
+    },
+    quantityUsed: {
+      type: Number,
+      min: [0, 'Quantity must be positive'],
+      default: 0,
     },
   },
   {

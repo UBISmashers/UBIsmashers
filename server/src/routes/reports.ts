@@ -8,6 +8,7 @@ import { Booking } from '../models/Booking.js';
 import { Member } from '../models/Member.js';
 
 const router = express.Router();
+router.use(authenticate, authorize('admin'));
 
 const reportSchema = z.object({
   type: z.enum(['financial', 'attendance', 'booking', 'expense']),
@@ -20,7 +21,7 @@ const reportSchema = z.object({
 });
 
 // Get all reports (Admin only)
-router.get('/', authenticate, authorize('admin'), async (req: Request, res: Response) => {
+router.get('/', async (req: Request, res: Response) => {
   try {
     const reports = await Report.find()
       .populate('generatedBy', 'name email')
@@ -34,7 +35,7 @@ router.get('/', authenticate, authorize('admin'), async (req: Request, res: Resp
 });
 
 // Get single report
-router.get('/:id', authenticate, async (req: Request, res: Response) => {
+router.get('/:id', async (req: Request, res: Response) => {
   try {
     const report = await Report.findById(req.params.id).populate('generatedBy', 'name email');
     
@@ -42,7 +43,6 @@ router.get('/:id', authenticate, async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Report not found' });
     }
 
-    // Members can view reports but admins have full access
     res.json(report);
   } catch (error) {
     console.error('Get report error:', error);
@@ -51,7 +51,7 @@ router.get('/:id', authenticate, async (req: Request, res: Response) => {
 });
 
 // Generate report (Admin only)
-router.post('/generate', authenticate, authorize('admin'), async (req: Request, res: Response) => {
+router.post('/generate', async (req: Request, res: Response) => {
   try {
     const { type, period } = req.body;
 

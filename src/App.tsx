@@ -14,6 +14,8 @@ import Reports from "./pages/Reports";
 import Settings from "./pages/Settings";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
+import PublicBills from "./pages/PublicBills";
+import JoiningFees from "./pages/JoiningFees";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -28,6 +30,7 @@ const App = () => (
           <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
+            <Route path="/public/bills" element={<PublicBills />} />
             <Route
               path="/"
               element={
@@ -81,6 +84,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <Settings />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/joining-fees"
+              element={
+                <ProtectedRoute requireAdmin>
+                  <JoiningFees />
                 </ProtectedRoute>
               }
             />

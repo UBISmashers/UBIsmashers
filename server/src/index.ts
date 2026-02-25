@@ -10,6 +10,9 @@ import expenseRoutes from './routes/expenses.js';
 import reportRoutes from './routes/reports.js';
 import paymentRoutes from './routes/payments.js';
 import notificationRoutes from './routes/notifications.js';
+import publicRoutes from './routes/public.js';
+import equipmentRoutes from './routes/equipment.js';
+import joiningFeeRoutes from './routes/joiningFees.js';
 
 dotenv.config();
 
@@ -21,7 +24,7 @@ const allowedOrigins = [
   process.env.FRONTEND_URL || 'http://localhost:8080',
   'http://localhost:5173',
   'http://localhost:3000',
-  https://ubismashers.vercel.app,
+  'https://ubismashers.vercel.app',
   // Add Vercel domains dynamically
   ...(process.env.VERCEL_URL ? [`https://${process.env.VERCEL_URL}`] : []),
   // Allow any Vercel preview deployments
@@ -72,6 +75,9 @@ app.use('/api/expenses', expenseRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/public', publicRoutes);
+app.use('/api/equipment', equipmentRoutes);
+app.use('/api/joining-fees', joiningFeeRoutes);
 
 // Error handling middleware
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {

@@ -1,173 +1,126 @@
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 
 class ApiClient {
   private baseURL: string;
   private getAuthToken: () => string | null;
-  private getRefreshToken: () => string | null;
-  private setTokens: (accessToken: string, refreshToken: string) => void;
   private clearTokens: () => void;
 
-  constructor(
-    getAuthToken: () => string | null,
-    getRefreshToken: () => string | null,
-    setTokens: (accessToken: string, refreshToken: string) => void,
-    clearTokens: () => void
-  ) {
+  constructor(getAuthToken: () => string | null, clearTokens: () => void) {
     this.baseURL = API_BASE_URL;
     this.getAuthToken = getAuthToken;
-    this.getRefreshToken = getRefreshToken;
-    this.setTokens = setTokens;
     this.clearTokens = clearTokens;
   }
 
-  private async request<T>(
-    endpoint: string,
-    options: RequestInit = {}
-  ): Promise<T> {
+  private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
     const token = this.getAuthToken();
     const url = `${this.baseURL}${endpoint}`;
 
-    console.log(`[API] ${options.method || 'GET'} ${url}`);
-
     const headers: HeadersInit = {
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
       ...options.headers,
     };
 
     if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
+      headers["Authorization"] = `Bearer ${token}`;
     }
 
-    try {
-      const response = await fetch(url, {
-        ...options,
-        headers,
-      });
+    const response = await fetch(url, { ...options, headers });
 
-      console.log(`[API] Response status: ${response.status} for ${url}`);
-
-      // Handle token refresh on 401
-      if (response.status === 401 && token) {
-        const refreshed = await this.refreshToken();
-        if (refreshed) {
-          // Retry request with new token
-          const newToken = this.getAuthToken();
-          if (newToken) {
-            headers['Authorization'] = `Bearer ${newToken}`;
-            const retryResponse = await fetch(url, {
-              ...options,
-              headers,
-            });
-            if (!retryResponse.ok) {
-              throw new Error(`HTTP error! status: ${retryResponse.status}`);
-            }
-            return retryResponse.json();
-          }
-        }
-        this.clearTokens();
-        throw new Error('Authentication failed');
-      }
-
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({ error: 'Unknown error' }));
-        throw new Error(error.error || `HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
-      console.log(`[API] Response data for ${url}:`, data);
-      return data;
-    } catch (error) {
-      console.error(`[API] Request error for ${url}:`, error);
-      throw error;
+    if (response.status === 401 && token) {
+      this.clearTokens();
+      throw new Error("Authentication failed");
     }
-  }
 
-  private async refreshToken(): Promise<boolean> {
-    const refreshToken = this.getRefreshToken();
-    if (!refreshToken) return false;
-
-    try {
-      const response = await fetch(`${this.baseURL}/auth/refresh`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ refreshToken }),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        this.setTokens(data.accessToken, data.refreshToken);
-        return true;
-      }
-      return false;
-    } catch (error) {
-      console.error('Token refresh error:', error);
-      return false;
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: "Unknown error" }));
+      throw new Error(error.error || `HTTP error! status: ${response.status}`);
     }
-  }
 
-  // Auth endpoints
-  async signup(data: {
-    name: string;
-    email: string;
-    password: string;
-    phone: string;
-    role?: 'admin' | 'member';
-  }) {
-    return this.request<{
-      message: string;
-      accessToken: string;
-      refreshToken: string;
-      user: any;
-    }>('/auth/signup', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
+    return response.json();
   }
 
   async login(data: { email: string; password: string }) {
     return this.request<{
       message: string;
-      accessToken?: string;
-      refreshToken?: string;
-      mustChangePassword?: boolean;
-      userId?: string;
-      user?: any;
-      member?: any;
-    }>('/auth/login', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
-  }
-
-  async changePassword(data: { userId: string; currentPassword: string; newPassword: string }) {
-    return this.request<{
-      message: string;
       accessToken: string;
-      refreshToken: string;
       user: any;
-      member: any;
-    }>('/auth/change-password', {
-      method: 'POST',
+    }>("/auth/login", {
+      method: "POST",
       body: JSON.stringify(data),
     });
   }
 
   async logout() {
-    const refreshToken = this.getRefreshToken();
-    if (refreshToken) {
-      await this.request('/auth/logout', {
-        method: 'POST',
-        body: JSON.stringify({ refreshToken }),
-      });
-    }
+    await this.request<{ message: string }>("/auth/logout", {
+      method: "POST",
+    });
     this.clearTokens();
   }
 
-  // Members
+  async getPublicBills() {
+    return this.request<{
+      updatedAt: string;
+      summary: {
+        totalShare: number;
+        totalPaid: number;
+        totalOutstanding: number;
+      };
+      members: Array<{
+        memberId: string;
+        name: string;
+        status: "active" | "inactive";
+        totalExpenseShare: number;
+        amountPaid: number;
+        outstandingBalance: number;
+        paidExpenses: number;
+        unpaidExpenses: number;
+      }>;
+    }>("/public/bills");
+  }
+
+  async getEquipmentPurchases() {
+    return this.request<any[]>("/equipment");
+  }
+
+  async createEquipmentPurchase(data: any) {
+    return this.request<any>("/equipment", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateEquipmentUsage(id: string, quantityUsed: number) {
+    return this.request<any>(`/equipment/${id}/usage`, {
+      method: "PATCH",
+      body: JSON.stringify({ quantityUsed }),
+    });
+  }
+
+  async deleteEquipmentPurchase(id: string) {
+    return this.request<{ message: string }>(`/equipment/${id}`, {
+      method: "DELETE",
+    });
+  }
+
+  async getJoiningFees() {
+    return this.request<any[]>("/joining-fees");
+  }
+
+  async createJoiningFee(data: any) {
+    return this.request<any>("/joining-fees", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteJoiningFee(id: string) {
+    return this.request<{ message: string }>(`/joining-fees/${id}`, {
+      method: "DELETE",
+    });
+  }
+
   async getMembers() {
-    return this.request<any[]>('/members');
+    return this.request<any[]>("/members");
   }
 
   async getMember(id: string) {
@@ -175,68 +128,62 @@ class ApiClient {
   }
 
   async createMember(data: any) {
-    return this.request<any>('/members', {
-      method: 'POST',
+    return this.request<any>("/members", {
+      method: "POST",
       body: JSON.stringify(data),
     });
   }
 
   async updateMember(id: string, data: any) {
     return this.request<any>(`/members/${id}`, {
-      method: 'PUT',
+      method: "PUT",
       body: JSON.stringify(data),
     });
   }
 
   async deleteMember(id: string) {
     return this.request<{ message: string }>(`/members/${id}`, {
-      method: 'DELETE',
+      method: "DELETE",
     });
   }
 
-  // Bookings
   async getBookings(params?: { date?: string; startDate?: string; endDate?: string }) {
     const query = new URLSearchParams();
-    if (params?.date) query.append('date', params.date);
-    if (params?.startDate) query.append('startDate', params.startDate);
-    if (params?.endDate) query.append('endDate', params.endDate);
+    if (params?.date) query.append("date", params.date);
+    if (params?.startDate) query.append("startDate", params.startDate);
+    if (params?.endDate) query.append("endDate", params.endDate);
     const queryString = query.toString();
-    return this.request<any[]>(`/bookings${queryString ? `?${queryString}` : ''}`);
-  }
-
-  async getBooking(id: string) {
-    return this.request<any>(`/bookings/${id}`);
+    return this.request<any[]>(`/bookings${queryString ? `?${queryString}` : ""}`);
   }
 
   async createBooking(data: any) {
-    return this.request<any>('/bookings', {
-      method: 'POST',
+    return this.request<any>("/bookings", {
+      method: "POST",
       body: JSON.stringify(data),
     });
   }
 
   async updateBooking(id: string, data: any) {
     return this.request<any>(`/bookings/${id}`, {
-      method: 'PUT',
+      method: "PUT",
       body: JSON.stringify(data),
     });
   }
 
   async deleteBooking(id: string) {
     return this.request<{ message: string }>(`/bookings/${id}`, {
-      method: 'DELETE',
+      method: "DELETE",
     });
   }
 
-  // Attendance
   async getAttendance(params?: { date?: string; startDate?: string; endDate?: string; memberId?: string }) {
     const query = new URLSearchParams();
-    if (params?.date) query.append('date', params.date);
-    if (params?.startDate) query.append('startDate', params.startDate);
-    if (params?.endDate) query.append('endDate', params.endDate);
-    if (params?.memberId) query.append('memberId', params.memberId);
+    if (params?.date) query.append("date", params.date);
+    if (params?.startDate) query.append("startDate", params.startDate);
+    if (params?.endDate) query.append("endDate", params.endDate);
+    if (params?.memberId) query.append("memberId", params.memberId);
     const queryString = query.toString();
-    return this.request<any[]>(`/attendance${queryString ? `?${queryString}` : ''}`);
+    return this.request<any[]>(`/attendance${queryString ? `?${queryString}` : ""}`);
   }
 
   async getAttendanceByDate(date: string) {
@@ -244,50 +191,44 @@ class ApiClient {
   }
 
   async createAttendance(data: any | any[]) {
-    return this.request<any | any[]>('/attendance', {
-      method: 'POST',
+    return this.request<any | any[]>("/attendance", {
+      method: "POST",
       body: JSON.stringify(data),
     });
   }
 
-  // Expenses
   async getExpenses(params?: { startDate?: string; endDate?: string; category?: string; status?: string }) {
     const query = new URLSearchParams();
-    if (params?.startDate) query.append('startDate', params.startDate);
-    if (params?.endDate) query.append('endDate', params.endDate);
-    if (params?.category) query.append('category', params.category);
-    if (params?.status) query.append('status', params.status);
+    if (params?.startDate) query.append("startDate", params.startDate);
+    if (params?.endDate) query.append("endDate", params.endDate);
+    if (params?.category) query.append("category", params.category);
+    if (params?.status) query.append("status", params.status);
     const queryString = query.toString();
-    return this.request<any[]>(`/expenses${queryString ? `?${queryString}` : ''}`);
-  }
-
-  async getExpense(id: string) {
-    return this.request<any>(`/expenses/${id}`);
+    return this.request<any[]>(`/expenses${queryString ? `?${queryString}` : ""}`);
   }
 
   async createExpense(data: any) {
-    return this.request<any>('/expenses', {
-      method: 'POST',
+    return this.request<any>("/expenses", {
+      method: "POST",
       body: JSON.stringify(data),
     });
   }
 
   async updateExpense(id: string, data: any) {
     return this.request<any>(`/expenses/${id}`, {
-      method: 'PUT',
+      method: "PUT",
       body: JSON.stringify(data),
     });
   }
 
   async deleteExpense(id: string) {
     return this.request<{ message: string }>(`/expenses/${id}`, {
-      method: 'DELETE',
+      method: "DELETE",
     });
   }
 
-  // Reports
   async getReports() {
-    return this.request<any[]>('/reports');
+    return this.request<any[]>("/reports");
   }
 
   async getReport(id: string) {
@@ -295,77 +236,54 @@ class ApiClient {
   }
 
   async generateReport(data: { type: string; period: { start: string; end: string } }) {
-    return this.request<any>('/reports/generate', {
-      method: 'POST',
+    return this.request<any>("/reports/generate", {
+      method: "POST",
       body: JSON.stringify(data),
     });
   }
 
-  // Payments
   async markPaymentPaid(data: { expenseId: string; memberId: string }) {
-    return this.request<any>('/payments/mark-paid', {
-      method: 'POST',
+    return this.request<any>("/payments/mark-paid", {
+      method: "POST",
       body: JSON.stringify(data),
     });
   }
 
   async getMemberPayments(memberId: string) {
-    return this.request<{
-      expenseShares: any[];
-      summary: {
-        totalShare: number;
-        totalPaid: number;
-        totalUnpaid: number;
-        paidCount: number;
-        unpaidCount: number;
-      };
-    }>(`/payments/member/${memberId}`);
+    return this.request<any>(`/payments/member/${memberId}`);
   }
 
   async getAllPayments() {
-    return this.request<{
-      memberPayments: any[];
-    }>('/payments/all');
+    return this.request<{ memberPayments: any[] }>("/payments/all");
   }
 
-  // Notifications
   async getNotifications() {
-    return this.request<{
-      notifications: any[];
-      unreadCount: number;
-    }>('/notifications');
+    return this.request<{ notifications: any[]; unreadCount: number }>("/notifications");
   }
 
   async getUnreadNotificationCount() {
-    return this.request<{ count: number }>('/notifications/unread-count');
+    return this.request<{ count: number }>("/notifications/unread-count");
   }
 
   async markNotificationRead(id: string) {
     return this.request<{ message: string; notification: any }>(`/notifications/${id}/read`, {
-      method: 'PATCH',
+      method: "PATCH",
     });
   }
 
   async markAllNotificationsRead() {
-    return this.request<{ message: string }>('/notifications/read-all', {
-      method: 'PATCH',
+    return this.request<{ message: string }>("/notifications/read-all", {
+      method: "PATCH",
     });
   }
 
   async deleteNotification(id: string) {
     return this.request<{ message: string }>(`/notifications/${id}`, {
-      method: 'DELETE',
+      method: "DELETE",
     });
   }
 }
 
-// Create a factory function to create API client instances
-export const createApiClient = (
-  getAuthToken: () => string | null,
-  getRefreshToken: () => string | null,
-  setTokens: (accessToken: string, refreshToken: string) => void,
-  clearTokens: () => void
-) => {
-  return new ApiClient(getAuthToken, getRefreshToken, setTokens, clearTokens);
+export const createApiClient = (getAuthToken: () => string | null, clearTokens: () => void) => {
+  return new ApiClient(getAuthToken, clearTokens);
 };
-

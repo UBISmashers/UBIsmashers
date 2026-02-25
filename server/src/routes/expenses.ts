@@ -7,6 +7,7 @@ import { ExpenseShare } from '../models/ExpenseShare.js';
 import { Member } from '../models/Member.js';
 
 const router = express.Router();
+router.use(authenticate, authorize('admin'));
 
 const expenseSchema = z.object({
   date: z.string().or(z.date()),
@@ -19,7 +20,7 @@ const expenseSchema = z.object({
 });
 
 // Get expenses
-router.get('/', authenticate, async (req: Request, res: Response) => {
+router.get('/', async (req: Request, res: Response) => {
   try {
     const { startDate, endDate, category, status } = req.query;
 
@@ -40,28 +41,10 @@ router.get('/', authenticate, async (req: Request, res: Response) => {
       query.status = status;
     }
 
-    // Admin can see all expenses, members can only see their own
-    let expenses;
-    if (req.user?.role === 'admin') {
-      expenses = await Expense.find(query)
-        .populate('paidBy', 'name email')
-        .populate('selectedMembers', 'name email')
-        .sort({ date: -1 });
-    } else {
-      // Members can only see expenses where they are in selectedMembers
-      const member = await Member.findOne({ userId: req.user?.id });
-      if (!member) {
-        return res.json([]);
-      }
-      
-      expenses = await Expense.find({
-        ...query,
-        selectedMembers: member._id,
-      })
-        .populate('paidBy', 'name email')
-        .populate('selectedMembers', 'name email')
-        .sort({ date: -1 });
-    }
+    const expenses = await Expense.find(query)
+      .populate('paidBy', 'name email')
+      .populate('selectedMembers', 'name email')
+      .sort({ date: -1 });
 
     res.json(expenses);
   } catch (error) {
@@ -71,7 +54,7 @@ router.get('/', authenticate, async (req: Request, res: Response) => {
 });
 
 // Get single expense
-router.get('/:id', authenticate, async (req: Request, res: Response) => {
+router.get('/:id', async (req: Request, res: Response) => {
   try {
     const expense = await Expense.findById(req.params.id)
       .populate('paidBy', 'name email')
@@ -89,7 +72,7 @@ router.get('/:id', authenticate, async (req: Request, res: Response) => {
 });
 
 // Create expense (Admin only)
-router.post('/', authenticate, authorize('admin'), async (req: Request, res: Response) => {
+router.post('/', async (req: Request, res: Response) => {
   try {
     const validatedData = expenseSchema.parse(req.body);
     
@@ -195,7 +178,7 @@ router.post('/', authenticate, authorize('admin'), async (req: Request, res: Res
 });
 
 // Update expense (Admin only)
-router.put('/:id', authenticate, authorize('admin'), async (req: Request, res: Response) => {
+router.put('/:id', async (req: Request, res: Response) => {
   try {
     const expense = await Expense.findById(req.params.id);
     
@@ -256,7 +239,7 @@ router.put('/:id', authenticate, authorize('admin'), async (req: Request, res: R
 });
 
 // Delete expense (Admin only)
-router.delete('/:id', authenticate, authorize('admin'), async (req: Request, res: Response) => {
+router.delete('/:id', async (req: Request, res: Response) => {
   try {
     const expense = await Expense.findByIdAndDelete(req.params.id);
     

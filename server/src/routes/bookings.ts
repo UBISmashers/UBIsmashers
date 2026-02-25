@@ -4,6 +4,7 @@ import { authenticate, authorize } from '../middleware/auth.js';
 import { Booking } from '../models/Booking.js';
 
 const router = express.Router();
+router.use(authenticate, authorize('admin'));
 
 const bookingSchema = z.object({
   date: z.string().or(z.date()),
@@ -14,7 +15,7 @@ const bookingSchema = z.object({
 });
 
 // Get bookings (filtered by date, or all for admin)
-router.get('/', authenticate, async (req: Request, res: Response) => {
+router.get('/', async (req: Request, res: Response) => {
   try {
     const { date, startDate, endDate } = req.query;
 
@@ -33,17 +34,6 @@ router.get('/', authenticate, async (req: Request, res: Response) => {
       };
     }
 
-    // Members can only see their own bookings unless admin
-    if (req.user?.role !== 'admin') {
-      const { Member } = await import('../models/Member.js');
-      const member = await Member.findOne({ userId: req.user?.id });
-      if (member) {
-        query.bookedBy = member._id;
-      } else {
-        return res.json([]);
-      }
-    }
-
     const bookings = await Booking.find(query)
       .populate('bookedBy', 'name email')
       .sort({ date: 1, time: 1 });
@@ -56,21 +46,12 @@ router.get('/', authenticate, async (req: Request, res: Response) => {
 });
 
 // Get single booking
-router.get('/:id', authenticate, async (req: Request, res: Response) => {
+router.get('/:id', async (req: Request, res: Response) => {
   try {
     const booking = await Booking.findById(req.params.id).populate('bookedBy', 'name email');
     
     if (!booking) {
       return res.status(404).json({ error: 'Booking not found' });
-    }
-
-    // Members can only view their own bookings unless admin
-    if (req.user?.role !== 'admin') {
-      const { Member } = await import('../models/Member.js');
-      const member = await Member.findOne({ userId: req.user?.id });
-      if (!member || booking.bookedBy?.toString() !== member._id.toString()) {
-        return res.status(403).json({ error: 'Forbidden' });
-      }
     }
 
     res.json(booking);
@@ -81,7 +62,7 @@ router.get('/:id', authenticate, async (req: Request, res: Response) => {
 });
 
 // Create booking
-router.post('/', authenticate, async (req: Request, res: Response) => {
+router.post('/', async (req: Request, res: Response) => {
   try {
     const validatedData = bookingSchema.parse(req.body);
     
@@ -127,21 +108,12 @@ router.post('/', authenticate, async (req: Request, res: Response) => {
 });
 
 // Update booking
-router.put('/:id', authenticate, async (req: Request, res: Response) => {
+router.put('/:id', async (req: Request, res: Response) => {
   try {
     const booking = await Booking.findById(req.params.id);
     
     if (!booking) {
       return res.status(404).json({ error: 'Booking not found' });
-    }
-
-    // Members can only update their own bookings unless admin
-    if (req.user?.role !== 'admin') {
-      const { Member } = await import('../models/Member.js');
-      const member = await Member.findOne({ userId: req.user?.id });
-      if (!member || booking.bookedBy?.toString() !== member._id.toString()) {
-        return res.status(403).json({ error: 'Forbidden' });
-      }
     }
 
     const validatedData = bookingSchema.partial().parse(req.body);
@@ -165,21 +137,12 @@ router.put('/:id', authenticate, async (req: Request, res: Response) => {
 });
 
 // Delete booking
-router.delete('/:id', authenticate, async (req: Request, res: Response) => {
+router.delete('/:id', async (req: Request, res: Response) => {
   try {
     const booking = await Booking.findById(req.params.id);
     
     if (!booking) {
       return res.status(404).json({ error: 'Booking not found' });
-    }
-
-    // Members can only delete their own bookings unless admin
-    if (req.user?.role !== 'admin') {
-      const { Member } = await import('../models/Member.js');
-      const member = await Member.findOne({ userId: req.user?.id });
-      if (!member || booking.bookedBy?.toString() !== member._id.toString()) {
-        return res.status(403).json({ error: 'Forbidden' });
-      }
     }
 
     await Booking.findByIdAndDelete(req.params.id);

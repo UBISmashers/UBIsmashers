@@ -2,9 +2,9 @@ import express, { Request, Response } from 'express';
 import { z } from 'zod';
 import { authenticate, authorize } from '../middleware/auth.js';
 import { Attendance } from '../models/Attendance.js';
-import { Member } from '../models/Member.js';
 
 const router = express.Router();
+router.use(authenticate, authorize('admin'));
 
 const attendanceSchema = z.object({
   date: z.string().or(z.date()),
@@ -13,7 +13,7 @@ const attendanceSchema = z.object({
 });
 
 // Get attendance records
-router.get('/', authenticate, async (req: Request, res: Response) => {
+router.get('/', async (req: Request, res: Response) => {
   try {
     const { date, startDate, endDate, memberId } = req.query;
 
@@ -32,15 +32,7 @@ router.get('/', authenticate, async (req: Request, res: Response) => {
       };
     }
 
-    // Members can only see their own attendance unless admin
-    if (req.user?.role !== 'admin') {
-      const member = await Member.findOne({ userId: req.user?.id });
-      if (member) {
-        query.memberId = member._id;
-      } else {
-        return res.json([]);
-      }
-    } else if (memberId) {
+    if (memberId) {
       query.memberId = memberId;
     }
 
@@ -56,14 +48,9 @@ router.get('/', authenticate, async (req: Request, res: Response) => {
 });
 
 // Create or update attendance (Admin only for bulk, members can mark themselves)
-router.post('/', authenticate, async (req: Request, res: Response) => {
+router.post('/', async (req: Request, res: Response) => {
   try {
     if (Array.isArray(req.body)) {
-      // Bulk update (Admin only)
-      if (req.user?.role !== 'admin') {
-        return res.status(403).json({ error: 'Forbidden: Only admins can bulk update attendance' });
-      }
-
       const results = [];
       for (const item of req.body) {
         const validatedData = attendanceSchema.parse(item);
@@ -88,20 +75,12 @@ router.post('/', authenticate, async (req: Request, res: Response) => {
 
       res.status(201).json(results);
     } else {
-      // Single update
       const validatedData = attendanceSchema.parse(req.body);
       const date = new Date(validatedData.date);
       date.setHours(0, 0, 0, 0);
 
-      // Members can only mark their own attendance unless admin
-      let memberId = validatedData.memberId;
-      if (req.user?.role !== 'admin') {
-        const member = await Member.findOne({ userId: req.user?.id });
-        if (!member) {
-          return res.status(404).json({ error: 'Member not found' });
-        }
-        memberId = member._id.toString();
-      } else if (!memberId) {
+      const memberId = validatedData.memberId;
+      if (!memberId) {
         return res.status(400).json({ error: 'Member ID is required' });
       }
 
@@ -130,7 +109,7 @@ router.post('/', authenticate, async (req: Request, res: Response) => {
 });
 
 // Get attendance for a specific date
-router.get('/date/:date', authenticate, async (req: Request, res: Response) => {
+router.get('/date/:date', async (req: Request, res: Response) => {
   try {
     const date = new Date(req.params.date);
     date.setHours(0, 0, 0, 0);

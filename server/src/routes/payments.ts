@@ -2,22 +2,21 @@ import express, { Request, Response } from 'express';
 import { z } from 'zod';
 import { authenticate, authorize } from '../middleware/auth.js';
 import { ExpenseShare } from '../models/ExpenseShare.js';
-import { Expense } from '../models/Expense.js';
 import { Member } from '../models/Member.js';
 
 const router = express.Router();
 
-// Mark expense share as paid (Admin only)
 const markPaidSchema = z.object({
   expenseId: z.string().min(1, 'Expense ID is required'),
   memberId: z.string().min(1, 'Member ID is required'),
 });
 
-router.post('/mark-paid', authenticate, authorize('admin'), async (req: Request, res: Response) => {
+router.use(authenticate, authorize('admin'));
+
+router.post('/mark-paid', async (req: Request, res: Response) => {
   try {
     const validatedData = markPaidSchema.parse(req.body);
 
-    // Find the expense share
     const expenseShare = await ExpenseShare.findOne({
       expenseId: validatedData.expenseId,
       memberId: validatedData.memberId,
@@ -27,23 +26,20 @@ router.post('/mark-paid', authenticate, authorize('admin'), async (req: Request,
       return res.status(404).json({ error: 'Expense share not found' });
     }
 
-    // Mark as paid
     expenseShare.paidStatus = true;
     expenseShare.paidAt = new Date();
     await expenseShare.save();
 
-    // Update member balance (reduce debt)
     const member = await Member.findById(validatedData.memberId);
     if (member) {
       member.balance = member.balance - expenseShare.amount;
       await member.save();
     }
 
-    // Populate related data
     await expenseShare.populate('expenseId', 'description amount date');
     await expenseShare.populate('memberId', 'name email');
 
-    res.json({
+    return res.json({
       message: 'Payment marked as paid',
       expenseShare,
     });
@@ -52,69 +48,54 @@ router.post('/mark-paid', authenticate, authorize('admin'), async (req: Request,
       return res.status(400).json({ error: error.errors[0].message });
     }
     console.error('Mark paid error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// Get payment status for a member (Admin or member themselves)
-router.get('/member/:memberId', authenticate, async (req: Request, res: Response) => {
+router.get('/member/:memberId', async (req: Request, res: Response) => {
   try {
     const { memberId } = req.params;
-
-    // Members can only view their own payments unless admin
-    if (req.user?.role !== 'admin') {
-      const member = await Member.findOne({ userId: req.user?.id });
-      if (!member || member._id.toString() !== memberId) {
-        return res.status(403).json({ error: 'Forbidden' });
-      }
-    }
-
     const expenseShares = await ExpenseShare.find({ memberId })
       .populate('expenseId', 'description amount date category')
       .sort({ createdAt: -1 });
 
-    // Calculate totals
     const totalShare = expenseShares.reduce((sum, share) => sum + share.amount, 0);
     const totalPaid = expenseShares
-      .filter(share => share.paidStatus)
+      .filter((share) => share.paidStatus)
       .reduce((sum, share) => sum + share.amount, 0);
     const totalUnpaid = totalShare - totalPaid;
 
-    res.json({
+    return res.json({
       expenseShares,
       summary: {
         totalShare,
         totalPaid,
         totalUnpaid,
-        paidCount: expenseShares.filter(s => s.paidStatus).length,
-        unpaidCount: expenseShares.filter(s => !s.paidStatus).length,
+        paidCount: expenseShares.filter((s) => s.paidStatus).length,
+        unpaidCount: expenseShares.filter((s) => !s.paidStatus).length,
       },
     });
   } catch (error) {
-    console.error('Get payments error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error('Get member payments error:', error);
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// Get all payment statuses (Admin only)
-router.get('/all', authenticate, authorize('admin'), async (req: Request, res: Response) => {
+router.get('/all', async (_req: Request, res: Response) => {
   try {
     const expenseShares = await ExpenseShare.find()
       .populate('expenseId', 'description amount date category')
       .populate('memberId', 'name email')
       .sort({ createdAt: -1 });
 
-    // Group by member
     const memberPayments: Record<string, any> = {};
-    
-    expenseShares.forEach(share => {
+
+    expenseShares.forEach((share) => {
       if (!share.memberId) {
-        console.warn('ExpenseShare has no member linked:', share._id);
         return;
       }
-    
+
       const memberId = (share.memberId as any)._id.toString();
-    
       if (!memberPayments[memberId]) {
         memberPayments[memberId] = {
           member: share.memberId,
@@ -122,27 +103,30 @@ router.get('/all', authenticate, authorize('admin'), async (req: Request, res: R
           totalShare: 0,
           totalPaid: 0,
           totalUnpaid: 0,
+          paidCount: 0,
+          unpaidCount: 0,
         };
       }
-    
+
       memberPayments[memberId].expenseShares.push(share);
       memberPayments[memberId].totalShare += share.amount;
-    
+
       if (share.paidStatus) {
         memberPayments[memberId].totalPaid += share.amount;
+        memberPayments[memberId].paidCount += 1;
       } else {
         memberPayments[memberId].totalUnpaid += share.amount;
+        memberPayments[memberId].unpaidCount += 1;
       }
     });
-    
-    res.json({
+
+    return res.json({
       memberPayments: Object.values(memberPayments),
     });
   } catch (error) {
     console.error('Get all payments error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
 export default router;
-

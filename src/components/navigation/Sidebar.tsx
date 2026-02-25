@@ -10,18 +10,11 @@ import {
   Settings,
   ChevronLeft,
   ChevronRight,
+  BadgeDollarSign,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-
-const navItems = [
-  { to: "/", icon: LayoutDashboard, label: "Dashboard" },
-  { to: "/bookings", icon: Calendar, label: "Court Bookings" },
-  { to: "/attendance", icon: ClipboardCheck, label: "Attendance" },
-  { to: "/expenses", icon: DollarSign, label: "Expenses" },
-  { to: "/members", icon: Users, label: "Members" },
-  { to: "/reports", icon: BarChart3, label: "Reports" },
-];
+import { useAuth } from "@/contexts/AuthContext";
 
 interface SidebarProps {
   className?: string;
@@ -29,6 +22,19 @@ interface SidebarProps {
 
 export function Sidebar({ className }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
+  const { user } = useAuth();
+
+  const navItems = [
+    { to: "/", icon: LayoutDashboard, label: "Dashboard" },
+    { to: "/bookings", icon: Calendar, label: "Court Bookings" },
+    { to: "/attendance", icon: ClipboardCheck, label: "Attendance" },
+    { to: "/expenses", icon: DollarSign, label: "Expenses" },
+    { to: "/members", icon: Users, label: "Members" },
+    { to: "/reports", icon: BarChart3, label: "Reports" },
+    ...(user?.role === "admin"
+      ? [{ to: "/joining-fees", icon: BadgeDollarSign, label: "Joining Fees" }]
+      : []),
+  ];
 
   return (
     <aside

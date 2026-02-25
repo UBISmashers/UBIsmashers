@@ -1,12 +1,12 @@
 import express, { Request, Response } from 'express';
-import { authenticate } from '../middleware/auth.js';
+import { authenticate, authorize } from '../middleware/auth.js';
 import { Notification } from '../models/Notification.js';
-import { Member } from '../models/Member.js';
 
 const router = express.Router();
+router.use(authenticate, authorize('admin'));
 
 // Get all notifications for the current user
-router.get('/', authenticate, async (req: Request, res: Response) => {
+router.get('/', async (req: Request, res: Response) => {
   try {
     const notifications = await Notification.find({ userId: req.user?.id })
       .populate('memberId', 'name email')
@@ -29,7 +29,7 @@ router.get('/', authenticate, async (req: Request, res: Response) => {
 });
 
 // Get unread count
-router.get('/unread-count', authenticate, async (req: Request, res: Response) => {
+router.get('/unread-count', async (req: Request, res: Response) => {
   try {
     const count = await Notification.countDocuments({
       userId: req.user?.id,
@@ -44,7 +44,7 @@ router.get('/unread-count', authenticate, async (req: Request, res: Response) =>
 });
 
 // Mark notification as read
-router.patch('/:id/read', authenticate, async (req: Request, res: Response) => {
+router.patch('/:id/read', async (req: Request, res: Response) => {
   try {
     const notification = await Notification.findById(req.params.id);
 
@@ -68,7 +68,7 @@ router.patch('/:id/read', authenticate, async (req: Request, res: Response) => {
 });
 
 // Mark all notifications as read
-router.patch('/read-all', authenticate, async (req: Request, res: Response) => {
+router.patch('/read-all', async (req: Request, res: Response) => {
   try {
     await Notification.updateMany(
       { userId: req.user?.id, read: false },
@@ -83,7 +83,7 @@ router.patch('/read-all', authenticate, async (req: Request, res: Response) => {
 });
 
 // Delete notification
-router.delete('/:id', authenticate, async (req: Request, res: Response) => {
+router.delete('/:id', async (req: Request, res: Response) => {
   try {
     const notification = await Notification.findById(req.params.id);
 
