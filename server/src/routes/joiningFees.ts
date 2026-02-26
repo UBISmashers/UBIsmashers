@@ -14,7 +14,7 @@ const joiningFeeSchema = z.object({
   note: z.string().optional(),
 });
 
-// Get joining fees
+// Get advance payments
 router.get('/', async (_req: Request, res: Response) => {
   try {
     const fees = await JoiningFee.find()
@@ -24,12 +24,12 @@ router.get('/', async (_req: Request, res: Response) => {
 
     return res.json(fees);
   } catch (error) {
-    console.error('Get joining fees error:', error);
+    console.error('Get advance payments error:', error);
     return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// Create joining fee entry
+// Create advance entry
 router.post('/', async (req: Request, res: Response) => {
   try {
     const validatedData = joiningFeeSchema.parse(req.body);
@@ -58,22 +58,22 @@ router.post('/', async (req: Request, res: Response) => {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: error.errors[0].message });
     }
-    console.error('Create joining fee error:', error);
+    console.error('Create advance error:', error);
     return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// Delete joining fee entry
+// Delete advance entry
 router.delete('/:id', async (req: Request, res: Response) => {
   try {
     const fee = await JoiningFee.findByIdAndDelete(req.params.id);
     if (!fee) {
-      return res.status(404).json({ error: 'Joining fee not found' });
+      return res.status(404).json({ error: 'Advance not found' });
     }
 
-    return res.json({ message: 'Joining fee deleted successfully' });
+    return res.json({ message: 'Advance deleted successfully' });
   } catch (error) {
-    console.error('Delete joining fee error:', error);
+    console.error('Delete advance error:', error);
     return res.status(500).json({ error: 'Internal server error' });
   }
 });

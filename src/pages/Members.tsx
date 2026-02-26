@@ -285,7 +285,7 @@ export default function Members() {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label>Joining Fee (Optional)</Label>
+                  <Label>Advance (Optional)</Label>
                   <Input
                     type="number"
                     min="0"
@@ -301,7 +301,7 @@ export default function Members() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Joining Fee Note (Optional)</Label>
+                  <Label>Advance Note (Optional)</Label>
                   <Input
                     placeholder="Payment note..."
                     value={newMember.joiningFeeNote}

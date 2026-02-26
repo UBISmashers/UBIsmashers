@@ -46,10 +46,10 @@ export default function JoiningFees() {
         date: format(new Date(), "yyyy-MM-dd"),
         note: "",
       });
-      toast.success("Joining fee added successfully!");
+      toast.success("Advance added successfully!");
     },
     onError: (error: any) => {
-      toast.error("Failed to add joining fee", {
+      toast.error("Failed to add advance", {
         description: error.message || "An error occurred",
       });
     },
@@ -59,10 +59,10 @@ export default function JoiningFees() {
     mutationFn: (id: string) => api.deleteJoiningFee(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["joining-fees"] });
-      toast.success("Joining fee deleted successfully!");
+      toast.success("Advance deleted successfully!");
     },
     onError: (error: any) => {
-      toast.error("Failed to delete joining fee", {
+      toast.error("Failed to delete advance", {
         description: error.message || "An error occurred",
       });
     },
@@ -82,7 +82,7 @@ export default function JoiningFees() {
   };
 
   const handleDeleteFee = (id: string) => {
-    if (confirm("Are you sure you want to delete this joining fee entry?")) {
+    if (confirm("Are you sure you want to delete this advance entry?")) {
       deleteFeeMutation.mutate(id);
     }
   };
@@ -92,9 +92,9 @@ export default function JoiningFees() {
       <div className="space-y-6 animate-fade-in">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-display font-bold">Joining Fees</h1>
+            <h1 className="text-3xl font-display font-bold">Advance</h1>
             <p className="text-muted-foreground mt-1">
-              Record multiple joining fee payments per member
+              Record multiple advance payments per member
             </p>
           </div>
           <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
@@ -106,9 +106,9 @@ export default function JoiningFees() {
             </DialogTrigger>
             <DialogContent className="max-w-md">
               <DialogHeader>
-                <DialogTitle>Add Joining Fee</DialogTitle>
+                <DialogTitle>Add Advance</DialogTitle>
                 <DialogDescription>
-                  Record a joining fee payment for a member.
+                  Record an advance payment for a member.
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-4">
@@ -189,7 +189,7 @@ export default function JoiningFees() {
               </div>
             ) : fees.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-8">
-                No joining fee payments recorded yet.
+                No advance payments recorded yet.
               </p>
             ) : (
               <Table>

@@ -93,13 +93,18 @@ export default function Expenses() {
     amount: 0,
     selectedMemberIds: [] as string[],
   });
-  const [newEquipment, setNewEquipment] = useState({
+  const [newEquipment, setNewEquipment] = useState<{
+    date: string;
+    itemName: string;
+    description: string;
+    amount: number;
+    quantityPurchased: string;
+  }>({
     date: format(new Date(), "yyyy-MM-dd"),
     itemName: "",
     description: "",
     amount: 0,
-    quantityPurchased: 1,
-    selectedMemberIds: [] as string[],
+    quantityPurchased: "",
   });
 
   // Fetch expenses - filter by member if not admin
@@ -170,8 +175,7 @@ export default function Expenses() {
         itemName: "",
         description: "",
         amount: 0,
-        quantityPurchased: 1,
-        selectedMemberIds: [],
+        quantityPurchased: "",
       });
       toast.success("Equipment purchase added successfully!");
     },
@@ -248,8 +252,14 @@ export default function Expenses() {
   };
 
   const handleAddEquipment = () => {
-    if (!newEquipment.itemName || newEquipment.amount <= 0 || newEquipment.quantityPurchased <= 0 || newEquipment.selectedMemberIds.length === 0) {
-      toast.error("Please fill in all required fields and select at least one member");
+    const quantityPurchased = parseInt(newEquipment.quantityPurchased, 10);
+    if (
+      !newEquipment.itemName ||
+      newEquipment.amount <= 0 ||
+      Number.isNaN(quantityPurchased) ||
+      quantityPurchased <= 0
+    ) {
+      toast.error("Please fill in all required fields");
       return;
     }
     createEquipmentMutation.mutate({
@@ -257,8 +267,7 @@ export default function Expenses() {
       itemName: newEquipment.itemName,
       description: newEquipment.description,
       amount: newEquipment.amount,
-      quantityPurchased: newEquipment.quantityPurchased,
-      selectedMembers: newEquipment.selectedMemberIds,
+      quantityPurchased,
     });
   };
 
@@ -271,14 +280,6 @@ export default function Expenses() {
     }));
   };
 
-  const toggleEquipmentMemberSelection = (memberId: string) => {
-    setNewEquipment((prev) => ({
-      ...prev,
-      selectedMemberIds: prev.selectedMemberIds.includes(memberId)
-        ? prev.selectedMemberIds.filter((id) => id !== memberId)
-        : [...prev.selectedMemberIds, memberId],
-    }));
-  };
 
   const selectAllMembers = () => {
     const allMemberIds = members.map((m: any) => m._id || m.id);
@@ -288,13 +289,6 @@ export default function Expenses() {
     }));
   };
 
-  const selectAllEquipmentMembers = () => {
-    const allMemberIds = members.map((m: any) => m._id || m.id);
-    setNewEquipment((prev) => ({
-      ...prev,
-      selectedMemberIds: allMemberIds,
-    }));
-  };
 
   const deselectAllMembers = () => {
     setNewExpense((prev) => ({
@@ -303,21 +297,10 @@ export default function Expenses() {
     }));
   };
 
-  const deselectAllEquipmentMembers = () => {
-    setNewEquipment((prev) => ({
-      ...prev,
-      selectedMemberIds: [],
-    }));
-  };
 
   const selectedMembersCount = newExpense.selectedMemberIds.length;
   const perMemberShare = newExpense.amount > 0 && selectedMembersCount > 0
     ? newExpense.amount / selectedMembersCount
-    : 0;
-
-  const equipmentSelectedCount = newEquipment.selectedMemberIds.length;
-  const equipmentPerMemberShare = newEquipment.amount > 0 && equipmentSelectedCount > 0
-    ? newEquipment.amount / equipmentSelectedCount
     : 0;
 
   const handleDeleteExpense = (id: string) => {
@@ -761,7 +744,7 @@ export default function Expenses() {
                     <DialogHeader>
                       <DialogTitle>Add Equipment Purchase</DialogTitle>
                       <DialogDescription>
-                        Track equipment bought in advance and split the cost among members
+                        Track equipment bought in advance.
                       </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-4 py-4">
@@ -817,78 +800,15 @@ export default function Expenses() {
                           type="number"
                           min="1"
                           step="1"
-                          value={newEquipment.quantityPurchased || 1}
+                          className="no-spinner"
+                          value={newEquipment.quantityPurchased}
                           onChange={(e) =>
                             setNewEquipment({
                               ...newEquipment,
-                              quantityPurchased: parseInt(e.target.value, 10) || 1,
+                              quantityPurchased: e.target.value,
                             })
                           }
                         />
-                      </div>
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <Label>Select Members to Split Cost</Label>
-                          <div className="flex gap-2">
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              onClick={selectAllEquipmentMembers}
-                              className="h-7 text-xs"
-                            >
-                              Select All
-                            </Button>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              onClick={deselectAllEquipmentMembers}
-                              className="h-7 text-xs"
-                            >
-                              Clear
-                            </Button>
-                          </div>
-                        </div>
-                        <ScrollArea className="h-48 rounded-md border p-3">
-                          <div className="space-y-2">
-                            {members.length === 0 ? (
-                              <p className="text-sm text-muted-foreground text-center py-4">
-                                No members found. Add members first.
-                              </p>
-                            ) : (
-                              members.map((member: any) => {
-                                const memberId = member._id || member.id;
-                                const isSelected = newEquipment.selectedMemberIds.includes(memberId);
-                                return (
-                                  <div
-                                    key={memberId}
-                                    className="flex items-center space-x-2 p-2 rounded hover:bg-secondary/50 cursor-pointer"
-                                    onClick={() => toggleEquipmentMemberSelection(memberId)}
-                                  >
-                                    <Checkbox
-                                      checked={isSelected}
-                                      onCheckedChange={() => toggleEquipmentMemberSelection(memberId)}
-                                    />
-                                    <Label className="flex-1 cursor-pointer font-normal">
-                                      {member.name}
-                                    </Label>
-                                  </div>
-                                );
-                              })
-                            )}
-                          </div>
-                        </ScrollArea>
-                      </div>
-                      <div className="p-3 rounded-lg bg-secondary/50">
-                        <p className="text-sm text-muted-foreground">
-                          This purchase will be split among{" "}
-                          <span className="font-semibold">{equipmentSelectedCount}</span>{" "}
-                          member{equipmentSelectedCount !== 1 ? "s" : ""}. Per member share:{" "}
-                          <span className="font-semibold text-primary">
-                            ${equipmentPerMemberShare.toFixed(2)}
-                          </span>
-                        </p>
                       </div>
                     </div>
                     <DialogFooter>
@@ -901,7 +821,7 @@ export default function Expenses() {
                       </Button>
                       <Button
                         onClick={handleAddEquipment}
-                        disabled={createEquipmentMutation.isPending || equipmentSelectedCount === 0}
+                        disabled={createEquipmentMutation.isPending}
                       >
                         {createEquipmentMutation.isPending ? (
                           <>

@@ -32,7 +32,7 @@ export function Sidebar({ className }: SidebarProps) {
     { to: "/members", icon: Users, label: "Members" },
     { to: "/reports", icon: BarChart3, label: "Reports" },
     ...(user?.role === "admin"
-      ? [{ to: "/joining-fees", icon: BadgeDollarSign, label: "Joining Fees" }]
+      ? [{ to: "/joining-fees", icon: BadgeDollarSign, label: "Advance" }]
       : []),
   ];
 

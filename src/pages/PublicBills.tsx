@@ -246,7 +246,7 @@ export default function PublicBills() {
               </div>
             ) : (data?.joiningFees || []).length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-8">
-                No joining fee payments recorded.
+                No advance payments recorded.
               </p>
             ) : (
               <Table>

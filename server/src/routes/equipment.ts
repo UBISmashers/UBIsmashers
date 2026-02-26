@@ -16,7 +16,7 @@ const equipmentSchema = z.object({
   amount: z.number().min(0, 'Amount must be positive'),
   quantityPurchased: z.number().min(1, 'Quantity must be at least 1'),
   quantityUsed: z.number().min(0).optional(),
-  selectedMembers: z.array(z.string()).min(1, 'At least one member must be selected'),
+  selectedMembers: z.array(z.string()).optional(),
   status: z.enum(['pending', 'completed']).optional(),
 });
 
@@ -52,9 +52,11 @@ router.post('/', async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Member profile not found' });
     }
 
-    const selectedMemberIds = validatedData.selectedMembers.map((id: string) => new mongoose.Types.ObjectId(id));
+    const selectedMemberIds = (validatedData.selectedMembers || []).map(
+      (id: string) => new mongoose.Types.ObjectId(id)
+    );
     const memberCount = selectedMemberIds.length;
-    const perMemberShare = validatedData.amount / memberCount;
+    const perMemberShare = memberCount > 0 ? validatedData.amount / memberCount : 0;
 
     const equipment = await Expense.create({
       date: expenseDate,
@@ -62,7 +64,7 @@ router.post('/', async (req: Request, res: Response) => {
       description: validatedData.description || validatedData.itemName,
       amount: validatedData.amount,
       paidBy: member._id,
-      presentMembers: memberCount,
+      presentMembers: Math.max(1, memberCount),
       selectedMembers: selectedMemberIds,
       perMemberShare,
       status: validatedData.status || 'pending',
@@ -72,31 +74,33 @@ router.post('/', async (req: Request, res: Response) => {
       quantityUsed: validatedData.quantityUsed || 0,
     });
 
-    await Promise.all(
-      selectedMemberIds.map(async (memberId) => {
-        if (memberId.toString() === member._id.toString()) {
-          return null;
-        }
-        return ExpenseShare.create({
-          expenseId: equipment._id,
-          memberId,
-          amount: perMemberShare,
-          paidStatus: false,
-        });
-      })
-    );
-
-    await Promise.all(
-      selectedMemberIds.map(async (memberId) => {
-        if (memberId.toString() !== member._id.toString()) {
-          const shareMember = await Member.findById(memberId);
-          if (shareMember) {
-            shareMember.balance = (shareMember.balance || 0) + perMemberShare;
-            await shareMember.save();
+    if (memberCount > 0) {
+      await Promise.all(
+        selectedMemberIds.map(async (memberId) => {
+          if (memberId.toString() === member._id.toString()) {
+            return null;
           }
-        }
-      })
-    );
+          return ExpenseShare.create({
+            expenseId: equipment._id,
+            memberId,
+            amount: perMemberShare,
+            paidStatus: false,
+          });
+        })
+      );
+
+      await Promise.all(
+        selectedMemberIds.map(async (memberId) => {
+          if (memberId.toString() !== member._id.toString()) {
+            const shareMember = await Member.findById(memberId);
+            if (shareMember) {
+              shareMember.balance = (shareMember.balance || 0) + perMemberShare;
+              await shareMember.save();
+            }
+          }
+        })
+      );
+    }
 
     await equipment.populate('paidBy', 'name email');
     await equipment.populate('selectedMembers', 'name email');
