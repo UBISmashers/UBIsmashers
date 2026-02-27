@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   Dialog,
   DialogContent,
@@ -77,6 +78,13 @@ const categoryInfo = {
   other: { icon: DollarSign, color: "text-muted-foreground", bg: "bg-muted" },
 };
 
+const categoryLabels: Record<string, string> = {
+  court: "Session Expense",
+  equipment: "Equipment",
+  refreshments: "Refreshments",
+  other: "Other",
+};
+
 export default function Expenses() {
   const { api, user, member } = useAuth();
   const queryClient = useQueryClient();
@@ -86,11 +94,16 @@ export default function Expenses() {
   const [usageTarget, setUsageTarget] = useState<any>(null);
   const [usageValue, setUsageValue] = useState(0);
   const [filterCategory, setFilterCategory] = useState<string>("all");
+  const [memberSearch, setMemberSearch] = useState("");
   const [newExpense, setNewExpense] = useState({
     date: format(new Date(), "yyyy-MM-dd"),
     category: "court" as "court" | "equipment" | "refreshments" | "other",
-    description: "",
+    description: "Session expense",
     amount: 0,
+    courtBookingCost: 0,
+    perShuttleCost: 0,
+    shuttlesUsed: 0,
+    reduceFromStock: false,
     selectedMemberIds: [] as string[],
   });
   const [newEquipment, setNewEquipment] = useState<{
@@ -152,8 +165,12 @@ export default function Expenses() {
       setNewExpense({
         date: format(new Date(), "yyyy-MM-dd"),
         category: "court",
-        description: "",
+        description: "Session expense",
         amount: 0,
+        courtBookingCost: 0,
+        perShuttleCost: 0,
+        shuttlesUsed: 0,
+        reduceFromStock: false,
         selectedMemberIds: [],
       });
       toast.success("Expense added successfully!");
@@ -241,12 +258,18 @@ export default function Expenses() {
     .reduce((sum: number, e: any) => sum + e.amount, 0);
 
   const handleAddExpense = () => {
-    if (!newExpense.description || newExpense.amount <= 0 || newExpense.selectedMemberIds.length === 0) {
+    const isCourt = newExpense.category === "court";
+    const computedCourtAmount =
+      (newExpense.courtBookingCost || 0) + (newExpense.perShuttleCost || 0) * (newExpense.shuttlesUsed || 0);
+    const effectiveAmount = isCourt ? computedCourtAmount : newExpense.amount;
+
+    if (!newExpense.description || effectiveAmount <= 0 || newExpense.selectedMemberIds.length === 0) {
       toast.error("Please fill in all required fields and select at least one member");
       return;
     }
     createExpenseMutation.mutate({
       ...newExpense,
+      amount: effectiveAmount,
       selectedMembers: newExpense.selectedMemberIds,
     });
   };
@@ -299,9 +322,20 @@ export default function Expenses() {
 
 
   const selectedMembersCount = newExpense.selectedMemberIds.length;
-  const perMemberShare = newExpense.amount > 0 && selectedMembersCount > 0
-    ? newExpense.amount / selectedMembersCount
+  const isCourt = newExpense.category === "court";
+  const computedCourtAmount =
+    (newExpense.courtBookingCost || 0) + (newExpense.perShuttleCost || 0) * (newExpense.shuttlesUsed || 0);
+  const effectiveAmount = isCourt ? computedCourtAmount : newExpense.amount;
+  const perMemberShare = effectiveAmount > 0 && selectedMembersCount > 0
+    ? effectiveAmount / selectedMembersCount
     : 0;
+
+  const normalizedMemberSearch = memberSearch.trim().toLowerCase();
+  const filteredMembers = normalizedMemberSearch.length === 0
+    ? members
+    : members.filter((member: any) =>
+        (member.name || "").toLowerCase().includes(normalizedMemberSearch)
+      );
 
   const handleDeleteExpense = (id: string) => {
     if (confirm("Are you sure you want to delete this expense?")) {
@@ -352,7 +386,7 @@ export default function Expenses() {
                       if (user?.role === "admin") {
                         return [
                           format(new Date(expense.date), "yyyy-MM-dd"),
-                          expense.category,
+                          categoryLabels[expense.category] || expense.category,
                           expense.description,
                           `$${expense.amount.toFixed(2)}`,
                           typeof expense.paidBy === "object" ? expense.paidBy?.name || "Unknown" : expense.paidBy || "Unknown",
@@ -363,7 +397,7 @@ export default function Expenses() {
                       } else {
                         return [
                           format(new Date(expense.date), "yyyy-MM-dd"),
-                          expense.category,
+                          categoryLabels[expense.category] || expense.category,
                           expense.description,
                           `$${expense.amount.toFixed(2)}`,
                           `$${expense.perMemberShare?.toFixed(2) || "0.00"}`,
@@ -391,7 +425,7 @@ export default function Expenses() {
                     Add Expense
                   </Button>
                 </DialogTrigger>
-              <DialogContent className="max-w-md">
+              <DialogContent className="max-w-md w-[95vw] max-h-[80vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle>Add New Expense</DialogTitle>
                   <DialogDescription>
@@ -404,14 +438,27 @@ export default function Expenses() {
                     <Select
                       value={newExpense.category}
                       onValueChange={(value) =>
-                        setNewExpense({ ...newExpense, category: value as any })
+                        setNewExpense((prev) => {
+                          const nextCategory = value as any;
+                          const nextDescription =
+                            nextCategory === "court"
+                              ? "Session expense"
+                              : prev.description === "Session expense"
+                              ? ""
+                              : prev.description;
+                          return {
+                            ...prev,
+                            category: nextCategory,
+                            description: nextDescription,
+                          };
+                        })
                       }
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="Select category" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="court">Court Booking</SelectItem>
+                        <SelectItem value="court">Session Expense</SelectItem>
                         <SelectItem value="equipment">Equipment</SelectItem>
                         <SelectItem value="refreshments">Refreshments</SelectItem>
                         <SelectItem value="other">Other</SelectItem>
@@ -428,16 +475,100 @@ export default function Expenses() {
                       }
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label>Description</Label>
-                    <Textarea
-                      placeholder="Describe the expense..."
-                      value={newExpense.description}
-                      onChange={(e) =>
-                        setNewExpense({ ...newExpense, description: e.target.value })
-                      }
-                    />
-                  </div>
+                  {newExpense.category !== "court" && (
+                    <div className="space-y-2">
+                      <Label>Description</Label>
+                      <Textarea
+                        placeholder="Describe the expense..."
+                        value={newExpense.description}
+                        onChange={(e) =>
+                          setNewExpense({ ...newExpense, description: e.target.value })
+                        }
+                      />
+                    </div>
+                  )}
+                  {newExpense.category === "court" && (
+                    <div className="space-y-3 rounded-lg border p-3">
+                      <p className="text-sm font-medium">Court Payment Breakdown</p>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div className="space-y-2">
+                          <Label>Court Booking Cost ($)</Label>
+                          <Input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            placeholder="0.00"
+                            value={newExpense.courtBookingCost || ""}
+                            onChange={(e) =>
+                              setNewExpense({
+                                ...newExpense,
+                                courtBookingCost: parseFloat(e.target.value) || 0,
+                              })
+                            }
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Per Shuttle Cost ($)</Label>
+                          <Input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            placeholder="0.00"
+                            value={newExpense.perShuttleCost || ""}
+                            onChange={(e) =>
+                              setNewExpense({
+                                ...newExpense,
+                                perShuttleCost: parseFloat(e.target.value) || 0,
+                              })
+                            }
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>No. of Shuttles Used</Label>
+                          <Input
+                            type="number"
+                            min="0"
+                            step="1"
+                            className="no-spinner"
+                            placeholder="0"
+                            value={newExpense.shuttlesUsed || ""}
+                            onChange={(e) =>
+                              setNewExpense({
+                                ...newExpense,
+                                shuttlesUsed: parseInt(e.target.value, 10) || 0,
+                              })
+                            }
+                          />
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Reduce This Number in Equipment Stock?</Label>
+                        <RadioGroup
+                          className="grid grid-cols-2 gap-4"
+                          value={newExpense.reduceFromStock ? "yes" : "no"}
+                          onValueChange={(value) =>
+                            setNewExpense({ ...newExpense, reduceFromStock: value === "yes" })
+                          }
+                        >
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="yes" id="reduce-yes" />
+                            <Label htmlFor="reduce-yes" className="font-normal">
+                              Yes, reduce stock
+                            </Label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="no" id="reduce-no" />
+                            <Label htmlFor="reduce-no" className="font-normal">
+                              No, do nothing
+                            </Label>
+                          </div>
+                        </RadioGroup>
+                        <p className="text-xs text-muted-foreground">
+                          When enabled, shuttle usage will reduce the available shuttle stock.
+                        </p>
+                      </div>
+                    </div>
+                  )}
                   <div className="space-y-2">
                     <Label>Amount ($)</Label>
                     <Input
@@ -445,7 +576,8 @@ export default function Expenses() {
                       min="0"
                       step="0.01"
                       placeholder="0.00"
-                      value={newExpense.amount || ""}
+                      value={effectiveAmount || ""}
+                      disabled={newExpense.category === "court"}
                       onChange={(e) =>
                         setNewExpense({
                           ...newExpense,
@@ -478,14 +610,25 @@ export default function Expenses() {
                         </Button>
                       </div>
                     </div>
+                    <div className="space-y-2">
+                      <Input
+                        placeholder="Search members..."
+                        value={memberSearch}
+                        onChange={(e) => setMemberSearch(e.target.value)}
+                      />
+                    </div>
                     <ScrollArea className="h-48 rounded-md border p-3">
                       <div className="space-y-2">
                         {members.length === 0 ? (
                           <p className="text-sm text-muted-foreground text-center py-4">
                             No members found. Add members first.
                           </p>
+                        ) : filteredMembers.length === 0 ? (
+                          <p className="text-sm text-muted-foreground text-center py-4">
+                            No members match your search.
+                          </p>
                         ) : (
-                          members.map((member: any) => {
+                          filteredMembers.map((member: any) => {
                             const memberId = member._id || member.id;
                             const isSelected = newExpense.selectedMemberIds.includes(memberId);
                             return (
@@ -566,7 +709,7 @@ export default function Expenses() {
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-muted-foreground">Court Fees</p>
+                  <p className="text-sm text-muted-foreground">Session Expenses</p>
                   <p className="text-2xl font-bold font-display">
                     ${expenses.filter((e: any) => e.category === "court").reduce((s: number, e: any) => s + e.amount, 0).toFixed(2)}
                   </p>
@@ -622,7 +765,7 @@ export default function Expenses() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Categories</SelectItem>
-                    <SelectItem value="court">Court Booking</SelectItem>
+                    <SelectItem value="court">Session Expense</SelectItem>
                     <SelectItem value="equipment">Equipment</SelectItem>
                     <SelectItem value="refreshments">Refreshments</SelectItem>
                     <SelectItem value="other">Other</SelectItem>
@@ -671,7 +814,7 @@ export default function Expenses() {
                             <div className={`p-1.5 rounded ${catInfo.bg}`}>
                               <Icon className={`h-3.5 w-3.5 ${catInfo.color}`} />
                             </div>
-                            <span className="capitalize text-sm">{expense.category}</span>
+                            <span className="text-sm">{categoryLabels[expense.category] || expense.category}</span>
                           </div>
                         </TableCell>
                         <TableCell className="max-w-[200px] truncate">

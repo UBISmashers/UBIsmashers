@@ -36,7 +36,10 @@ router.post('/mark-paid', async (req: Request, res: Response) => {
       await member.save();
     }
 
-    await expenseShare.populate('expenseId', 'description amount date');
+    await expenseShare.populate(
+      'expenseId',
+      'description amount date category courtBookingCost perShuttleCost shuttlesUsed',
+    );
     await expenseShare.populate('memberId', 'name email');
 
     return res.json({
@@ -56,7 +59,7 @@ router.get('/member/:memberId', async (req: Request, res: Response) => {
   try {
     const { memberId } = req.params;
     const expenseShares = await ExpenseShare.find({ memberId })
-      .populate('expenseId', 'description amount date category')
+      .populate('expenseId', 'description amount date category courtBookingCost perShuttleCost shuttlesUsed')
       .sort({ createdAt: -1 });
 
     const totalShare = expenseShares.reduce((sum, share) => sum + share.amount, 0);
@@ -84,7 +87,7 @@ router.get('/member/:memberId', async (req: Request, res: Response) => {
 router.get('/all', async (_req: Request, res: Response) => {
   try {
     const expenseShares = await ExpenseShare.find()
-      .populate('expenseId', 'description amount date category')
+      .populate('expenseId', 'description amount date category courtBookingCost perShuttleCost shuttlesUsed')
       .populate('memberId', 'name email')
       .sort({ createdAt: -1 });
 

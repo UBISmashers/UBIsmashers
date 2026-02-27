@@ -205,6 +205,16 @@ export default function Members() {
     }
   };
 
+  const formatExpenseTitle = (expense: any) => {
+    if (expense?.category === "court") {
+      const shuttlesUsed = expense.shuttlesUsed ?? 0;
+      const perShuttleCost = expense.perShuttleCost ?? 0;
+      const courtBookingCost = expense.courtBookingCost ?? 0;
+      return `${shuttlesUsed}*${perShuttleCost}+${courtBookingCost}`;
+    }
+    return expense?.description || "Expense";
+  };
+
   return (
     <MainLayout>
       <div className="space-y-6 animate-fade-in">
@@ -598,7 +608,7 @@ export default function Members() {
 
         {/* Payment Details Dialog */}
         <Dialog open={isPaymentDialogOpen} onOpenChange={setIsPaymentDialogOpen}>
-          <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogContent className="max-w-2xl w-[95vw] max-h-[80vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>
                 Payment Details - {selectedMemberForPayments?.name}
@@ -648,7 +658,7 @@ export default function Members() {
                             <div className="flex items-center justify-between">
                               <div className="flex-1">
                                 <p className="font-medium">
-                                  {share.expenseId?.description || 'Expense'}
+                                  {formatExpenseTitle(share.expenseId)}
                                 </p>
                                 <div className="flex items-center gap-4 mt-1 text-sm text-muted-foreground">
                                   <span>

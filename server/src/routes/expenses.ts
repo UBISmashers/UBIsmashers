@@ -14,6 +14,10 @@ const expenseSchema = z.object({
   category: z.enum(['court', 'equipment', 'refreshments', 'other']),
   description: z.string().min(1, 'Description is required'),
   amount: z.number().min(0, 'Amount must be positive'),
+  courtBookingCost: z.number().min(0).optional(),
+  perShuttleCost: z.number().min(0).optional(),
+  shuttlesUsed: z.number().min(0).optional(),
+  reduceFromStock: z.boolean().optional(),
   presentMembers: z.number().min(1, 'At least one member must be present').optional(),
   selectedMembers: z.array(z.string()).min(1, 'At least one member must be selected').optional(),
   status: z.enum(['pending', 'completed']).optional(),
@@ -100,17 +104,52 @@ router.post('/', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Either selectedMembers or presentMembers must be provided' });
     }
 
-    const perMemberShare = validatedData.amount / memberCount;
+    const hasBreakdown =
+      validatedData.category === 'court' &&
+      (validatedData.courtBookingCost !== undefined ||
+        validatedData.perShuttleCost !== undefined ||
+        validatedData.shuttlesUsed !== undefined);
+    const computedAmount =
+      validatedData.category === 'court'
+        ? (validatedData.courtBookingCost || 0) +
+          (validatedData.perShuttleCost || 0) * (validatedData.shuttlesUsed || 0)
+        : validatedData.amount;
+    const finalAmount = hasBreakdown ? computedAmount : validatedData.amount;
+    const perMemberShare = finalAmount / memberCount;
 
     const expense = await Expense.create({
       ...validatedData,
       date: expenseDate,
+      amount: finalAmount,
       paidBy: member._id,
       presentMembers: memberCount,
       selectedMembers: selectedMemberIds,
       perMemberShare,
       status: validatedData.status || 'pending',
     });
+
+    if (validatedData.reduceFromStock && (validatedData.shuttlesUsed || 0) > 0) {
+      let remainingToUse = validatedData.shuttlesUsed || 0;
+      const shuttlePurchases = await Expense.find({
+        isInventory: true,
+        $or: [
+          { itemName: { $regex: /shuttle/i } },
+          { description: { $regex: /shuttle/i } },
+        ],
+      }).sort({ date: 1 });
+
+      for (const purchase of shuttlePurchases) {
+        if (remainingToUse <= 0) break;
+        const purchasedQty = purchase.quantityPurchased || 0;
+        const usedQty = purchase.quantityUsed || 0;
+        const remainingQty = Math.max(0, purchasedQty - usedQty);
+        if (remainingQty <= 0) continue;
+        const useQty = Math.min(remainingQty, remainingToUse);
+        purchase.quantityUsed = usedQty + useQty;
+        await purchase.save();
+        remainingToUse -= useQty;
+      }
+    }
 
     // Create expense shares for each selected member
     const expenseShares = await Promise.all(

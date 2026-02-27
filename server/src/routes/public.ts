@@ -13,7 +13,10 @@ router.get('/bills', async (_req: Request, res: Response) => {
       .sort({ name: 1 });
 
     const shares = await ExpenseShare.find()
-      .populate('expenseId', 'description amount date category isInventory itemName quantityPurchased')
+      .populate(
+        'expenseId',
+        'description amount date category isInventory itemName quantityPurchased courtBookingCost perShuttleCost shuttlesUsed',
+      )
       .populate('memberId', 'name email');
 
     const byMemberId = new Map<string, any>();

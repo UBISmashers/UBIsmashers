@@ -84,7 +84,7 @@ export default function Login() {
                 'Sign In'
               )}
             </Button>
-            <Link to="/public/bills" className="w-full">
+            <Link to="/bills" className="w-full">
               <Button type="button" variant="outline" className="w-full">
                 View Group Bills
               </Button>
