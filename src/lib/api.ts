@@ -221,6 +221,10 @@ class ApiClient {
     });
   }
 
+  async getExpenseDetails(id: string) {
+    return this.request<{ expense: any; shares: any[] }>(`/expenses/${id}/details`);
+  }
+
   async deleteExpense(id: string) {
     return this.request<{ message: string }>(`/expenses/${id}`, {
       method: "DELETE",

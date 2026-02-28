@@ -20,6 +20,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
   SelectContent,
@@ -49,6 +50,7 @@ import {
   Loader2,
   CheckSquare,
   Square,
+  Eye,
 } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
@@ -65,6 +67,7 @@ interface Expense {
   presentMembers: number;
   perMemberShare: number;
   status: "pending" | "completed";
+  selectedMembers?: any[];
   isInventory?: boolean;
   itemName?: string;
   quantityPurchased?: number;
@@ -95,6 +98,21 @@ export default function Expenses() {
   const [usageValue, setUsageValue] = useState(0);
   const [filterCategory, setFilterCategory] = useState<string>("all");
   const [memberSearch, setMemberSearch] = useState("");
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [editingExpense, setEditingExpense] = useState<any>(null);
+  const [editMemberSearch, setEditMemberSearch] = useState("");
+  const [editSplitMode, setEditSplitMode] = useState<"attendance" | "manual">("manual");
+  const [editExpense, setEditExpense] = useState({
+    date: format(new Date(), "yyyy-MM-dd"),
+    category: "court" as "court" | "equipment" | "refreshments" | "other",
+    description: "",
+    amount: 0,
+    paidBy: "",
+    presentMembers: 1,
+    selectedMemberIds: [] as string[],
+  });
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+  const [selectedExpense, setSelectedExpense] = useState<any>(null);
   const [newExpense, setNewExpense] = useState({
     date: format(new Date(), "yyyy-MM-dd"),
     category: "court" as "court" | "equipment" | "refreshments" | "other",
@@ -237,6 +255,9 @@ export default function Expenses() {
     mutationFn: (id: string) => api.deleteExpense(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["expenses"] });
+      queryClient.invalidateQueries({ queryKey: ["members"] });
+      queryClient.invalidateQueries({ queryKey: ["allPayments"] });
+      queryClient.invalidateQueries({ queryKey: ["memberPayments"] });
       toast.success("Expense deleted successfully!");
     },
     onError: (error: any) => {
@@ -244,6 +265,44 @@ export default function Expenses() {
         description: error.message || "An error occurred",
       });
     },
+  });
+
+  const updateExpenseMutation = useMutation({
+    mutationFn: (data: { id: string; payload: any }) =>
+      api.updateExpense(data.id, data.payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["expenses"] });
+      queryClient.invalidateQueries({ queryKey: ["members"] });
+      queryClient.invalidateQueries({ queryKey: ["allPayments"] });
+      queryClient.invalidateQueries({ queryKey: ["memberPayments"] });
+      if (editingExpense?._id || editingExpense?.id) {
+        queryClient.invalidateQueries({
+          queryKey: ["expenseDetails", editingExpense._id || editingExpense.id],
+        });
+      }
+      setIsEditOpen(false);
+      setEditingExpense(null);
+      toast.success("Expense updated successfully!");
+    },
+    onError: (error: any) => {
+      toast.error("Failed to update expense", {
+        description: error.message || "An error occurred",
+      });
+    },
+  });
+
+  const selectedExpenseId = selectedExpense?._id || selectedExpense?.id;
+  const { data: expenseDetails, isLoading: isExpenseDetailsLoading } = useQuery({
+    queryKey: ["expenseDetails", selectedExpenseId],
+    queryFn: () => api.getExpenseDetails(selectedExpenseId),
+    enabled: Boolean(selectedExpenseId) && user?.role === "admin" && isDetailsOpen,
+  });
+
+  const editingExpenseId = editingExpense?._id || editingExpense?.id;
+  const { data: editingExpenseDetails, isLoading: isEditingExpenseDetailsLoading } = useQuery({
+    queryKey: ["expenseDetails", editingExpenseId],
+    queryFn: () => api.getExpenseDetails(editingExpenseId),
+    enabled: Boolean(editingExpenseId) && user?.role === "admin" && isEditOpen,
   });
 
   const filteredExpenses =
@@ -336,6 +395,157 @@ export default function Expenses() {
     : members.filter((member: any) =>
         (member.name || "").toLowerCase().includes(normalizedMemberSearch)
       );
+
+  const editNormalizedMemberSearch = editMemberSearch.trim().toLowerCase();
+  const filteredEditMembers = editNormalizedMemberSearch.length === 0
+    ? members
+    : members.filter((member: any) =>
+        (member.name || "").toLowerCase().includes(editNormalizedMemberSearch)
+      );
+
+  const getItemId = (value: any) => value?._id || value?.id || value;
+
+  const toggleEditMemberSelection = (memberId: string) => {
+    setEditExpense((prev) => ({
+      ...prev,
+      selectedMemberIds: prev.selectedMemberIds.includes(memberId)
+        ? prev.selectedMemberIds.filter((id) => id !== memberId)
+        : [...prev.selectedMemberIds, memberId],
+    }));
+  };
+
+  const openEditModal = (expense: any) => {
+    const selectedIds = (expense.selectedMembers || []).map((m: any) => getItemId(m).toString());
+    const paidById = getItemId(expense.paidBy)?.toString() || "";
+    setEditingExpense(expense);
+    setEditExpense({
+      date: format(new Date(expense.date), "yyyy-MM-dd"),
+      category: expense.category,
+      description: expense.description || "",
+      amount: Number(expense.amount || 0),
+      paidBy: paidById,
+      presentMembers: Number(expense.presentMembers || selectedIds.length || 1),
+      selectedMemberIds: selectedIds,
+    });
+    setEditSplitMode(selectedIds.length > 0 ? "manual" : "attendance");
+    setEditMemberSearch("");
+    setIsEditOpen(true);
+  };
+
+  const openDetailsView = (expense: any) => {
+    setSelectedExpense(expense);
+    setIsDetailsOpen(true);
+  };
+
+  const editMemberCount =
+    editSplitMode === "manual" ? editExpense.selectedMemberIds.length : editExpense.presentMembers;
+  const editPerMemberShare =
+    editExpense.amount > 0 && editMemberCount > 0 ? editExpense.amount / editMemberCount : 0;
+
+  const handleSaveEditedExpense = () => {
+    if (!editingExpense) return;
+
+    const expenseId = editingExpense._id || editingExpense.id;
+    if (!expenseId) {
+      toast.error("Invalid expense selected");
+      return;
+    }
+
+    if (!editExpense.description.trim() || editExpense.amount <= 0 || !editExpense.paidBy) {
+      toast.error("Please fill in category, description, amount and paid by");
+      return;
+    }
+
+    if (editSplitMode === "manual" && editExpense.selectedMemberIds.length === 0) {
+      toast.error("Select at least one member for manual split");
+      return;
+    }
+
+    if (editSplitMode === "attendance" && editExpense.presentMembers < 1) {
+      toast.error("Attendance count must be at least 1");
+      return;
+    }
+
+    updateExpenseMutation.mutate({
+      id: expenseId,
+      payload: {
+        date: editExpense.date,
+        category: editExpense.category,
+        description: editExpense.description.trim(),
+        amount: editExpense.amount,
+        paidBy: editExpense.paidBy,
+        presentMembers:
+          editSplitMode === "manual"
+            ? editExpense.selectedMemberIds.length
+            : editExpense.presentMembers,
+        selectedMembers:
+          editSplitMode === "manual"
+            ? editExpense.selectedMemberIds
+            : undefined,
+      },
+    });
+  };
+
+  const getBreakdownMembers = (expenseItem: any) => {
+    const memberMap = new Map<string, any>();
+    members.forEach((m: any) => {
+      const id = getItemId(m)?.toString();
+      if (id) memberMap.set(id, m);
+    });
+    (expenseItem?.selectedMembers || []).forEach((m: any) => {
+      const id = getItemId(m)?.toString();
+      if (id && !memberMap.has(id)) memberMap.set(id, m);
+    });
+    if (expenseItem?.paidBy) {
+      const id = getItemId(expenseItem.paidBy)?.toString();
+      if (id && !memberMap.has(id)) memberMap.set(id, expenseItem.paidBy);
+    }
+    return Array.from(memberMap.values());
+  };
+
+  const getBreakdownRows = (expenseItem: any, shares: any[]) => {
+    if (!expenseItem) return [];
+    const selectedIds = new Set(
+      (expenseItem.selectedMembers || []).map((m: any) => getItemId(m)?.toString())
+    );
+    const paidById = getItemId(expenseItem.paidBy)?.toString();
+    const shareMap = new Map(
+      shares.map((share: any) => [getItemId(share.memberId)?.toString(), share])
+    );
+    const defaultShare =
+      Number(expenseItem.perMemberShare || 0) ||
+      (Number(expenseItem.amount || 0) / Number(expenseItem.presentMembers || 1));
+
+    return getBreakdownMembers(expenseItem).map((memberItem: any) => {
+      const memberId = getItemId(memberItem)?.toString();
+      const isPresent = selectedIds.has(memberId);
+      const isPayer = Boolean(memberId && paidById && memberId === paidById);
+      const share = shareMap.get(memberId);
+      const shareAmount = isPresent
+        ? Number(isPayer ? defaultShare : share?.amount ?? defaultShare)
+        : 0;
+      const paymentStatus = !isPresent
+        ? "—"
+        : isPayer
+          ? "Paid"
+          : share?.paidStatus
+            ? "Paid"
+            : "Pending";
+
+      return {
+        memberId,
+        memberName: memberItem?.name || "Unknown",
+        present: isPresent,
+        shareAmount,
+        paymentStatus,
+      };
+    });
+  };
+
+  const detailExpense = expenseDetails?.expense || selectedExpense;
+  const detailRows = getBreakdownRows(detailExpense, expenseDetails?.shares || []);
+  const editDetailExpense = editingExpenseDetails?.expense || editingExpense;
+  const editDetailRows = getBreakdownRows(editDetailExpense, editingExpenseDetails?.shares || []);
 
   const handleDeleteExpense = (id: string) => {
     if (confirm("Are you sure you want to delete this expense?")) {
@@ -805,7 +1015,11 @@ export default function Expenses() {
                     const catInfo = categoryInfo[expense.category];
                     const Icon = catInfo.icon;
                     return (
-                      <TableRow key={expense._id || expense.id}>
+                      <TableRow
+                        key={expense._id || expense.id}
+                        className="cursor-pointer"
+                        onClick={() => openDetailsView(expense)}
+                      >
                         <TableCell className="font-medium">
                           {format(new Date(expense.date), "MMM d")}
                         </TableCell>
@@ -852,8 +1066,34 @@ export default function Expenses() {
                               <Button
                                 variant="ghost"
                                 size="icon"
+                                className="h-8 w-8"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openDetailsView(expense);
+                                }}
+                              >
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openEditModal(expense);
+                                }}
+                                disabled={updateExpenseMutation.isPending}
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
                                 className="h-8 w-8 text-destructive hover:text-destructive"
-                                onClick={() => handleDeleteExpense(expense._id || expense.id)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteExpense(expense._id || expense.id);
+                                }}
                                 disabled={deleteExpenseMutation.isPending}
                               >
                                 <Trash2 className="h-4 w-4" />
@@ -869,6 +1109,354 @@ export default function Expenses() {
             )}
           </CardContent>
         </Card>
+
+        {user?.role === "admin" && (
+          <Dialog
+            open={isEditOpen}
+            onOpenChange={(open) => {
+              setIsEditOpen(open);
+              if (!open) setEditingExpense(null);
+            }}
+          >
+            <DialogContent className="max-w-3xl w-[95vw] max-h-[85vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Edit Expense</DialogTitle>
+                <DialogDescription>
+                  Update expense information and split settings.
+                </DialogDescription>
+              </DialogHeader>
+              <Tabs defaultValue="edit" className="w-full">
+                <TabsList className="grid w-full grid-cols-2">
+                  <TabsTrigger value="edit">Edit</TabsTrigger>
+                  <TabsTrigger value="details">View Details</TabsTrigger>
+                </TabsList>
+                <TabsContent value="edit" className="space-y-4 mt-4">
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label>Category</Label>
+                      <Select
+                        value={editExpense.category}
+                        onValueChange={(value) =>
+                          setEditExpense((prev) => ({
+                            ...prev,
+                            category: value as "court" | "equipment" | "refreshments" | "other",
+                          }))
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select category" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="court">Session Expense</SelectItem>
+                          <SelectItem value="equipment">Equipment</SelectItem>
+                          <SelectItem value="refreshments">Refreshments</SelectItem>
+                          <SelectItem value="other">Other</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Date</Label>
+                      <Input
+                        type="date"
+                        value={editExpense.date}
+                        onChange={(e) => setEditExpense((prev) => ({ ...prev, date: e.target.value }))}
+                      />
+                    </div>
+                    <div className="space-y-2 sm:col-span-2">
+                      <Label>Description</Label>
+                      <Textarea
+                        value={editExpense.description}
+                        onChange={(e) =>
+                          setEditExpense((prev) => ({ ...prev, description: e.target.value }))
+                        }
+                        placeholder="What this expense is for"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Total Amount ($)</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={editExpense.amount || ""}
+                        onChange={(e) =>
+                          setEditExpense((prev) => ({
+                            ...prev,
+                            amount: parseFloat(e.target.value) || 0,
+                          }))
+                        }
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Paid By</Label>
+                      <Select
+                        value={editExpense.paidBy}
+                        onValueChange={(value) =>
+                          setEditExpense((prev) => ({ ...prev, paidBy: value }))
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select member" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {members.map((member: any) => {
+                            const memberId = getItemId(member)?.toString();
+                            if (!memberId) return null;
+                            return (
+                              <SelectItem key={memberId} value={memberId}>
+                                {member.name}
+                              </SelectItem>
+                            );
+                          })}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3 rounded-lg border p-3">
+                    <Label>Split Method</Label>
+                    <RadioGroup
+                      className="grid grid-cols-1 sm:grid-cols-2 gap-3"
+                      value={editSplitMode}
+                      onValueChange={(value) =>
+                        setEditSplitMode(value as "attendance" | "manual")
+                      }
+                    >
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="attendance" id="split-attendance" />
+                        <Label htmlFor="split-attendance" className="font-normal">
+                          Attendance count
+                        </Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="manual" id="split-manual" />
+                        <Label htmlFor="split-manual" className="font-normal">
+                          Manual member selection
+                        </Label>
+                      </div>
+                    </RadioGroup>
+
+                    {editSplitMode === "attendance" && (
+                      <div className="space-y-2">
+                        <Label>Attendance Count</Label>
+                        <Input
+                          type="number"
+                          min="1"
+                          step="1"
+                          value={editExpense.presentMembers}
+                          onChange={(e) =>
+                            setEditExpense((prev) => ({
+                              ...prev,
+                              presentMembers: Math.max(1, parseInt(e.target.value, 10) || 1),
+                            }))
+                          }
+                        />
+                      </div>
+                    )}
+
+                    {editSplitMode === "manual" && (
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <Label>Select Members</Label>
+                          <div className="flex gap-2">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 text-xs"
+                              onClick={() =>
+                                setEditExpense((prev) => ({
+                                  ...prev,
+                                  selectedMemberIds: members
+                                    .map((m: any) => getItemId(m)?.toString())
+                                    .filter(Boolean),
+                                }))
+                              }
+                            >
+                              Select All
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 text-xs"
+                              onClick={() =>
+                                setEditExpense((prev) => ({ ...prev, selectedMemberIds: [] }))
+                              }
+                            >
+                              Clear
+                            </Button>
+                          </div>
+                        </div>
+                        <Input
+                          placeholder="Search members..."
+                          value={editMemberSearch}
+                          onChange={(e) => setEditMemberSearch(e.target.value)}
+                        />
+                        <ScrollArea className="h-40 rounded-md border p-3">
+                          <div className="space-y-2">
+                            {filteredEditMembers.map((member: any) => {
+                              const memberId = getItemId(member)?.toString();
+                              if (!memberId) return null;
+                              const isSelected = editExpense.selectedMemberIds.includes(memberId);
+                              return (
+                                <div
+                                  key={memberId}
+                                  className="flex items-center space-x-2 p-2 rounded hover:bg-secondary/50 cursor-pointer"
+                                  onClick={() => toggleEditMemberSelection(memberId)}
+                                >
+                                  <Checkbox
+                                    checked={isSelected}
+                                    onCheckedChange={() => toggleEditMemberSelection(memberId)}
+                                  />
+                                  <Label className="flex-1 cursor-pointer font-normal">
+                                    {member.name}
+                                  </Label>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </ScrollArea>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="p-3 rounded-lg bg-secondary/50">
+                    <p className="text-sm text-muted-foreground">
+                      Split across <span className="font-semibold">{editMemberCount}</span> member
+                      {editMemberCount !== 1 ? "s" : ""}. Per member share:{" "}
+                      <span className="font-semibold text-primary">${editPerMemberShare.toFixed(2)}</span>
+                    </p>
+                  </div>
+
+                  <DialogFooter>
+                    <Button
+                      variant="outline"
+                      onClick={() => setIsEditOpen(false)}
+                      disabled={updateExpenseMutation.isPending}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      onClick={handleSaveEditedExpense}
+                      disabled={updateExpenseMutation.isPending}
+                    >
+                      {updateExpenseMutation.isPending ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Saving...
+                        </>
+                      ) : (
+                        "Save Changes"
+                      )}
+                    </Button>
+                  </DialogFooter>
+                </TabsContent>
+                <TabsContent value="details" className="space-y-4 mt-4">
+                  {isEditingExpenseDetailsLoading ? (
+                    <div className="flex items-center justify-center py-10">
+                      <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                    </div>
+                  ) : !editDetailExpense ? (
+                    <p className="text-sm text-muted-foreground text-center py-6">
+                      No expense selected.
+                    </p>
+                  ) : (
+                    <>
+                      <div className="rounded-lg border p-4 space-y-2">
+                        <p className="text-sm"><span className="font-medium">Expense ID:</span> {editDetailExpense._id || editDetailExpense.id}</p>
+                        <p className="text-sm"><span className="font-medium">Date:</span> {format(new Date(editDetailExpense.date), "yyyy-MM-dd")}</p>
+                        <p className="text-sm"><span className="font-medium">Category:</span> {categoryLabels[editDetailExpense.category] || editDetailExpense.category}</p>
+                        <p className="text-sm"><span className="font-medium">Description:</span> {editDetailExpense.description}</p>
+                        <p className="text-sm"><span className="font-medium">Total Amount:</span> ${Number(editDetailExpense.amount || 0).toFixed(2)}</p>
+                        <p className="text-sm"><span className="font-medium">Paid By:</span> {typeof editDetailExpense.paidBy === "object" ? editDetailExpense.paidBy?.name || "Unknown" : editDetailExpense.paidBy}</p>
+                        <p className="text-sm"><span className="font-medium">Status:</span> {editDetailExpense.status === "completed" ? "Settled" : "Pending"}</p>
+                      </div>
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Member Name</TableHead>
+                            <TableHead>Present</TableHead>
+                            <TableHead>Share Amount</TableHead>
+                            <TableHead>Payment Status</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {editDetailRows.map((row: any) => (
+                            <TableRow key={row.memberId || row.memberName}>
+                              <TableCell>{row.memberName}</TableCell>
+                              <TableCell>{row.present ? "Present" : "Absent"}</TableCell>
+                              <TableCell>${Number(row.shareAmount || 0).toFixed(2)}</TableCell>
+                              <TableCell>{row.paymentStatus}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </>
+                  )}
+                </TabsContent>
+              </Tabs>
+            </DialogContent>
+          </Dialog>
+        )}
+
+        <Dialog
+          open={isDetailsOpen}
+          onOpenChange={(open) => {
+            setIsDetailsOpen(open);
+            if (!open) setSelectedExpense(null);
+          }}
+        >
+          <DialogContent className="max-w-3xl w-[95vw] max-h-[85vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Expense Details</DialogTitle>
+              <DialogDescription>
+                Expense overview and split breakdown.
+              </DialogDescription>
+            </DialogHeader>
+            {isExpenseDetailsLoading ? (
+              <div className="flex items-center justify-center py-10">
+                <Loader2 className="h-6 w-6 animate-spin text-primary" />
+              </div>
+            ) : !detailExpense ? (
+              <p className="text-sm text-muted-foreground text-center py-6">
+                No expense selected.
+              </p>
+            ) : (
+              <div className="space-y-4">
+                <div className="rounded-lg border p-4 space-y-2">
+                  <p className="text-sm"><span className="font-medium">Expense ID:</span> {detailExpense._id || detailExpense.id}</p>
+                  <p className="text-sm"><span className="font-medium">Date:</span> {format(new Date(detailExpense.date), "yyyy-MM-dd")}</p>
+                  <p className="text-sm"><span className="font-medium">Category:</span> {categoryLabels[detailExpense.category] || detailExpense.category}</p>
+                  <p className="text-sm"><span className="font-medium">Description:</span> {detailExpense.description}</p>
+                  <p className="text-sm"><span className="font-medium">Total Amount:</span> ${Number(detailExpense.amount || 0).toFixed(2)}</p>
+                  <p className="text-sm"><span className="font-medium">Paid By:</span> {typeof detailExpense.paidBy === "object" ? detailExpense.paidBy?.name || "Unknown" : detailExpense.paidBy}</p>
+                  <p className="text-sm"><span className="font-medium">Status:</span> {detailExpense.status === "completed" ? "Settled" : "Pending"}</p>
+                </div>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Member Name</TableHead>
+                      <TableHead>Present</TableHead>
+                      <TableHead>Share Amount</TableHead>
+                      <TableHead>Payment Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {detailRows.map((row: any) => (
+                      <TableRow key={row.memberId || row.memberName}>
+                        <TableCell>{row.memberName}</TableCell>
+                        <TableCell>{row.present ? "Present" : "Absent"}</TableCell>
+                        <TableCell>${Number(row.shareAmount || 0).toFixed(2)}</TableCell>
+                        <TableCell>{row.paymentStatus}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
 
         {/* Equipment Stock Section */}
         <Card>

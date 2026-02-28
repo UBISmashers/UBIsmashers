@@ -14,6 +14,7 @@ const expenseSchema = z.object({
   category: z.enum(['court', 'equipment', 'refreshments', 'other']),
   description: z.string().min(1, 'Description is required'),
   amount: z.number().min(0, 'Amount must be positive'),
+  paidBy: z.string().min(1, 'Paid by member is required').optional(),
   courtBookingCost: z.number().min(0).optional(),
   perShuttleCost: z.number().min(0).optional(),
   shuttlesUsed: z.number().min(0).optional(),
@@ -53,6 +54,28 @@ router.get('/', async (req: Request, res: Response) => {
     res.json(expenses);
   } catch (error) {
     console.error('Get expenses error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Get expense with split details
+router.get('/:id/details', async (req: Request, res: Response) => {
+  try {
+    const expense = await Expense.findById(req.params.id)
+      .populate('paidBy', 'name email')
+      .populate('selectedMembers', 'name email');
+
+    if (!expense) {
+      return res.status(404).json({ error: 'Expense not found' });
+    }
+
+    const shares = await ExpenseShare.find({ expenseId: expense._id })
+      .populate('memberId', 'name email')
+      .sort({ createdAt: 1 });
+
+    res.json({ expense, shares });
+  } catch (error) {
+    console.error('Get expense details error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -226,46 +249,152 @@ router.put('/:id', async (req: Request, res: Response) => {
     }
 
     const validatedData = expenseSchema.partial().parse(req.body);
-    
+
     // Convert date to Date object if provided
     let expenseDate: Date | undefined;
     if (validatedData.date) {
       expenseDate = validatedData.date instanceof Date 
         ? validatedData.date 
         : new Date(validatedData.date);
+      expenseDate.setHours(0, 0, 0, 0);
     }
 
-    // Recalculate per member share if amount, presentMembers, or selectedMembers changed
-    if (validatedData.amount !== undefined || validatedData.presentMembers !== undefined || validatedData.selectedMembers !== undefined) {
-      const amount = validatedData.amount ?? expense.amount;
-      let memberCount: number;
-      let selectedMemberIds: mongoose.Types.ObjectId[] = [];
-      
-      if (validatedData.selectedMembers && validatedData.selectedMembers.length > 0) {
-        selectedMemberIds = validatedData.selectedMembers.map((id: string) => new mongoose.Types.ObjectId(id));
-        memberCount = selectedMemberIds.length;
-      } else if (validatedData.presentMembers !== undefined) {
-        memberCount = validatedData.presentMembers;
-      } else {
-        memberCount = expense.selectedMembers?.length || expense.presentMembers;
+    // Keep previous shares to rebalance member balances.
+    const existingShares = await ExpenseShare.find({ expenseId: expense._id });
+    const existingShareByMemberId = new Map<string, any>();
+    existingShares.forEach((share) => {
+      existingShareByMemberId.set(share.memberId.toString(), share);
+    });
+
+    // Revert outstanding balance impact from old unpaid shares.
+    await Promise.all(
+      existingShares.map(async (share) => {
+        if (!share.paidStatus) {
+          await Member.findByIdAndUpdate(share.memberId, {
+            $inc: { balance: -share.amount },
+          });
+        }
+      })
+    );
+
+    const nextCategory = validatedData.category ?? expense.category;
+    const nextDescription = validatedData.description ?? expense.description;
+    const nextStatus = validatedData.status ?? expense.status;
+    const nextCourtBookingCost = validatedData.courtBookingCost ?? expense.courtBookingCost ?? 0;
+    const nextPerShuttleCost = validatedData.perShuttleCost ?? expense.perShuttleCost ?? 0;
+    const nextShuttlesUsed = validatedData.shuttlesUsed ?? expense.shuttlesUsed ?? 0;
+    const hasCourtBreakdown =
+      nextCategory === 'court' &&
+      (
+        validatedData.courtBookingCost !== undefined ||
+        validatedData.perShuttleCost !== undefined ||
+        validatedData.shuttlesUsed !== undefined ||
+        expense.courtBookingCost !== undefined ||
+        expense.perShuttleCost !== undefined ||
+        expense.shuttlesUsed !== undefined
+      );
+    const computedCourtAmount =
+      nextCourtBookingCost + nextPerShuttleCost * nextShuttlesUsed;
+    const nextAmount =
+      nextCategory === 'court' && hasCourtBreakdown
+        ? computedCourtAmount
+        : (validatedData.amount ?? expense.amount);
+
+    let selectedMemberIds: mongoose.Types.ObjectId[] = (expense.selectedMembers || []).map(
+      (memberRef: any) =>
+        new mongoose.Types.ObjectId((memberRef?._id || memberRef).toString())
+    );
+    if (validatedData.selectedMembers && validatedData.selectedMembers.length > 0) {
+      selectedMemberIds = validatedData.selectedMembers.map((id: string) => new mongoose.Types.ObjectId(id));
+    } else if (validatedData.selectedMembers && validatedData.selectedMembers.length === 0) {
+      selectedMemberIds = [];
+    }
+
+    let memberCount: number;
+    if (selectedMemberIds.length > 0) {
+      memberCount = selectedMemberIds.length;
+    } else if (validatedData.presentMembers !== undefined) {
+      memberCount = validatedData.presentMembers;
+    } else {
+      memberCount = expense.presentMembers;
+    }
+
+    if (memberCount <= 0) {
+      return res.status(400).json({ error: 'At least one member must be present' });
+    }
+
+    let paidByMemberId = expense.paidBy.toString();
+    if (validatedData.paidBy) {
+      const paidByMember = await Member.findById(validatedData.paidBy);
+      if (!paidByMember) {
+        return res.status(400).json({ error: 'Paid by member not found' });
       }
-      
-      // Update expense fields
-      if (validatedData.amount !== undefined) expense.amount = validatedData.amount;
-      if (validatedData.presentMembers !== undefined) expense.presentMembers = memberCount;
-      if (selectedMemberIds.length > 0) expense.selectedMembers = selectedMemberIds;
-      expense.perMemberShare = amount / memberCount;
+      paidByMemberId = paidByMember._id.toString();
     }
 
-    // Update other fields
-    if (expenseDate) {
-      expense.date = expenseDate;
+    expense.date = expenseDate ?? expense.date;
+    expense.category = nextCategory;
+    expense.description = nextDescription;
+    expense.amount = nextAmount;
+    expense.paidBy = new mongoose.Types.ObjectId(paidByMemberId);
+    expense.presentMembers = memberCount;
+    expense.selectedMembers = selectedMemberIds;
+    expense.perMemberShare = nextAmount / memberCount;
+    expense.status = nextStatus;
+
+    if (nextCategory === 'court') {
+      expense.courtBookingCost = nextCourtBookingCost;
+      expense.perShuttleCost = nextPerShuttleCost;
+      expense.shuttlesUsed = nextShuttlesUsed;
+      if (validatedData.reduceFromStock !== undefined) {
+        expense.reduceFromStock = validatedData.reduceFromStock;
+      }
+    } else {
+      expense.courtBookingCost = undefined;
+      expense.perShuttleCost = undefined;
+      expense.shuttlesUsed = undefined;
+      expense.reduceFromStock = false;
     }
-    if (validatedData.category) expense.category = validatedData.category;
-    if (validatedData.description) expense.description = validatedData.description;
-    if (validatedData.status) expense.status = validatedData.status;
+
+    // Rebuild share rows with updated split while preserving paid status by member.
+    await ExpenseShare.deleteMany({ expenseId: expense._id });
+
+    let hasUnpaidShare = false;
+    await Promise.all(
+      selectedMemberIds.map(async (memberId) => {
+        if (memberId.toString() === paidByMemberId) {
+          return;
+        }
+
+        const existingShare = existingShareByMemberId.get(memberId.toString());
+        const paidStatus = Boolean(existingShare?.paidStatus);
+        const paidAt = paidStatus ? existingShare?.paidAt || new Date() : null;
+
+        await ExpenseShare.create({
+          expenseId: expense._id,
+          memberId,
+          amount: expense.perMemberShare,
+          paidStatus,
+          paidAt,
+        });
+
+        if (!paidStatus) {
+          hasUnpaidShare = true;
+          await Member.findByIdAndUpdate(memberId, {
+            $inc: { balance: expense.perMemberShare },
+          });
+        }
+      })
+    );
+
+    // Keep status aligned with pending/settled split when explicit status is not passed.
+    if (!validatedData.status) {
+      expense.status = hasUnpaidShare ? 'pending' : 'completed';
+    }
+
     await expense.save();
     await expense.populate('paidBy', 'name email');
+    await expense.populate('selectedMembers', 'name email');
 
     res.json(expense);
   } catch (error) {
@@ -280,11 +409,27 @@ router.put('/:id', async (req: Request, res: Response) => {
 // Delete expense (Admin only)
 router.delete('/:id', async (req: Request, res: Response) => {
   try {
-    const expense = await Expense.findByIdAndDelete(req.params.id);
+    const expense = await Expense.findById(req.params.id);
     
     if (!expense) {
       return res.status(404).json({ error: 'Expense not found' });
     }
+
+    const expenseShares = await ExpenseShare.find({ expenseId: expense._id });
+
+    // Revert outstanding balances that were added for unpaid shares.
+    await Promise.all(
+      expenseShares.map(async (share) => {
+        if (!share.paidStatus) {
+          await Member.findByIdAndUpdate(share.memberId, {
+            $inc: { balance: -share.amount },
+          });
+        }
+      })
+    );
+
+    await ExpenseShare.deleteMany({ expenseId: expense._id });
+    await expense.deleteOne();
 
     res.json({ message: 'Expense deleted successfully' });
   } catch (error) {
