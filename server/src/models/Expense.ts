@@ -18,6 +18,13 @@ export interface IExpense extends Document {
   perShuttleCost?: number;
   shuttlesUsed?: number;
   reduceFromStock?: boolean;
+  reduceFromAdvance?: boolean;
+  advanceDeductedAmount?: number;
+  advanceShortfallAmount?: number;
+  advanceDeductions?: Array<{
+    joiningFeeId: mongoose.Types.ObjectId;
+    amount: number;
+  }>;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -102,6 +109,40 @@ const expenseSchema = new Schema<IExpense>(
     reduceFromStock: {
       type: Boolean,
       default: false,
+    },
+    reduceFromAdvance: {
+      type: Boolean,
+      default: false,
+    },
+    advanceDeductedAmount: {
+      type: Number,
+      min: [0, 'Advance deducted amount must be non-negative'],
+      default: 0,
+    },
+    advanceShortfallAmount: {
+      type: Number,
+      min: [0, 'Advance shortfall amount must be non-negative'],
+      default: 0,
+    },
+    advanceDeductions: {
+      type: [
+        new Schema(
+          {
+            joiningFeeId: {
+              type: Schema.Types.ObjectId,
+              ref: 'JoiningFee',
+              required: true,
+            },
+            amount: {
+              type: Number,
+              min: [0, 'Advance deduction amount must be non-negative'],
+              required: true,
+            },
+          },
+          { _id: false }
+        ),
+      ],
+      default: [],
     },
   },
   {

@@ -26,6 +26,18 @@ router.post('/mark-paid', async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Expense share not found' });
     }
 
+    if (expenseShare.paidStatus) {
+      await expenseShare.populate(
+        'expenseId',
+        'description amount date category courtBookingCost perShuttleCost shuttlesUsed',
+      );
+      await expenseShare.populate('memberId', 'name email');
+      return res.json({
+        message: 'Payment already marked as paid',
+        expenseShare,
+      });
+    }
+
     expenseShare.paidStatus = true;
     expenseShare.paidAt = new Date();
     await expenseShare.save();

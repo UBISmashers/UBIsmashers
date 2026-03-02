@@ -14,6 +14,12 @@ const joiningFeeSchema = z.object({
   note: z.string().optional(),
 });
 
+const normalizeAdvanceStatus = (totalAmount: number, remainingAmount: number) => {
+  if (remainingAmount <= 0) return 'fully_used';
+  if (remainingAmount < totalAmount) return 'partially_used';
+  return 'available';
+};
+
 // Get advance payments
 router.get('/', async (_req: Request, res: Response) => {
   try {
@@ -22,7 +28,49 @@ router.get('/', async (_req: Request, res: Response) => {
       .populate('receivedBy', 'name email')
       .sort({ date: -1 });
 
-    return res.json(fees);
+    // Backfill legacy records that only have `amount`.
+    await Promise.all(
+      fees.map(async (fee: any) => {
+        const totalAmount = Number(fee.amount || 0);
+        const rawRemaining = fee.remainingAmount;
+        const remainingAmount =
+          rawRemaining === undefined || rawRemaining === null
+            ? totalAmount
+            : Number(rawRemaining);
+        const status = normalizeAdvanceStatus(totalAmount, remainingAmount);
+
+        let changed = false;
+        if (fee.remainingAmount !== remainingAmount) {
+          fee.remainingAmount = remainingAmount;
+          changed = true;
+        }
+        if (fee.status !== status) {
+          fee.status = status;
+          changed = true;
+        }
+        if (changed) {
+          await fee.save();
+        }
+      })
+    );
+
+    const normalizedFees = fees.map((fee: any) => {
+      const totalAmount = Number(fee.amount || 0);
+      const remainingAmount = Number(
+        fee.remainingAmount === undefined || fee.remainingAmount === null
+          ? totalAmount
+          : fee.remainingAmount
+      );
+      const usedAmount = Math.max(0, totalAmount - remainingAmount);
+      return {
+        ...fee.toObject(),
+        remainingAmount,
+        usedAmount,
+        status: normalizeAdvanceStatus(totalAmount, remainingAmount),
+      };
+    });
+
+    return res.json(normalizedFees);
   } catch (error) {
     console.error('Get advance payments error:', error);
     return res.status(500).json({ error: 'Internal server error' });
@@ -46,6 +94,8 @@ router.post('/', async (req: Request, res: Response) => {
       memberId: validatedData.memberId,
       receivedBy: receivedBy._id,
       amount: validatedData.amount,
+      remainingAmount: validatedData.amount,
+      status: normalizeAdvanceStatus(validatedData.amount, validatedData.amount),
       date: feeDate,
       note: validatedData.note,
     });
@@ -66,10 +116,21 @@ router.post('/', async (req: Request, res: Response) => {
 // Delete advance entry
 router.delete('/:id', async (req: Request, res: Response) => {
   try {
-    const fee = await JoiningFee.findByIdAndDelete(req.params.id);
+    const fee = await JoiningFee.findById(req.params.id);
     if (!fee) {
       return res.status(404).json({ error: 'Advance not found' });
     }
+
+    const totalAmount = Number(fee.amount || 0);
+    const remainingAmount = Number((fee as any).remainingAmount ?? fee.amount ?? 0);
+    const usedAmount = Math.max(0, totalAmount - remainingAmount);
+    if (usedAmount > 0) {
+      return res.status(400).json({
+        error: 'Cannot delete advance entry after it has been used. Create an adjustment entry instead.',
+      });
+    }
+
+    await fee.deleteOne();
 
     return res.json({ message: 'Advance deleted successfully' });
   } catch (error) {

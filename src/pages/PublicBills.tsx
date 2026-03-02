@@ -53,6 +53,32 @@ export default function PublicBills() {
             </CardContent>
           </Card>
         </div>
+        <div className="grid gap-4 md:grid-cols-3">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm text-muted-foreground">Advance Paid</CardTitle>
+            </CardHeader>
+            <CardContent className="text-2xl font-bold">
+              ${(data?.summary.totalAdvancePaid || 0).toFixed(2)}
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm text-muted-foreground">Advance Used</CardTitle>
+            </CardHeader>
+            <CardContent className="text-2xl font-bold text-info">
+              ${(data?.summary.totalAdvanceUsed || 0).toFixed(2)}
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm text-muted-foreground">Advance Remaining</CardTitle>
+            </CardHeader>
+            <CardContent className="text-2xl font-bold text-success">
+              ${(data?.summary.totalAdvanceRemaining || 0).toFixed(2)}
+            </CardContent>
+          </Card>
+        </div>
 
         <Card>
           <CardHeader>
@@ -71,6 +97,8 @@ export default function PublicBills() {
                     <TableHead>Total Expense Share</TableHead>
                     <TableHead>Amount Paid</TableHead>
                     <TableHead>Outstanding Balance</TableHead>
+                    <TableHead>Advance Remaining</TableHead>
+                    <TableHead>Advance Status</TableHead>
                     <TableHead>Paid</TableHead>
                     <TableHead>Unpaid</TableHead>
                   </TableRow>
@@ -102,6 +130,14 @@ export default function PublicBills() {
                           <TableCell className={member.outstandingBalance > 0 ? "text-destructive" : "text-muted-foreground"}>
                             ${member.outstandingBalance.toFixed(2)}
                           </TableCell>
+                          <TableCell className="text-success">
+                            ${Number(member.advanceRemaining || 0).toFixed(2)}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={Number(member.advanceTotalPaid || 0) > 0 ? "secondary" : "destructive"}>
+                              {Number(member.advanceTotalPaid || 0) > 0 ? "Paid" : "Not Paid"}
+                            </Badge>
+                          </TableCell>
                           <TableCell>
                             <Badge variant="outline">{member.paidExpenses}</Badge>
                           </TableCell>
@@ -113,7 +149,7 @@ export default function PublicBills() {
                         </TableRow>
                         {isExpanded && (
                           <TableRow>
-                            <TableCell colSpan={6} className="bg-secondary/30">
+                            <TableCell colSpan={8} className="bg-secondary/30">
                               {member.breakdown?.length ? (
                                 <div className="p-2">
                                   <div className="text-sm font-medium mb-2">Expense Breakdown</div>
@@ -210,7 +246,7 @@ export default function PublicBills() {
                             <div className="p-1.5 rounded bg-accent/10">
                               <Boxes className="h-3.5 w-3.5 text-accent" />
                             </div>
-                            <span className="text-sm">{item.itemName || item.description}</span>
+                            <span className="text-sm">Shuttle</span>
                           </div>
                         </TableCell>
                         <TableCell>
@@ -254,7 +290,10 @@ export default function PublicBills() {
                   <TableRow>
                     <TableHead>Date</TableHead>
                     <TableHead>Member</TableHead>
-                    <TableHead>Amount</TableHead>
+                    <TableHead>Total Paid</TableHead>
+                    <TableHead>Used</TableHead>
+                    <TableHead>Remaining</TableHead>
+                    <TableHead>Status</TableHead>
                     <TableHead>Received By</TableHead>
                     <TableHead>Note</TableHead>
                   </TableRow>
@@ -268,7 +307,14 @@ export default function PublicBills() {
                       <TableCell>
                         {typeof fee.memberId === "object" ? fee.memberId?.name || "Unknown" : fee.memberId}
                       </TableCell>
-                      <TableCell className="font-semibold">${(fee.amount || 0).toFixed(2)}</TableCell>
+                      <TableCell className="font-semibold">${Number(fee.amount || 0).toFixed(2)}</TableCell>
+                      <TableCell className="font-medium">${Number(fee.usedAmount || 0).toFixed(2)}</TableCell>
+                      <TableCell className="font-medium">${Number(fee.remainingAmount ?? fee.amount ?? 0).toFixed(2)}</TableCell>
+                      <TableCell>
+                        <Badge variant={fee.status === "fully_used" ? "secondary" : "outline"}>
+                          {(fee.status || "available").replace("_", " ")}
+                        </Badge>
+                      </TableCell>
                       <TableCell>
                         {typeof fee.receivedBy === "object" ? fee.receivedBy?.name || "Unknown" : fee.receivedBy || "-"}
                       </TableCell>

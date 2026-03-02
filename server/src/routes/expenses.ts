@@ -24,6 +24,36 @@ const expenseSchema = z.object({
   status: z.enum(['pending', 'completed']).optional(),
 });
 
+const reconcileShuttleStockUsage = async () => {
+  const shuttlePurchases = await Expense.find({
+    isInventory: true,
+    $or: [{ itemName: { $regex: /shuttle/i } }, { description: { $regex: /shuttle/i } }],
+  }).sort({ date: 1, createdAt: 1 });
+
+  const stockDrivenExpenses = await Expense.find({
+    isInventory: { $ne: true },
+    category: 'court',
+    reduceFromStock: true,
+    shuttlesUsed: { $gt: 0 },
+  }).sort({ date: 1, createdAt: 1 });
+
+  let needed = stockDrivenExpenses.reduce(
+    (sum, expense) => sum + Number(expense.shuttlesUsed || 0),
+    0
+  );
+
+  for (const purchase of shuttlePurchases) {
+    const purchasedQty = Number(purchase.quantityPurchased || 0);
+    const nextUsed = Math.max(0, Math.min(purchasedQty, needed));
+    needed = Math.max(0, needed - nextUsed);
+
+    if (Number(purchase.quantityUsed || 0) !== nextUsed) {
+      purchase.quantityUsed = nextUsed;
+      await purchase.save();
+    }
+  }
+};
+
 // Get expenses
 router.get('/', async (req: Request, res: Response) => {
   try {
@@ -151,29 +181,6 @@ router.post('/', async (req: Request, res: Response) => {
       status: validatedData.status || 'pending',
     });
 
-    if (validatedData.reduceFromStock && (validatedData.shuttlesUsed || 0) > 0) {
-      let remainingToUse = validatedData.shuttlesUsed || 0;
-      const shuttlePurchases = await Expense.find({
-        isInventory: true,
-        $or: [
-          { itemName: { $regex: /shuttle/i } },
-          { description: { $regex: /shuttle/i } },
-        ],
-      }).sort({ date: 1 });
-
-      for (const purchase of shuttlePurchases) {
-        if (remainingToUse <= 0) break;
-        const purchasedQty = purchase.quantityPurchased || 0;
-        const usedQty = purchase.quantityUsed || 0;
-        const remainingQty = Math.max(0, purchasedQty - usedQty);
-        if (remainingQty <= 0) continue;
-        const useQty = Math.min(remainingQty, remainingToUse);
-        purchase.quantityUsed = usedQty + useQty;
-        await purchase.save();
-        remainingToUse -= useQty;
-      }
-    }
-
     // Create expense shares for each selected member
     const expenseShares = await Promise.all(
       selectedMemberIds.map(async (memberId) => {
@@ -205,6 +212,7 @@ router.post('/', async (req: Request, res: Response) => {
 
     await expense.populate('paidBy', 'name email');
     await expense.populate('selectedMembers', 'name email');
+    await reconcileShuttleStockUsage();
 
     // Create notifications for members about new expense
     const { Notification } = await import('../models/Notification.js');
@@ -395,6 +403,7 @@ router.put('/:id', async (req: Request, res: Response) => {
     await expense.save();
     await expense.populate('paidBy', 'name email');
     await expense.populate('selectedMembers', 'name email');
+    await reconcileShuttleStockUsage();
 
     res.json(expense);
   } catch (error) {
@@ -430,6 +439,7 @@ router.delete('/:id', async (req: Request, res: Response) => {
 
     await ExpenseShare.deleteMany({ expenseId: expense._id });
     await expense.deleteOne();
+    await reconcileShuttleStockUsage();
 
     res.json({ message: 'Expense deleted successfully' });
   } catch (error) {

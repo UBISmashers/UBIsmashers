@@ -3,7 +3,9 @@ import mongoose, { Document, Schema } from 'mongoose';
 export interface IJoiningFee extends Document {
   memberId: mongoose.Types.ObjectId;
   receivedBy: mongoose.Types.ObjectId;
-  amount: number;
+  amount: number; // Total advance paid
+  remainingAmount: number;
+  status: 'available' | 'partially_used' | 'fully_used';
   date: Date;
   note?: string;
   createdAt: Date;
@@ -27,6 +29,17 @@ const joiningFeeSchema = new Schema<IJoiningFee>(
       type: Number,
       required: [true, 'Amount is required'],
       min: [0, 'Amount must be positive'],
+    },
+    remainingAmount: {
+      type: Number,
+      required: [true, 'Remaining amount is required'],
+      min: [0, 'Remaining amount must be non-negative'],
+    },
+    status: {
+      type: String,
+      enum: ['available', 'partially_used', 'fully_used'],
+      default: 'available',
+      index: true,
     },
     date: {
       type: Date,

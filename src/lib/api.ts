@@ -64,6 +64,9 @@ class ApiClient {
         totalShare: number;
         totalPaid: number;
         totalOutstanding: number;
+        totalAdvancePaid: number;
+        totalAdvanceUsed: number;
+        totalAdvanceRemaining: number;
       };
       members: Array<{
         memberId: string;
@@ -72,9 +75,21 @@ class ApiClient {
         totalExpenseShare: number;
         amountPaid: number;
         outstandingBalance: number;
+        advanceTotalPaid: number;
+        advanceUsed: number;
+        advanceRemaining: number;
+        advanceStatus: "available" | "partially_used" | "fully_used" | "no_advance";
         paidExpenses: number;
         unpaidExpenses: number;
       }>;
+      joiningFees: Array<{
+        _id: string;
+        amount: number;
+        remainingAmount: number;
+        usedAmount: number;
+        status: "available" | "partially_used" | "fully_used";
+      }>;
+      equipment: any[];
     }>("/public/bills");
   }
 

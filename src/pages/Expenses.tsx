@@ -126,16 +126,16 @@ export default function Expenses() {
   });
   const [newEquipment, setNewEquipment] = useState<{
     date: string;
-    itemName: string;
     description: string;
     amount: number;
     quantityPurchased: string;
+    reduceFromAdvance: boolean;
   }>({
     date: format(new Date(), "yyyy-MM-dd"),
-    itemName: "",
     description: "",
     amount: 0,
     quantityPurchased: "",
+    reduceFromAdvance: false,
   });
 
   // Fetch expenses - filter by member if not admin
@@ -179,6 +179,7 @@ export default function Expenses() {
     mutationFn: (data: any) => api.createExpense(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["expenses"] });
+      queryClient.invalidateQueries({ queryKey: ["equipment"] });
       setIsAddOpen(false);
       setNewExpense({
         date: format(new Date(), "yyyy-MM-dd"),
@@ -207,10 +208,10 @@ export default function Expenses() {
       setIsAddEquipmentOpen(false);
       setNewEquipment({
         date: format(new Date(), "yyyy-MM-dd"),
-        itemName: "",
         description: "",
         amount: 0,
         quantityPurchased: "",
+        reduceFromAdvance: false,
       });
       toast.success("Equipment purchase added successfully!");
     },
@@ -322,7 +323,7 @@ export default function Expenses() {
       (newExpense.courtBookingCost || 0) + (newExpense.perShuttleCost || 0) * (newExpense.shuttlesUsed || 0);
     const effectiveAmount = isCourt ? computedCourtAmount : newExpense.amount;
 
-    if (!newExpense.description || effectiveAmount <= 0 || newExpense.selectedMemberIds.length === 0) {
+    if (!newExpense.description || effectiveAmount < 0 || newExpense.selectedMemberIds.length === 0) {
       toast.error("Please fill in all required fields and select at least one member");
       return;
     }
@@ -336,8 +337,7 @@ export default function Expenses() {
   const handleAddEquipment = () => {
     const quantityPurchased = parseInt(newEquipment.quantityPurchased, 10);
     if (
-      !newEquipment.itemName ||
-      newEquipment.amount <= 0 ||
+      newEquipment.amount < 0 ||
       Number.isNaN(quantityPurchased) ||
       quantityPurchased <= 0
     ) {
@@ -346,10 +346,10 @@ export default function Expenses() {
     }
     createEquipmentMutation.mutate({
       date: newEquipment.date,
-      itemName: newEquipment.itemName,
       description: newEquipment.description,
       amount: newEquipment.amount,
       quantityPurchased,
+      reduceFromAdvance: newEquipment.reduceFromAdvance,
     });
   };
 
@@ -451,7 +451,7 @@ export default function Expenses() {
       return;
     }
 
-    if (!editExpense.description.trim() || editExpense.amount <= 0 || !editExpense.paidBy) {
+    if (!editExpense.description.trim() || editExpense.amount < 0 || !editExpense.paidBy) {
       toast.error("Please fill in category, description, amount and paid by");
       return;
     }
@@ -546,6 +546,15 @@ export default function Expenses() {
   const detailRows = getBreakdownRows(detailExpense, expenseDetails?.shares || []);
   const editDetailExpense = editingExpenseDetails?.expense || editingExpense;
   const editDetailRows = getBreakdownRows(editDetailExpense, editingExpenseDetails?.shares || []);
+  const totalShuttlesPurchased = equipmentPurchases.reduce(
+    (sum: number, purchase: any) => sum + Number(purchase.quantityPurchased || 0),
+    0
+  );
+  const totalShuttlesUsed = equipmentPurchases.reduce(
+    (sum: number, purchase: any) => sum + Number(purchase.quantityUsed || 0),
+    0
+  );
+  const totalShuttlesRemaining = Math.max(0, totalShuttlesPurchased - totalShuttlesUsed);
 
   const handleDeleteExpense = (id: string) => {
     if (confirm("Are you sure you want to delete this expense?")) {
@@ -708,7 +717,7 @@ export default function Expenses() {
                             min="0"
                             step="0.01"
                             placeholder="0.00"
-                            value={newExpense.courtBookingCost || ""}
+                            value={newExpense.courtBookingCost}
                             onChange={(e) =>
                               setNewExpense({
                                 ...newExpense,
@@ -724,7 +733,7 @@ export default function Expenses() {
                             min="0"
                             step="0.01"
                             placeholder="0.00"
-                            value={newExpense.perShuttleCost || ""}
+                            value={newExpense.perShuttleCost}
                             onChange={(e) =>
                               setNewExpense({
                                 ...newExpense,
@@ -741,7 +750,7 @@ export default function Expenses() {
                             step="1"
                             className="no-spinner"
                             placeholder="0"
-                            value={newExpense.shuttlesUsed || ""}
+                            value={newExpense.shuttlesUsed}
                             onChange={(e) =>
                               setNewExpense({
                                 ...newExpense,
@@ -786,7 +795,7 @@ export default function Expenses() {
                       min="0"
                       step="0.01"
                       placeholder="0.00"
-                      value={effectiveAmount || ""}
+                      value={effectiveAmount}
                       disabled={newExpense.category === "court"}
                       onChange={(e) =>
                         setNewExpense({
@@ -1178,7 +1187,7 @@ export default function Expenses() {
                         type="number"
                         min="0"
                         step="0.01"
-                        value={editExpense.amount || ""}
+                        value={editExpense.amount}
                         onChange={(e) =>
                           setEditExpense((prev) => ({
                             ...prev,
@@ -1462,7 +1471,7 @@ export default function Expenses() {
         <Card>
           <CardHeader>
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-              <CardTitle>Equipment Stock</CardTitle>
+              <CardTitle>Shuttle Stock</CardTitle>
               {user?.role === "admin" && (
                 <Dialog open={isAddEquipmentOpen} onOpenChange={setIsAddEquipmentOpen}>
                   <DialogTrigger asChild>
@@ -1475,19 +1484,13 @@ export default function Expenses() {
                     <DialogHeader>
                       <DialogTitle>Add Equipment Purchase</DialogTitle>
                       <DialogDescription>
-                        Track equipment bought in advance.
+                        Track shuttle purchases and stock.
                       </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-4 py-4">
                       <div className="space-y-2">
-                        <Label>Item Name</Label>
-                        <Input
-                          placeholder="e.g., Shuttles"
-                          value={newEquipment.itemName}
-                          onChange={(e) =>
-                            setNewEquipment({ ...newEquipment, itemName: e.target.value })
-                          }
-                        />
+                        <Label>Item</Label>
+                        <Input value="Shuttle" disabled />
                       </div>
                       <div className="space-y-2">
                         <Label>Date</Label>
@@ -1516,7 +1519,7 @@ export default function Expenses() {
                           min="0"
                           step="0.01"
                           placeholder="0.00"
-                          value={newEquipment.amount || ""}
+                          value={newEquipment.amount}
                           onChange={(e) =>
                             setNewEquipment({
                               ...newEquipment,
@@ -1524,6 +1527,35 @@ export default function Expenses() {
                             })
                           }
                         />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Reduce Cost From Advance?</Label>
+                        <RadioGroup
+                          className="grid grid-cols-2 gap-4"
+                          value={newEquipment.reduceFromAdvance ? "yes" : "no"}
+                          onValueChange={(value) =>
+                            setNewEquipment({
+                              ...newEquipment,
+                              reduceFromAdvance: value === "yes",
+                            })
+                          }
+                        >
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="yes" id="equipment-advance-yes" />
+                            <Label htmlFor="equipment-advance-yes" className="font-normal">
+                              Yes
+                            </Label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="no" id="equipment-advance-no" />
+                            <Label htmlFor="equipment-advance-no" className="font-normal">
+                              No
+                            </Label>
+                          </div>
+                        </RadioGroup>
+                        <p className="text-xs text-muted-foreground">
+                          When enabled, this purchase amount is deducted from available advance payments.
+                        </p>
                       </div>
                       <div className="space-y-2">
                         <Label>Quantity Purchased</Label>
@@ -1570,6 +1602,20 @@ export default function Expenses() {
             </div>
           </CardHeader>
           <CardContent>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+              <div className="rounded-lg border p-3">
+                <p className="text-xs text-muted-foreground">Total Purchased</p>
+                <p className="text-lg font-semibold">{totalShuttlesPurchased}</p>
+              </div>
+              <div className="rounded-lg border p-3">
+                <p className="text-xs text-muted-foreground">Total Used</p>
+                <p className="text-lg font-semibold">{totalShuttlesUsed}</p>
+              </div>
+              <div className="rounded-lg border p-3">
+                <p className="text-xs text-muted-foreground">Total Remaining</p>
+                <p className="text-lg font-semibold text-success">{totalShuttlesRemaining}</p>
+              </div>
+            </div>
             {isEquipmentLoading ? (
               <div className="flex items-center justify-center py-12">
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -1610,7 +1656,7 @@ export default function Expenses() {
                             <div className="p-1.5 rounded bg-accent/10">
                               <Boxes className="h-3.5 w-3.5 text-accent" />
                             </div>
-                            <span className="text-sm">{purchase.itemName || purchase.description}</span>
+                            <span className="text-sm">Shuttle</span>
                           </div>
                         </TableCell>
                         <TableCell>

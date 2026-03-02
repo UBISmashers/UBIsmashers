@@ -69,8 +69,8 @@ export default function JoiningFees() {
   });
 
   const handleAddFee = () => {
-    if (!newFee.memberId || newFee.amount <= 0) {
-      toast.error("Please select a member and enter a valid amount");
+    if (!newFee.memberId || newFee.amount < 0) {
+      toast.error("Please select a member and enter an amount of 0 or more");
       return;
     }
     createFeeMutation.mutate({
@@ -86,6 +86,14 @@ export default function JoiningFees() {
       deleteFeeMutation.mutate(id);
     }
   };
+
+  const totalAdvancePaid = fees.reduce((sum: number, fee: any) => sum + Number(fee.amount || 0), 0);
+  const totalAdvanceRemaining = fees.reduce(
+    (sum: number, fee: any) =>
+      sum + Number(fee.remainingAmount ?? fee.amount ?? 0),
+    0
+  );
+  const totalAdvanceUsed = Math.max(0, totalAdvancePaid - totalAdvanceRemaining);
 
   return (
     <MainLayout>
@@ -144,7 +152,7 @@ export default function JoiningFees() {
                     type="number"
                     min="0"
                     step="0.01"
-                    value={newFee.amount || ""}
+                    value={newFee.amount}
                     onChange={(e) =>
                       setNewFee({ ...newFee, amount: parseFloat(e.target.value) || 0 })
                     }
@@ -183,6 +191,20 @@ export default function JoiningFees() {
             <CardTitle>Payment History</CardTitle>
           </CardHeader>
           <CardContent>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+              <div className="rounded-lg border p-3">
+                <p className="text-xs text-muted-foreground">Total Advance Paid</p>
+                <p className="text-lg font-semibold">${totalAdvancePaid.toFixed(2)}</p>
+              </div>
+              <div className="rounded-lg border p-3">
+                <p className="text-xs text-muted-foreground">Total Used</p>
+                <p className="text-lg font-semibold">${totalAdvanceUsed.toFixed(2)}</p>
+              </div>
+              <div className="rounded-lg border p-3">
+                <p className="text-xs text-muted-foreground">Total Remaining</p>
+                <p className="text-lg font-semibold">${totalAdvanceRemaining.toFixed(2)}</p>
+              </div>
+            </div>
             {isLoading ? (
               <div className="flex items-center justify-center py-12">
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -197,7 +219,10 @@ export default function JoiningFees() {
                   <TableRow>
                     <TableHead>Date</TableHead>
                     <TableHead>Member</TableHead>
-                    <TableHead>Amount</TableHead>
+                    <TableHead>Total Paid</TableHead>
+                    <TableHead>Used</TableHead>
+                    <TableHead>Remaining</TableHead>
+                    <TableHead>Status</TableHead>
                     <TableHead>Received By</TableHead>
                     <TableHead>Note</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
@@ -212,7 +237,18 @@ export default function JoiningFees() {
                       <TableCell>
                         {typeof fee.memberId === "object" ? fee.memberId?.name || "Unknown" : fee.memberId}
                       </TableCell>
-                      <TableCell className="font-semibold">${fee.amount.toFixed(2)}</TableCell>
+                      <TableCell className="font-semibold">${Number(fee.amount || 0).toFixed(2)}</TableCell>
+                      <TableCell className="font-medium">
+                        ${Math.max(0, Number(fee.amount || 0) - Number(fee.remainingAmount ?? fee.amount ?? 0)).toFixed(2)}
+                      </TableCell>
+                      <TableCell className="font-medium">
+                        ${Number(fee.remainingAmount ?? fee.amount ?? 0).toFixed(2)}
+                      </TableCell>
+                      <TableCell>
+                        <span className="text-sm capitalize">
+                          {(fee.status || "available").replace("_", " ")}
+                        </span>
+                      </TableCell>
                       <TableCell>
                         {typeof fee.receivedBy === "object"
                           ? fee.receivedBy?.name || "Unknown"

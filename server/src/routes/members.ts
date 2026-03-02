@@ -80,6 +80,8 @@ router.post('/', async (req: Request, res: Response) => {
           memberId: member._id,
           receivedBy: receivedBy._id,
           amount: validatedData.joiningFeeAmount,
+          remainingAmount: validatedData.joiningFeeAmount,
+          status: 'available',
           date: new Date(),
           note: validatedData.joiningFeeNote,
         });
