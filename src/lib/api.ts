@@ -90,6 +90,7 @@ class ApiClient {
         status: "available" | "partially_used" | "fully_used";
       }>;
       equipment: any[];
+      courtAdvanceBookings: any[];
     }>("/public/bills");
   }
 
@@ -113,6 +114,23 @@ class ApiClient {
 
   async deleteEquipmentPurchase(id: string) {
     return this.request<{ message: string }>(`/equipment/${id}`, {
+      method: "DELETE",
+    });
+  }
+
+  async getCourtAdvanceBookings() {
+    return this.request<any[]>("/equipment/court-advance");
+  }
+
+  async createCourtAdvanceBooking(data: any) {
+    return this.request<any>("/equipment/court-advance", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteCourtAdvanceBooking(id: string) {
+    return this.request<{ message: string }>(`/equipment/court-advance/${id}`, {
       method: "DELETE",
     });
   }

@@ -13,6 +13,10 @@ import {
   ClipboardCheck,
   CheckCircle2,
   XCircle,
+  BarChart3,
+  BadgeDollarSign,
+  Settings,
+  ReceiptText,
 } from "lucide-react";
 import { format } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -301,7 +305,7 @@ const Index = () => {
           <div className="space-y-4">
             <div className="p-6 rounded-xl border bg-gradient-to-br from-secondary/50 to-secondary/30">
               <h3 className="font-display font-semibold text-lg mb-4">Quick Actions</h3>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                 <QuickActionButton
                   icon={Calendar}
                   label="Book Court"
@@ -321,6 +325,26 @@ const Index = () => {
                   icon={Users}
                   label="View Members"
                   href="/members"
+                />
+                <QuickActionButton
+                  icon={BarChart3}
+                  label="Reports"
+                  href="/reports"
+                />
+                <QuickActionButton
+                  icon={BadgeDollarSign}
+                  label="Advance"
+                  href="/joining-fees"
+                />
+                <QuickActionButton
+                  icon={ReceiptText}
+                  label="Bills"
+                  href="/bills"
+                />
+                <QuickActionButton
+                  icon={Settings}
+                  label="Settings"
+                  href="/settings"
                 />
               </div>
             </div>

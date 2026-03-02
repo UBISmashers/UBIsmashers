@@ -51,6 +51,7 @@ import {
   CheckSquare,
   Square,
   Eye,
+  Building2,
 } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
@@ -93,6 +94,7 @@ export default function Expenses() {
   const queryClient = useQueryClient();
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isAddEquipmentOpen, setIsAddEquipmentOpen] = useState(false);
+  const [isAddCourtAdvanceOpen, setIsAddCourtAdvanceOpen] = useState(false);
   const [isUsageOpen, setIsUsageOpen] = useState(false);
   const [usageTarget, setUsageTarget] = useState<any>(null);
   const [usageValue, setUsageValue] = useState(0);
@@ -137,6 +139,15 @@ export default function Expenses() {
     quantityPurchased: "",
     reduceFromAdvance: false,
   });
+  const [newCourtAdvance, setNewCourtAdvance] = useState({
+    date: format(new Date(), "yyyy-MM-dd"),
+    courtBookedDate: format(new Date(), "yyyy-MM-dd"),
+    bookedByName: "",
+    courtsBooked: "",
+    amount: 0,
+    description: "",
+    reduceFromAdvance: false,
+  });
 
   // Fetch expenses - filter by member if not admin
   const { data: allExpenses = [], isLoading } = useQuery({
@@ -161,11 +172,15 @@ export default function Expenses() {
         );
       });
 
-  const expenses = baseExpenses.filter((expense: any) => !expense.isInventory);
+  const expenses = baseExpenses.filter((expense: any) => !expense.isInventory && !expense.isCourtAdvanceBooking);
 
   const { data: equipmentPurchases = [], isLoading: isEquipmentLoading } = useQuery({
     queryKey: ["equipment"],
     queryFn: () => api.getEquipmentPurchases(),
+  });
+  const { data: courtAdvanceBookings = [], isLoading: isCourtAdvanceLoading } = useQuery({
+    queryKey: ["court-advance-bookings"],
+    queryFn: () => api.getCourtAdvanceBookings(),
   });
 
   // Fetch members for checkbox list
@@ -238,14 +253,56 @@ export default function Expenses() {
     },
   });
 
+  const createCourtAdvanceMutation = useMutation({
+    mutationFn: (data: any) => api.createCourtAdvanceBooking(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["court-advance-bookings"] });
+      queryClient.invalidateQueries({ queryKey: ["joining-fees"] });
+      queryClient.invalidateQueries({ queryKey: ["publicBills"] });
+      setIsAddCourtAdvanceOpen(false);
+      setNewCourtAdvance({
+        date: format(new Date(), "yyyy-MM-dd"),
+        courtBookedDate: format(new Date(), "yyyy-MM-dd"),
+        bookedByName: "",
+        courtsBooked: "",
+        amount: 0,
+        description: "",
+        reduceFromAdvance: false,
+      });
+      toast.success("Court advance booking added successfully!");
+    },
+    onError: (error: any) => {
+      toast.error("Failed to add court advance booking", {
+        description: error.message || "An error occurred",
+      });
+    },
+  });
+
   const deleteEquipmentMutation = useMutation({
     mutationFn: (id: string) => api.deleteEquipmentPurchase(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["equipment"] });
+      queryClient.invalidateQueries({ queryKey: ["joining-fees"] });
+      queryClient.invalidateQueries({ queryKey: ["publicBills"] });
       toast.success("Equipment purchase deleted successfully!");
     },
     onError: (error: any) => {
       toast.error("Failed to delete equipment purchase", {
+        description: error.message || "An error occurred",
+      });
+    },
+  });
+
+  const deleteCourtAdvanceMutation = useMutation({
+    mutationFn: (id: string) => api.deleteCourtAdvanceBooking(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["court-advance-bookings"] });
+      queryClient.invalidateQueries({ queryKey: ["joining-fees"] });
+      queryClient.invalidateQueries({ queryKey: ["publicBills"] });
+      toast.success("Court advance booking deleted successfully!");
+    },
+    onError: (error: any) => {
+      toast.error("Failed to delete court advance booking", {
         description: error.message || "An error occurred",
       });
     },
@@ -350,6 +407,28 @@ export default function Expenses() {
       amount: newEquipment.amount,
       quantityPurchased,
       reduceFromAdvance: newEquipment.reduceFromAdvance,
+    });
+  };
+
+  const handleAddCourtAdvance = () => {
+    const courtsBooked = parseInt(newCourtAdvance.courtsBooked, 10);
+    if (
+      !newCourtAdvance.bookedByName.trim() ||
+      Number.isNaN(courtsBooked) ||
+      courtsBooked <= 0 ||
+      newCourtAdvance.amount < 0
+    ) {
+      toast.error("Please fill in all required fields");
+      return;
+    }
+    createCourtAdvanceMutation.mutate({
+      date: newCourtAdvance.date,
+      courtBookedDate: newCourtAdvance.courtBookedDate,
+      bookedByName: newCourtAdvance.bookedByName.trim(),
+      courtsBooked,
+      amount: newCourtAdvance.amount,
+      description: newCourtAdvance.description,
+      reduceFromAdvance: newCourtAdvance.reduceFromAdvance,
     });
   };
 
@@ -555,6 +634,10 @@ export default function Expenses() {
     0
   );
   const totalShuttlesRemaining = Math.max(0, totalShuttlesPurchased - totalShuttlesUsed);
+  const totalCourtsBooked = courtAdvanceBookings.reduce(
+    (sum: number, item: any) => sum + Number(item.courtsBooked || 0),
+    0
+  );
 
   const handleDeleteExpense = (id: string) => {
     if (confirm("Are you sure you want to delete this expense?")) {
@@ -565,6 +648,12 @@ export default function Expenses() {
   const handleDeleteEquipment = (id: string) => {
     if (confirm("Are you sure you want to delete this equipment purchase?")) {
       deleteEquipmentMutation.mutate(id);
+    }
+  };
+
+  const handleDeleteCourtAdvance = (id: string) => {
+    if (confirm("Are you sure you want to delete this court advance booking?")) {
+      deleteCourtAdvanceMutation.mutate(id);
     }
   };
 
@@ -1625,6 +1714,7 @@ export default function Expenses() {
                 No equipment purchases found. Add your first purchase to get started.
               </p>
             ) : (
+              <div className="max-h-[420px] overflow-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -1709,6 +1799,227 @@ export default function Expenses() {
                   })}
                 </TableBody>
               </Table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Court Advance Booking Section */}
+        <Card>
+          <CardHeader>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <CardTitle>Court Advance Booking</CardTitle>
+              {user?.role === "admin" && (
+                <Dialog open={isAddCourtAdvanceOpen} onOpenChange={setIsAddCourtAdvanceOpen}>
+                  <DialogTrigger asChild>
+                    <Button variant="outline">
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add Court Booking
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-md">
+                    <DialogHeader>
+                      <DialogTitle>Add Court Advance Booking</DialogTitle>
+                      <DialogDescription>
+                        Track courts booked using advance payment.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                      <div className="space-y-2">
+                        <Label>Entry Date</Label>
+                        <Input
+                          type="date"
+                          value={newCourtAdvance.date}
+                          onChange={(e) =>
+                            setNewCourtAdvance({ ...newCourtAdvance, date: e.target.value })
+                          }
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Date of Court Booked</Label>
+                        <Input
+                          type="date"
+                          value={newCourtAdvance.courtBookedDate}
+                          onChange={(e) =>
+                            setNewCourtAdvance({ ...newCourtAdvance, courtBookedDate: e.target.value })
+                          }
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Booked By (Name)</Label>
+                        <Input
+                          value={newCourtAdvance.bookedByName}
+                          placeholder="Enter name"
+                          onChange={(e) =>
+                            setNewCourtAdvance({ ...newCourtAdvance, bookedByName: e.target.value })
+                          }
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>No. of Courts Booked</Label>
+                        <Input
+                          type="number"
+                          min="1"
+                          step="1"
+                          className="no-spinner"
+                          value={newCourtAdvance.courtsBooked}
+                          onChange={(e) =>
+                            setNewCourtAdvance({ ...newCourtAdvance, courtsBooked: e.target.value })
+                          }
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Amount ($)</Label>
+                        <Input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={newCourtAdvance.amount}
+                          onChange={(e) =>
+                            setNewCourtAdvance({
+                              ...newCourtAdvance,
+                              amount: parseFloat(e.target.value) || 0,
+                            })
+                          }
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Description</Label>
+                        <Textarea
+                          placeholder="Optional notes..."
+                          value={newCourtAdvance.description}
+                          onChange={(e) =>
+                            setNewCourtAdvance({ ...newCourtAdvance, description: e.target.value })
+                          }
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Reduce Cost From Advance?</Label>
+                        <RadioGroup
+                          className="grid grid-cols-2 gap-4"
+                          value={newCourtAdvance.reduceFromAdvance ? "yes" : "no"}
+                          onValueChange={(value) =>
+                            setNewCourtAdvance({
+                              ...newCourtAdvance,
+                              reduceFromAdvance: value === "yes",
+                            })
+                          }
+                        >
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="yes" id="court-advance-yes" />
+                            <Label htmlFor="court-advance-yes" className="font-normal">
+                              Yes
+                            </Label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="no" id="court-advance-no" />
+                            <Label htmlFor="court-advance-no" className="font-normal">
+                              No
+                            </Label>
+                          </div>
+                        </RadioGroup>
+                      </div>
+                    </div>
+                    <DialogFooter>
+                      <Button
+                        variant="outline"
+                        onClick={() => setIsAddCourtAdvanceOpen(false)}
+                        disabled={createCourtAdvanceMutation.isPending}
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        onClick={handleAddCourtAdvance}
+                        disabled={createCourtAdvanceMutation.isPending}
+                      >
+                        {createCourtAdvanceMutation.isPending ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Adding...
+                          </>
+                        ) : (
+                          "Add Booking"
+                        )}
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="rounded-lg border p-3 mb-4">
+              <p className="text-xs text-muted-foreground">Total Courts Booked</p>
+              <p className="text-lg font-semibold">{totalCourtsBooked}</p>
+            </div>
+            {isCourtAdvanceLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              </div>
+            ) : courtAdvanceBookings.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-8">
+                No court advance bookings found.
+              </p>
+            ) : (
+              <div className="max-h-[420px] overflow-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Booked Date</TableHead>
+                      <TableHead>Booked By</TableHead>
+                      <TableHead>No. of Courts</TableHead>
+                      <TableHead>Amount</TableHead>
+                      <TableHead>Recorded By</TableHead>
+                      {user?.role === "admin" && (
+                        <TableHead className="text-right">Actions</TableHead>
+                      )}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {courtAdvanceBookings.map((item: any) => (
+                      <TableRow key={item._id || item.id}>
+                        <TableCell className="font-medium">
+                          {item.courtBookedDate
+                            ? format(new Date(item.courtBookedDate), "MMM d")
+                            : format(new Date(item.date), "MMM d")}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <div className="p-1.5 rounded bg-primary/10">
+                              <Building2 className="h-3.5 w-3.5 text-primary" />
+                            </div>
+                            <span className="text-sm">{item.bookedByName || "-"}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="secondary">{item.courtsBooked || 0}</Badge>
+                        </TableCell>
+                        <TableCell className="font-semibold">
+                          ${Number(item.amount || 0).toFixed(2)}
+                        </TableCell>
+                        <TableCell>
+                          {typeof item.paidBy === "object"
+                            ? item.paidBy?.name || "Unknown"
+                            : item.paidBy}
+                        </TableCell>
+                        {user?.role === "admin" && (
+                          <TableCell className="text-right">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-destructive hover:text-destructive"
+                              onClick={() => handleDeleteCourtAdvance(item._id || item.id)}
+                              disabled={deleteCourtAdvanceMutation.isPending}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </TableCell>
+                        )}
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
             )}
           </CardContent>
         </Card>

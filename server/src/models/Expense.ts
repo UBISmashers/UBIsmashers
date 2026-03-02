@@ -11,9 +11,13 @@ export interface IExpense extends Document {
   perMemberShare: number;
   status: 'pending' | 'completed';
   isInventory?: boolean;
+  isCourtAdvanceBooking?: boolean;
   itemName?: string;
   quantityPurchased?: number;
   quantityUsed?: number;
+  courtsBooked?: number;
+  bookedByName?: string;
+  courtBookedDate?: Date;
   courtBookingCost?: number;
   perShuttleCost?: number;
   shuttlesUsed?: number;
@@ -81,6 +85,11 @@ const expenseSchema = new Schema<IExpense>(
       default: false,
       index: true,
     },
+    isCourtAdvanceBooking: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
     itemName: {
       type: String,
       trim: true,
@@ -93,6 +102,17 @@ const expenseSchema = new Schema<IExpense>(
       type: Number,
       min: [0, 'Quantity must be positive'],
       default: 0,
+    },
+    courtsBooked: {
+      type: Number,
+      min: [0, 'Courts booked must be non-negative'],
+    },
+    bookedByName: {
+      type: String,
+      trim: true,
+    },
+    courtBookedDate: {
+      type: Date,
     },
     courtBookingCost: {
       type: Number,

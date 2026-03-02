@@ -136,6 +136,9 @@ router.get('/bills', async (_req: Request, res: Response) => {
     const equipment = await Expense.find({ isInventory: true })
       .populate('paidBy', 'name email')
       .sort({ date: -1 });
+    const courtAdvanceBookings = await Expense.find({ isCourtAdvanceBooking: true })
+      .populate('paidBy', 'name email')
+      .sort({ courtBookedDate: -1, date: -1 });
 
     const totalAdvancePaid = normalizedJoiningFees.reduce(
       (sum: number, fee: any) => sum + Number(fee.amount || 0),
@@ -152,6 +155,7 @@ router.get('/bills', async (_req: Request, res: Response) => {
       members: bills,
       joiningFees: normalizedJoiningFees,
       equipment,
+      courtAdvanceBookings,
       summary: {
         totalShare: bills.reduce((sum, item) => sum + item.totalExpenseShare, 0),
         totalPaid: bills.reduce((sum, item) => sum + item.amountPaid, 0),

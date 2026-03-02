@@ -273,6 +273,52 @@ export default function PublicBills() {
 
         <Card>
           <CardHeader>
+            <CardTitle>Court Advance Bookings</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {isLoading ? (
+              <div className="py-10 text-center">
+                <Loader2 className="mx-auto h-6 w-6 animate-spin" />
+              </div>
+            ) : (data?.courtAdvanceBookings || []).length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-8">
+                No court advance bookings recorded.
+              </p>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Booked By</TableHead>
+                    <TableHead>No. of Courts</TableHead>
+                    <TableHead>Amount</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {(data?.courtAdvanceBookings || []).map((item: any) => (
+                    <TableRow key={item._id || item.id}>
+                      <TableCell className="font-medium">
+                        {item.courtBookedDate
+                          ? format(new Date(item.courtBookedDate), "MMM d")
+                          : item.date
+                            ? format(new Date(item.date), "MMM d")
+                            : "-"}
+                      </TableCell>
+                      <TableCell>{item.bookedByName || "-"}</TableCell>
+                      <TableCell>
+                        <Badge variant="secondary">{item.courtsBooked || 0}</Badge>
+                      </TableCell>
+                      <TableCell className="font-semibold">${Number(item.amount || 0).toFixed(2)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
             <CardTitle>Advance payment</CardTitle>
           </CardHeader>
           <CardContent>
