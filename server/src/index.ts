@@ -13,6 +13,7 @@ import notificationRoutes from './routes/notifications.js';
 import publicRoutes from './routes/public.js';
 import equipmentRoutes from './routes/equipment.js';
 import joiningFeeRoutes from './routes/joiningFees.js';
+import joiningRequestRoutes from './routes/joiningRequests.js';
 
 dotenv.config();
 
@@ -78,6 +79,7 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/public', publicRoutes);
 app.use('/api/equipment', equipmentRoutes);
 app.use('/api/joining-fees', joiningFeeRoutes);
+app.use('/api/joining-requests', joiningRequestRoutes);
 
 // Error handling middleware
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {

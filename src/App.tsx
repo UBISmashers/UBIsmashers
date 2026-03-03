@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
+import Home from "./pages/Home";
 import Index from "./pages/Index";
 import Bookings from "./pages/Bookings";
 import Attendance from "./pages/Attendance";
@@ -16,6 +17,7 @@ import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import PublicBills from "./pages/PublicBills";
 import JoiningFees from "./pages/JoiningFees";
+import JoiningRequests from "./pages/JoiningRequests";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -28,11 +30,14 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <Routes>
-            <Route path="/login" element={<Login />} />
+            <Route path="/" element={<Home />} />
+            <Route path="/admin-login" element={<Login />} />
+            <Route path="/member-bills" element={<PublicBills />} />
+            <Route path="/login" element={<Navigate to="/admin-login" replace />} />
             <Route path="/signup" element={<Signup />} />
-            <Route path="/bills" element={<PublicBills />} />
+            <Route path="/bills" element={<Navigate to="/member-bills" replace />} />
             <Route
-              path="/"
+              path="/dashboard"
               element={
                 <ProtectedRoute>
                   <Index />
@@ -92,6 +97,14 @@ const App = () => (
               element={
                 <ProtectedRoute requireAdmin>
                   <JoiningFees />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/joining-requests"
+              element={
+                <ProtectedRoute requireAdmin>
+                  <JoiningRequests />
                 </ProtectedRoute>
               }
             />

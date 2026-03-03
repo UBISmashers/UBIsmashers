@@ -829,25 +829,19 @@ export default function Expenses() {
                       headers: [
                         "Date",
                         "Member",
-                        "Total Paid",
-                        "Used",
-                        "Remaining",
+                        "Amount",
                         "Status",
                         "Note",
                       ],
                       rows: joiningFees.map((fee: any) => {
                         const totalPaid = Number(fee.amount || 0);
-                        const remaining = Number(fee.remainingAmount ?? fee.amount ?? 0);
-                        const used = Math.max(0, totalPaid - remaining);
                         return [
                           fee.date ? format(new Date(fee.date), "yyyy-MM-dd") : "-",
                           typeof fee.memberId === "object"
                             ? fee.memberId?.name || "Unknown"
                             : fee.memberId || "Unknown",
                           totalPaid.toFixed(2),
-                          used.toFixed(2),
-                          remaining.toFixed(2),
-                          fee.status || "available",
+                          totalPaid > 0 ? "Paid" : "Not Paid",
                           fee.note || "",
                         ];
                       }),

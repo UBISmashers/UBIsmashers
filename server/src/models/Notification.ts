@@ -3,7 +3,13 @@ import mongoose, { Document, Schema } from 'mongoose';
 export interface INotification extends Document {
   userId: mongoose.Types.ObjectId;
   memberId?: mongoose.Types.ObjectId;
-  type: 'payment_submitted' | 'payment_approval_request' | 'payment_approved' | 'payment_rejected' | 'expense_added';
+  type:
+    | 'payment_submitted'
+    | 'payment_approval_request'
+    | 'payment_approved'
+    | 'payment_rejected'
+    | 'expense_added'
+    | 'joining_request';
   title: string;
   message: string;
   data?: {
@@ -11,6 +17,7 @@ export interface INotification extends Document {
     memberId?: string;
     amount?: number;
     memberName?: string;
+    joiningRequestId?: string;
   };
   read: boolean;
   createdAt: Date;
@@ -32,7 +39,14 @@ const notificationSchema = new Schema<INotification>(
     },
     type: {
       type: String,
-      enum: ['payment_submitted', 'payment_approval_request', 'payment_approved', 'payment_rejected', 'expense_added'],
+      enum: [
+        'payment_submitted',
+        'payment_approval_request',
+        'payment_approved',
+        'payment_rejected',
+        'expense_added',
+        'joining_request',
+      ],
       required: true,
     },
     title: {

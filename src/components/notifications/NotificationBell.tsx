@@ -62,16 +62,18 @@ export function NotificationBell() {
   const getNotificationIcon = (type: string) => {
     switch (type) {
       case "payment_approved":
-        return "✅";
+        return "Approved";
       case "payment_rejected":
-        return "❌";
+        return "Rejected";
       case "payment_submitted":
       case "payment_approval_request":
-        return "💰";
+        return "Payment";
       case "expense_added":
-        return "📝";
+        return "Expense";
+      case "joining_request":
+        return "Join";
       default:
-        return "🔔";
+        return "Alert";
     }
   };
 
@@ -148,4 +150,5 @@ export function NotificationBell() {
     </Popover>
   );
 }
+
 

@@ -88,12 +88,11 @@ export default function JoiningFees() {
   };
 
   const totalAdvancePaid = fees.reduce((sum: number, fee: any) => sum + Number(fee.amount || 0), 0);
-  const totalAdvanceRemaining = fees.reduce(
+  const totalAdvanceAmount = fees.reduce(
     (sum: number, fee: any) =>
       sum + Number(fee.remainingAmount ?? fee.amount ?? 0),
     0
   );
-  const totalAdvanceUsed = Math.max(0, totalAdvancePaid - totalAdvanceRemaining);
 
   return (
     <MainLayout>
@@ -191,18 +190,14 @@ export default function JoiningFees() {
             <CardTitle>Payment History</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
               <div className="rounded-lg border p-3">
                 <p className="text-xs text-muted-foreground">Total Advance Paid</p>
                 <p className="text-lg font-semibold">${totalAdvancePaid.toFixed(2)}</p>
               </div>
               <div className="rounded-lg border p-3">
-                <p className="text-xs text-muted-foreground">Total Used</p>
-                <p className="text-lg font-semibold">${totalAdvanceUsed.toFixed(2)}</p>
-              </div>
-              <div className="rounded-lg border p-3">
-                <p className="text-xs text-muted-foreground">Total Remaining</p>
-                <p className="text-lg font-semibold">${totalAdvanceRemaining.toFixed(2)}</p>
+                <p className="text-xs text-muted-foreground">Total Advance Amount</p>
+                <p className="text-lg font-semibold">${totalAdvanceAmount.toFixed(2)}</p>
               </div>
             </div>
             {isLoading ? (
@@ -219,9 +214,7 @@ export default function JoiningFees() {
                   <TableRow>
                     <TableHead>Date</TableHead>
                     <TableHead>Member</TableHead>
-                    <TableHead>Total Paid</TableHead>
-                    <TableHead>Used</TableHead>
-                    <TableHead>Remaining</TableHead>
+                    <TableHead>Amount</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Received By</TableHead>
                     <TableHead>Note</TableHead>
@@ -238,15 +231,9 @@ export default function JoiningFees() {
                         {typeof fee.memberId === "object" ? fee.memberId?.name || "Unknown" : fee.memberId}
                       </TableCell>
                       <TableCell className="font-semibold">${Number(fee.amount || 0).toFixed(2)}</TableCell>
-                      <TableCell className="font-medium">
-                        ${Math.max(0, Number(fee.amount || 0) - Number(fee.remainingAmount ?? fee.amount ?? 0)).toFixed(2)}
-                      </TableCell>
-                      <TableCell className="font-medium">
-                        ${Number(fee.remainingAmount ?? fee.amount ?? 0).toFixed(2)}
-                      </TableCell>
                       <TableCell>
-                        <span className="text-sm capitalize">
-                          {(fee.status || "available").replace("_", " ")}
+                        <span className="text-sm">
+                          {Number(fee.amount || 0) > 0 ? "Paid" : "Not Paid"}
                         </span>
                       </TableCell>
                       <TableCell>

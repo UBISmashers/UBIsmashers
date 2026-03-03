@@ -11,6 +11,7 @@ import {
   ChevronLeft,
   ChevronRight,
   BadgeDollarSign,
+  UserPlus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -25,14 +26,17 @@ export function Sidebar({ className }: SidebarProps) {
   const { user } = useAuth();
 
   const navItems = [
-    { to: "/", icon: LayoutDashboard, label: "Dashboard" },
+    { to: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
     { to: "/bookings", icon: Calendar, label: "Court Bookings" },
     { to: "/attendance", icon: ClipboardCheck, label: "Attendance" },
     { to: "/expenses", icon: DollarSign, label: "Expenses" },
     { to: "/members", icon: Users, label: "Members" },
     { to: "/reports", icon: BarChart3, label: "Reports" },
     ...(user?.role === "admin"
-      ? [{ to: "/joining-fees", icon: BadgeDollarSign, label: "Advance" }]
+      ? [
+          { to: "/joining-fees", icon: BadgeDollarSign, label: "Advance" },
+          { to: "/joining-requests", icon: UserPlus, label: "Joining Requests" },
+        ]
       : []),
   ];
 

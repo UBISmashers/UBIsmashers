@@ -94,6 +94,29 @@ class ApiClient {
     }>("/public/bills");
   }
 
+  async submitJoiningRequest(data: {
+    name: string;
+    mobileNumber: string;
+    address: string;
+    availability: "weekly_twice" | "only_weekends" | "weekdays_only" | "flexible";
+  }) {
+    return this.request<{ message: string; request: any }>("/joining-requests", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getJoiningRequests() {
+    return this.request<any[]>("/joining-requests");
+  }
+
+  async updateJoiningRequestStatus(id: string, status: "new" | "reviewed") {
+    return this.request<{ message: string; request: any }>(`/joining-requests/${id}/status`, {
+      method: "PATCH",
+      body: JSON.stringify({ status }),
+    });
+  }
+
   async getEquipmentPurchases() {
     return this.request<any[]>("/equipment");
   }

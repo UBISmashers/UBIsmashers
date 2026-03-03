@@ -25,7 +25,7 @@ export default function Login() {
         title: 'Login successful',
         description: 'Welcome back!',
       });
-      navigate('/');
+      navigate('/dashboard');
     } catch (error: any) {
       toast({
         title: 'Login failed',
@@ -84,7 +84,7 @@ export default function Login() {
                 'Sign In'
               )}
             </Button>
-            <Link to="/bills" className="w-full">
+            <Link to="/member-bills" className="w-full">
               <Button type="button" variant="outline" className="w-full">
                 View Group Bills
               </Button>

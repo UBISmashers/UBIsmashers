@@ -1,142 +1,162 @@
-import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { useAuth } from '@/contexts/AuthContext';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { toast } from '@/hooks/use-toast';
-import { Loader2 } from 'lucide-react';
+import { useState } from "react";
+import { Link } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Loader2 } from "lucide-react";
+import { toast } from "sonner";
+
+type AvailabilityOption = "weekly_twice" | "only_weekends" | "weekdays_only" | "flexible";
+
+const availabilityLabels: Record<AvailabilityOption, string> = {
+  weekly_twice: "Weekly Twice",
+  only_weekends: "Only Weekends",
+  weekdays_only: "Weekdays Only",
+  flexible: "Flexible",
+};
 
 export default function Signup() {
+  const { api } = useAuth();
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    password: '',
-    phone: '',
-    role: 'member' as 'admin' | 'member',
+    name: "",
+    mobileNumber: "",
+    address: "",
+    availability: "weekly_twice" as AvailabilityOption,
   });
-  const [isLoading, setIsLoading] = useState(false);
-  const { signup } = useAuth();
-  const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
+
+    if (!formData.name.trim() || !formData.mobileNumber.trim() || !formData.address.trim()) {
+      toast.error("Please fill all required fields");
+      return;
+    }
 
     try {
-      await signup(formData);
-      toast({
-        title: 'Account created',
-        description: 'Your account has been created successfully!',
+      setIsSubmitting(true);
+      await api.submitJoiningRequest({
+        name: formData.name.trim(),
+        mobileNumber: formData.mobileNumber.trim(),
+        address: formData.address.trim(),
+        availability: formData.availability,
       });
-      navigate('/');
+
+      toast.success("Joining request submitted", {
+        description: "Admin will review your request soon.",
+      });
+
+      setFormData({
+        name: "",
+        mobileNumber: "",
+        address: "",
+        availability: "weekly_twice",
+      });
     } catch (error: any) {
-      toast({
-        title: 'Signup failed',
-        description: error.message || 'Failed to create account',
-        variant: 'destructive',
+      toast.error("Failed to submit joining request", {
+        description: error.message || "Please try again",
       });
     } finally {
-      setIsLoading(false);
+      setIsSubmitting(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/5 via-background to-secondary/5 p-4">
-      <Card className="w-full max-w-md shadow-lg">
-        <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl font-bold text-center">Create Account</CardTitle>
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/10 via-background to-secondary/20 p-4">
+      <Card className="w-full max-w-xl shadow-lg">
+        <CardHeader>
+          <CardTitle className="text-2xl font-bold text-center">Join UBISmashers</CardTitle>
           <CardDescription className="text-center">
-            Sign up for Court Cost Connect
+            Submit your details. Admin will review and contact you.
           </CardDescription>
         </CardHeader>
+
         <form onSubmit={handleSubmit}>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="name">Full Name</Label>
+              <Label htmlFor="name">Name</Label>
               <Input
                 id="name"
-                type="text"
-                placeholder="John Doe"
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                placeholder="Enter your name"
                 required
-                disabled={isLoading}
+                disabled={isSubmitting}
               />
             </div>
+
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="mobileNumber">Mobile Number</Label>
               <Input
-                id="email"
-                type="email"
-                placeholder="name@example.com"
-                value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                id="mobileNumber"
+                value={formData.mobileNumber}
+                onChange={(e) => setFormData({ ...formData, mobileNumber: e.target.value })}
+                placeholder="Enter mobile number"
                 required
-                disabled={isLoading}
+                disabled={isSubmitting}
               />
             </div>
+
             <div className="space-y-2">
-              <Label htmlFor="phone">Phone</Label>
-              <Input
-                id="phone"
-                type="tel"
-                placeholder="+1 234-567-8900"
-                value={formData.phone}
-                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+              <Label htmlFor="address">Address</Label>
+              <Textarea
+                id="address"
+                value={formData.address}
+                onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                placeholder="Enter your address"
+                rows={3}
                 required
-                disabled={isLoading}
+                disabled={isSubmitting}
               />
             </div>
+
             <div className="space-y-2">
-              <Label htmlFor="role">Role</Label>
+              <Label htmlFor="availability">Availability</Label>
               <Select
-                value={formData.role}
-                onValueChange={(value) => setFormData({ ...formData, role: value as 'admin' | 'member' })}
-                disabled={isLoading}
+                value={formData.availability}
+                onValueChange={(value) =>
+                  setFormData({ ...formData, availability: value as AvailabilityOption })
+                }
+                disabled={isSubmitting}
               >
-                <SelectTrigger>
+                <SelectTrigger id="availability">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="member">Member</SelectItem>
-                  <SelectItem value="admin">Admin</SelectItem>
+                  {Object.entries(availabilityLabels).map(([value, label]) => (
+                    <SelectItem key={value} value={value}>
+                      {label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                placeholder="At least 6 characters"
-                value={formData.password}
-                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                required
-                minLength={6}
-                disabled={isLoading}
-              />
-            </div>
           </CardContent>
-          <CardFooter className="flex flex-col space-y-4">
-            <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? (
+
+          <CardFooter className="flex flex-col gap-4">
+            <Button type="submit" className="w-full" disabled={isSubmitting}>
+              {isSubmitting ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Creating account...
+                  Submitting...
                 </>
               ) : (
-                'Sign Up'
+                "Submit Request"
               )}
             </Button>
-            <p className="text-sm text-center text-muted-foreground">
-              Already have an account?{' '}
-              <Link to="/login" className="text-primary hover:underline">
-                Sign in
-              </Link>
-            </p>
+            <Link to="/admin-login" className="text-sm text-primary hover:underline">
+              Admin Login
+            </Link>
           </CardFooter>
         </form>
       </Card>

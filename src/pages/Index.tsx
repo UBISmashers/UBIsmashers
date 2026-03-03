@@ -17,6 +17,7 @@ import {
   BadgeDollarSign,
   Settings,
   ReceiptText,
+  UserPlus,
 } from "lucide-react";
 import { format } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -340,6 +341,11 @@ const Index = () => {
                   icon={ReceiptText}
                   label="Bills"
                   href="/bills"
+                />
+                <QuickActionButton
+                  icon={UserPlus}
+                  label="Join Requests"
+                  href="/joining-requests"
                 />
                 <QuickActionButton
                   icon={Settings}

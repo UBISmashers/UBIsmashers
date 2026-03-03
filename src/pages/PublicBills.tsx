@@ -19,14 +19,24 @@ export default function PublicBills() {
   });
 
   return (
-    <div className="min-h-screen bg-background p-4 md:p-8">
+    <div
+      className="min-h-screen p-4 md:p-8 bg-cover bg-center bg-no-repeat"
+      style={{ backgroundImage: "url('/background.png')" }}
+    >
       <div className="mx-auto max-w-6xl space-y-6">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
+            <div className="mb-3 inline-flex rounded-2xl border border-white/30 bg-white/10 p-1.5 shadow-[0_10px_30px_rgba(0,0,0,0.25)] backdrop-blur-sm">
+              <img
+                src="/icon.jpeg"
+                alt="UBISmashers team symbol"
+                className="h-14 w-14 rounded-xl object-cover"
+              />
+            </div>
             <h1 className="text-3xl font-display font-bold">Group Bills (Read-only)</h1>
             <p className="text-muted-foreground">Transparent member-wise expense and payment status.</p>
           </div>
-          <Link to="/login">
+          <Link to="/admin-login">
             <Button variant="outline">Admin Login</Button>
           </Link>
         </div>
@@ -53,7 +63,7 @@ export default function PublicBills() {
             </CardContent>
           </Card>
         </div>
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid gap-4 md:grid-cols-2">
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm text-muted-foreground">Advance Paid</CardTitle>
@@ -64,15 +74,7 @@ export default function PublicBills() {
           </Card>
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm text-muted-foreground">Advance Used</CardTitle>
-            </CardHeader>
-            <CardContent className="text-2xl font-bold text-info">
-              ${(data?.summary.totalAdvanceUsed || 0).toFixed(2)}
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm text-muted-foreground">Advance Remaining</CardTitle>
+              <CardTitle className="text-sm text-muted-foreground">Total Advance Amount</CardTitle>
             </CardHeader>
             <CardContent className="text-2xl font-bold text-success">
               ${(data?.summary.totalAdvanceRemaining || 0).toFixed(2)}
@@ -97,7 +99,6 @@ export default function PublicBills() {
                     <TableHead>Total Expense Share</TableHead>
                     <TableHead>Amount Paid</TableHead>
                     <TableHead>Outstanding Balance</TableHead>
-                    <TableHead>Advance Remaining</TableHead>
                     <TableHead>Advance Status</TableHead>
                     <TableHead>Paid</TableHead>
                     <TableHead>Unpaid</TableHead>
@@ -130,9 +131,6 @@ export default function PublicBills() {
                           <TableCell className={member.outstandingBalance > 0 ? "text-destructive" : "text-muted-foreground"}>
                             ${member.outstandingBalance.toFixed(2)}
                           </TableCell>
-                          <TableCell className="text-success">
-                            ${Number(member.advanceRemaining || 0).toFixed(2)}
-                          </TableCell>
                           <TableCell>
                             <Badge variant={Number(member.advanceTotalPaid || 0) > 0 ? "secondary" : "destructive"}>
                               {Number(member.advanceTotalPaid || 0) > 0 ? "Paid" : "Not Paid"}
@@ -149,7 +147,7 @@ export default function PublicBills() {
                         </TableRow>
                         {isExpanded && (
                           <TableRow>
-                            <TableCell colSpan={8} className="bg-secondary/30">
+                            <TableCell colSpan={7} className="bg-secondary/30">
                               {member.breakdown?.length ? (
                                 <div className="p-2">
                                   <div className="text-sm font-medium mb-2">Expense Breakdown</div>
@@ -336,9 +334,7 @@ export default function PublicBills() {
                   <TableRow>
                     <TableHead>Date</TableHead>
                     <TableHead>Member</TableHead>
-                    <TableHead>Total Paid</TableHead>
-                    <TableHead>Used</TableHead>
-                    <TableHead>Remaining</TableHead>
+                    <TableHead>Amount</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Received By</TableHead>
                     <TableHead>Note</TableHead>
@@ -354,11 +350,9 @@ export default function PublicBills() {
                         {typeof fee.memberId === "object" ? fee.memberId?.name || "Unknown" : fee.memberId}
                       </TableCell>
                       <TableCell className="font-semibold">${Number(fee.amount || 0).toFixed(2)}</TableCell>
-                      <TableCell className="font-medium">${Number(fee.usedAmount || 0).toFixed(2)}</TableCell>
-                      <TableCell className="font-medium">${Number(fee.remainingAmount ?? fee.amount ?? 0).toFixed(2)}</TableCell>
                       <TableCell>
-                        <Badge variant={fee.status === "fully_used" ? "secondary" : "outline"}>
-                          {(fee.status || "available").replace("_", " ")}
+                        <Badge variant={Number(fee.amount || 0) > 0 ? "secondary" : "destructive"}>
+                          {Number(fee.amount || 0) > 0 ? "Paid" : "Not Paid"}
                         </Badge>
                       </TableCell>
                       <TableCell>
