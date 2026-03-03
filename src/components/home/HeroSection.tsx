@@ -58,12 +58,12 @@ export function HeroSection() {
             <div className="rounded-2xl border border-white/35 bg-white/10 p-1.5 shadow-[0_10px_40px_rgba(0,0,0,0.35)] backdrop-blur-sm">
               <img
                 src="/icon.jpeg"
-                alt="UBISmashers team symbol"
+                alt="UBI Smashers team symbol"
                 className="h-20 w-20 rounded-xl object-cover sm:h-24 sm:w-24"
               />
             </div>
           </div>
-          <h1 className="text-4xl font-bold tracking-tight sm:text-5xl lg:text-6xl">UBISmashers</h1>
+          <h1 className="text-4xl font-bold tracking-tight sm:text-5xl lg:text-6xl">UBI Smashers</h1>
           <p className="mt-3 text-sm font-semibold tracking-[0.16em] text-emerald-100 sm:text-base lg:text-lg">
             SMASH HARD | PLAY FAIR | STAY UNITED
           </p>
@@ -81,7 +81,7 @@ export function HeroSection() {
               <DialogContent className="max-w-md">
                 <DialogHeader>
                   <DialogTitle>Admin Login</DialogTitle>
-                  <DialogDescription>Sign in to manage UBISmashers.</DialogDescription>
+                  <DialogDescription>Sign in to manage UBI Smashers.</DialogDescription>
                 </DialogHeader>
                 <form onSubmit={handleLoginSubmit} className="space-y-4">
                   <div className="space-y-2 text-left">
@@ -141,7 +141,7 @@ export function HeroSection() {
           <div className="mt-3 sm:mt-4">
             <Link to="/signup" className={glassButtonClass}>
               <Trophy className="h-4 w-4" />
-              Join UBISmashers
+              Join UBI Smashers
             </Link>
           </div>
 

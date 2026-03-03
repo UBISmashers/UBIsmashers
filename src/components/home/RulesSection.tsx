@@ -1,9 +1,9 @@
 const rules = [
-  "Must actively participate in weekly games",
   "Maintain sportsmanship and respect",
-  "One-time joining fee: $30",
+  "One-time Advance fee: $30",
   "Confirm attendance before match day",
   "Expenses are shared equally among players",
+  " At End of Every month need to pay the expenses",
 ];
 
 export function RulesSection() {
@@ -25,11 +25,7 @@ export function RulesSection() {
           ))}
         </div>
 
-        <div className="mx-auto mt-8 max-w-2xl rounded-2xl border border-emerald-200 bg-emerald-50 p-5 text-center shadow-sm">
-          <p className="text-sm font-semibold text-emerald-900 sm:text-base">
-            Joining Fee: $30 (One-Time Payment)
-          </p>
-        </div>
+        
       </div>
     </section>
   );
