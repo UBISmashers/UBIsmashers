@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 
-const teamImages = ["/img1.jpeg", "/img2.jpeg", "/img3.jpeg", "/img4.jpeg", "/img6.jpeg"];
+const teamImages = ["/img1.jpeg", "/img2.jpeg", "/img3.jpeg", "/img4.jpeg", "/img5.jpeg","/img6.jpeg"];
 
 function getItemsPerView(width: number): number {
   if (width >= 1024) return 3;
@@ -14,6 +15,7 @@ export function TeamCarousel() {
     typeof window === "undefined" ? 1 : getItemsPerView(window.innerWidth),
   );
   const [index, setIndex] = useState(0);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
   const maxIndex = Math.max(0, teamImages.length - itemsPerView);
   const dots = maxIndex + 1;
@@ -48,7 +50,7 @@ export function TeamCarousel() {
   return (
     <section id="team" className="px-4 py-16 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-6xl">
-        <h2 className="text-center text-2xl font-bold text-slate-900 sm:text-3xl">👥 Meet Our Team</h2>
+        <h2 className="text-center text-2xl font-bold text-slate-900 sm:text-3xl">Meet Our Team</h2>
 
         <div className="relative mt-8">
           <button
@@ -72,11 +74,20 @@ export function TeamCarousel() {
                   style={{ minWidth: `${itemWidth}%`, maxWidth: `${itemWidth}%` }}
                 >
                   <div className="group overflow-hidden rounded-2xl border border-emerald-100 bg-white shadow-sm">
-                    <img
-                      src={image}
-                      alt="UBISmashers team"
-                      className="h-64 w-full object-cover transition-transform duration-500 group-hover:scale-105 sm:h-72"
-                    />
+                    <button
+                      type="button"
+                      onClick={() => setSelectedImage(image)}
+                      className="block w-full cursor-zoom-in"
+                      aria-label="Open team image preview"
+                    >
+                      <img
+                        src={image}
+                        alt="UBISmashers team"
+                        loading="lazy"
+                        decoding="async"
+                        className="h-72 w-full bg-slate-50 object-contain transition-transform duration-500 group-hover:scale-[1.02] sm:h-80"
+                      />
+                    </button>
                   </div>
                 </div>
               ))}
@@ -111,6 +122,21 @@ export function TeamCarousel() {
           Stronger Together. Every Game Counts.
         </p>
       </div>
+
+      <Dialog open={!!selectedImage} onOpenChange={(open) => !open && setSelectedImage(null)}>
+        <DialogContent className="max-w-4xl border-none bg-transparent p-0 shadow-none">
+          {selectedImage && (
+            <div className="overflow-hidden rounded-2xl border border-white/20 bg-black/75 p-2">
+              <img
+                src={selectedImage}
+                alt="UBISmashers team preview"
+                className="max-h-[80vh] w-full object-contain"
+              />
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </section>
   );
 }
+
