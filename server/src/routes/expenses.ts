@@ -5,6 +5,11 @@ import { authenticate, authorize } from '../middleware/auth.js';
 import { Expense } from '../models/Expense.js';
 import { ExpenseShare } from '../models/ExpenseShare.js';
 import { Member } from '../models/Member.js';
+import { JoiningFee } from '../models/JoiningFee.js';
+import {
+  removeExpenseShareAdvanceCredit,
+  upsertExpenseShareAdvanceCredit,
+} from '../utils/advanceCredits.js';
 
 const router = express.Router();
 router.use(authenticate, authorize('admin'));
@@ -395,6 +400,58 @@ router.put('/:id', async (req: Request, res: Response) => {
       })
     );
 
+    const receiverMember = await Member.findOne({ userId: req.user?.id }).select('_id');
+    const receivedById = receiverMember?._id?.toString() || paidByMemberId;
+    const rebuiltShares = await ExpenseShare.find({ expenseId: expense._id })
+      .select('_id expenseId memberId amount paidStatus')
+      .lean();
+    const activePaidKeys = new Set<string>();
+
+    for (const share of rebuiltShares) {
+      const memberId = (share.memberId as any)?.toString?.();
+      if (!memberId) continue;
+      const key = `${expense._id.toString()}:${memberId}`;
+
+      if (share.paidStatus) {
+        activePaidKeys.add(key);
+        await upsertExpenseShareAdvanceCredit({
+          memberId,
+          receivedById,
+          expenseId: expense._id.toString(),
+          amount: Number(share.amount || 0),
+          expenseMeta: {
+            description: expense.description,
+            date: expense.date,
+            category: expense.category,
+          },
+        });
+      } else {
+        await removeExpenseShareAdvanceCredit({
+          memberId,
+          expenseId: expense._id.toString(),
+        }).catch(() => {});
+      }
+    }
+
+    const existingAutoCredits = await JoiningFee.find({
+      sourceType: 'expense_share_payment',
+      sourceExpenseId: expense._id,
+    })
+      .select('_id sourceMemberId amount remainingAmount')
+      .lean();
+
+    for (const credit of existingAutoCredits as any[]) {
+      const memberId = credit.sourceMemberId?.toString?.();
+      if (!memberId) continue;
+      const key = `${expense._id.toString()}:${memberId}`;
+      if (!activePaidKeys.has(key)) {
+        await removeExpenseShareAdvanceCredit({
+          memberId,
+          expenseId: expense._id.toString(),
+        }).catch(() => {});
+      }
+    }
+
     // Keep status aligned with pending/settled split when explicit status is not passed.
     if (!validatedData.status) {
       expense.status = hasUnpaidShare ? 'pending' : 'completed';
@@ -436,6 +493,13 @@ router.delete('/:id', async (req: Request, res: Response) => {
         }
       })
     );
+
+    for (const share of expenseShares) {
+      await removeExpenseShareAdvanceCredit({
+        memberId: share.memberId.toString(),
+        expenseId: expense._id.toString(),
+      }).catch(() => {});
+    }
 
     await ExpenseShare.deleteMany({ expenseId: expense._id });
     await expense.deleteOne();

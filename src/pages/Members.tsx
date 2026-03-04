@@ -43,8 +43,9 @@ import {
   UserCheck,
   UserX,
   Loader2,
-  CheckCircle2,
   DollarSign,
+  Pencil,
+  CheckCheck,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -81,6 +82,7 @@ export default function Members() {
   });
   const [selectedMemberForPayments, setSelectedMemberForPayments] = useState<Member | null>(null);
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
+  const [isPaymentEditMode, setIsPaymentEditMode] = useState(false);
 
   // Fetch members
   const { data: members = [], isLoading } = useQuery({
@@ -117,16 +119,38 @@ export default function Members() {
     },
   });
 
-  // Mark payment as paid mutation
-  const markPaidMutation = useMutation({
-    mutationFn: (data: { expenseId: string; memberId: string }) => api.markPaymentPaid(data),
+  // Update payment status mutation
+  const updatePaymentStatusMutation = useMutation({
+    mutationFn: (data: { expenseId: string; memberId: string; paidStatus: boolean }) =>
+      api.updatePaymentStatus(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["allPayments"] });
       queryClient.invalidateQueries({ queryKey: ["members"] });
-      toast.success("Payment marked as paid!");
+      queryClient.invalidateQueries({ queryKey: ["memberPayments"] });
+      toast.success("Payment status updated!");
     },
     onError: (error: any) => {
-      toast.error("Failed to mark payment", {
+      toast.error("Failed to update payment", {
+        description: error.message || "An error occurred",
+      });
+    },
+  });
+
+  const markAllMemberPaidMutation = useMutation({
+    mutationFn: (memberId: string) => api.markAllMemberPaymentsPaid(memberId),
+    onSuccess: (response) => {
+      queryClient.invalidateQueries({ queryKey: ["allPayments"] });
+      queryClient.invalidateQueries({ queryKey: ["members"] });
+      queryClient.invalidateQueries({ queryKey: ["memberPayments"] });
+
+      if (response?.updatedCount > 0) {
+        toast.success(`Marked ${response.updatedCount} split expense(s) as paid`);
+      } else {
+        toast.info("All expenses are already paid for this member");
+      }
+    },
+    onError: (error: any) => {
+      toast.error("Failed to mark all payments", {
         description: error.message || "An error occurred",
       });
     },
@@ -178,13 +202,30 @@ export default function Members() {
     createMemberMutation.mutate(newMember);
   };
 
-  const handleMarkPaid = (expenseId: string, memberId: string) => {
-    markPaidMutation.mutate({ expenseId, memberId });
+  const handlePaymentStatusUpdate = (expenseId: string, memberId: string, currentStatus: boolean) => {
+    const nextStatus = !currentStatus;
+    const actionLabel = nextStatus ? "paid" : "unpaid";
+    const confirmed = confirm(`Mark this expense as ${actionLabel} for this member?`);
+    if (!confirmed) return;
+
+    updatePaymentStatusMutation.mutate({
+      expenseId,
+      memberId,
+      paidStatus: nextStatus,
+    });
   };
 
   const handleViewPayments = (member: Member) => {
     setSelectedMemberForPayments(member);
+    setIsPaymentEditMode(false);
     setIsPaymentDialogOpen(true);
+  };
+
+  const handleMarkAllPaidForMember = () => {
+    if (!selectedMemberForPayments?._id) return;
+    const confirmed = confirm(`Mark all unpaid split expenses as paid for ${selectedMemberForPayments.name}?`);
+    if (!confirmed) return;
+    markAllMemberPaidMutation.mutate(selectedMemberForPayments._id);
   };
 
   // Get payment summary for a member
@@ -607,7 +648,15 @@ export default function Members() {
         </Card>
 
         {/* Payment Details Dialog */}
-        <Dialog open={isPaymentDialogOpen} onOpenChange={setIsPaymentDialogOpen}>
+        <Dialog
+          open={isPaymentDialogOpen}
+          onOpenChange={(open) => {
+            setIsPaymentDialogOpen(open);
+            if (!open) {
+              setIsPaymentEditMode(false);
+            }
+          }}
+        >
           <DialogContent className="max-w-2xl w-[95vw] max-h-[80vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>
@@ -645,6 +694,30 @@ export default function Members() {
                   </Card>
                 </div>
 
+                {user?.role === "admin" && (
+                  <div className="flex items-center justify-end gap-2">
+                    <Button
+                      onClick={handleMarkAllPaidForMember}
+                      disabled={
+                        markAllMemberPaidMutation.isPending ||
+                        updatePaymentStatusMutation.isPending ||
+                        memberPayments.summary.totalUnpaid <= 0
+                      }
+                    >
+                      <CheckCheck className="h-4 w-4 mr-2" />
+                      {memberPayments.summary.totalUnpaid <= 0 ? "All Paid" : "Mark All Paid"}
+                    </Button>
+                    <Button
+                      variant={isPaymentEditMode ? "default" : "outline"}
+                      onClick={() => setIsPaymentEditMode((prev) => !prev)}
+                      disabled={markAllMemberPaidMutation.isPending || updatePaymentStatusMutation.isPending}
+                    >
+                      <Pencil className="h-4 w-4 mr-2" />
+                      {isPaymentEditMode ? "Done Editing" : "Edit"}
+                    </Button>
+                  </div>
+                )}
+
                 {/* Expense Shares List */}
                 <div className="space-y-2">
                   <h3 className="font-semibold">Expense Shares</h3>
@@ -677,19 +750,24 @@ export default function Members() {
                                   </Badge>
                                 </div>
                               </div>
-                              {!share.paidStatus && user?.role === 'admin' && (
+                              {user?.role === 'admin' && isPaymentEditMode && (
                                 <Button
                                   size="sm"
                                   onClick={() => {
-                                    handleMarkPaid(
+                                    handlePaymentStatusUpdate(
                                       share.expenseId?._id || share.expenseId?.id,
-                                      selectedMemberForPayments!._id
+                                      selectedMemberForPayments!._id,
+                                      share.paidStatus
                                     );
                                   }}
-                                  disabled={markPaidMutation.isPending}
+                                  variant={share.paidStatus ? "outline" : "default"}
+                                  disabled={
+                                    updatePaymentStatusMutation.isPending ||
+                                    markAllMemberPaidMutation.isPending
+                                  }
                                 >
-                                  <CheckCircle2 className="h-4 w-4 mr-2" />
-                                  Mark Paid
+                                  <Pencil className="h-4 w-4 mr-2" />
+                                  {share.paidStatus ? "Mark Unpaid" : "Mark Paid"}
                                 </Button>
                               )}
                             </div>

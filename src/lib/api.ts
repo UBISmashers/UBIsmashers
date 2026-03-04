@@ -91,6 +91,7 @@ class ApiClient {
       }>;
       equipment: any[];
       courtAdvanceBookings: any[];
+      sessionHistory: any[];
     }>("/public/bills");
   }
 
@@ -306,6 +307,20 @@ class ApiClient {
     return this.request<any>("/payments/mark-paid", {
       method: "POST",
       body: JSON.stringify(data),
+    });
+  }
+
+  async updatePaymentStatus(data: { expenseId: string; memberId: string; paidStatus: boolean }) {
+    return this.request<any>("/payments/update-status", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async markAllMemberPaymentsPaid(memberId: string) {
+    return this.request<{ message: string; updatedCount: number }>("/payments/mark-member-paid", {
+      method: "POST",
+      body: JSON.stringify({ memberId }),
     });
   }
 

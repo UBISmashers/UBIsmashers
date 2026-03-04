@@ -12,6 +12,7 @@ router.use(authenticate);
 
 const equipmentSchema = z.object({
   date: z.string().or(z.date()),
+  boughtByName: z.string().min(1, 'Bought by name is required'),
   itemName: z.string().min(1).optional(),
   description: z.string().optional(),
   amount: z.number().min(0, 'Amount must be positive'),
@@ -316,6 +317,7 @@ router.post('/', async (req: Request, res: Response) => {
       date: expenseDate,
       category: 'equipment',
       description: validatedData.description || 'Shuttle purchase',
+      boughtByName: validatedData.boughtByName,
       amount: validatedData.amount,
       paidBy: member._id,
       presentMembers: Math.max(1, memberCount),

@@ -17,6 +17,7 @@ export interface IExpense extends Document {
   quantityUsed?: number;
   courtsBooked?: number;
   bookedByName?: string;
+  boughtByName?: string;
   courtBookedDate?: Date;
   courtBookingCost?: number;
   perShuttleCost?: number;
@@ -108,6 +109,10 @@ const expenseSchema = new Schema<IExpense>(
       min: [0, 'Courts booked must be non-negative'],
     },
     bookedByName: {
+      type: String,
+      trim: true,
+    },
+    boughtByName: {
       type: String,
       trim: true,
     },

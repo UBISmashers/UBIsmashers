@@ -44,7 +44,7 @@ export default function PublicBills() {
         <div className="grid gap-4 md:grid-cols-3">
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm text-muted-foreground">Total Share</CardTitle>
+              <CardTitle className="text-sm text-muted-foreground">Total Expense</CardTitle>
             </CardHeader>
             <CardContent className="text-2xl font-bold">${(data?.summary.totalShare || 0).toFixed(2)}</CardContent>
           </Card>
@@ -74,7 +74,7 @@ export default function PublicBills() {
           </Card>
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm text-muted-foreground">Total Advance Amount</CardTitle>
+              <CardTitle className="text-sm text-muted-foreground">Remaining Advance Amount</CardTitle>
             </CardHeader>
             <CardContent className="text-2xl font-bold text-success">
               ${(data?.summary.totalAdvanceRemaining || 0).toFixed(2)}
@@ -132,9 +132,15 @@ export default function PublicBills() {
                             ${member.outstandingBalance.toFixed(2)}
                           </TableCell>
                           <TableCell>
-                            <Badge variant={Number(member.advanceTotalPaid || 0) > 0 ? "secondary" : "destructive"}>
-                              {Number(member.advanceTotalPaid || 0) > 0 ? "Paid" : "Not Paid"}
-                            </Badge>
+                            <span
+                              className={
+                                Number(member.advanceTotalPaid || 0) > 0
+                                  ? "text-green-600 font-medium"
+                                  : "text-red-600 font-medium"
+                              }
+                            >
+                              {Number(member.advanceTotalPaid || 0) > 0 ? "Paid" : "Unpaid"}
+                            </span>
                           </TableCell>
                           <TableCell>
                             <Badge variant="outline">{member.paidExpenses}</Badge>
@@ -226,6 +232,7 @@ export default function PublicBills() {
                     <TableHead>Used</TableHead>
                     <TableHead>Remaining</TableHead>
                     <TableHead>Cost</TableHead>
+                    <TableHead>Bought By</TableHead>
                     <TableHead>Paid By</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -257,6 +264,7 @@ export default function PublicBills() {
                           {remainingQty}
                         </TableCell>
                         <TableCell className="font-semibold">${(item.amount || 0).toFixed(2)}</TableCell>
+                        <TableCell>{item.boughtByName || "-"}</TableCell>
                         <TableCell>
                           {typeof item.paidBy === "object" ? item.paidBy?.name || "Unknown" : item.paidBy || "-"}
                         </TableCell>
@@ -317,48 +325,54 @@ export default function PublicBills() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Advance payment</CardTitle>
+            <CardTitle>Session History</CardTitle>
           </CardHeader>
           <CardContent>
             {isLoading ? (
               <div className="py-10 text-center">
                 <Loader2 className="mx-auto h-6 w-6 animate-spin" />
               </div>
-            ) : (data?.joiningFees || []).length === 0 ? (
+            ) : (data?.sessionHistory || []).length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-8">
-                No advance payments recorded.
+                No session expenses recorded.
               </p>
             ) : (
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Date</TableHead>
-                    <TableHead>Member</TableHead>
-                    <TableHead>Amount</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Received By</TableHead>
-                    <TableHead>Note</TableHead>
+                    <TableHead>Description</TableHead>
+                    <TableHead>Court Cost</TableHead>
+                    <TableHead>Shuttles Used</TableHead>
+                    <TableHead>Per Shuttle Cost</TableHead>
+                    <TableHead>Total Shuttle Cost</TableHead>
+                    <TableHead>Total Amount</TableHead>
+                    <TableHead>Players Played</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {(data?.joiningFees || []).map((fee: any) => (
-                    <TableRow key={fee._id || fee.id}>
+                  {(data?.sessionHistory || []).map((item: any) => (
+                    <TableRow key={item._id || item.id}>
                       <TableCell className="font-medium">
-                        {fee.date ? format(new Date(fee.date), "MMM d") : "-"}
+                        {item.date ? format(new Date(item.date), "MMM d") : "-"}
                       </TableCell>
+                      <TableCell className="max-w-[220px] truncate">{item.description || "-"}</TableCell>
+                      <TableCell>${Number(item.courtBookingCost || 0).toFixed(2)}</TableCell>
+                      <TableCell>{Number(item.shuttlesUsed || 0)}</TableCell>
+                      <TableCell>${Number(item.perShuttleCost || 0).toFixed(2)}</TableCell>
                       <TableCell>
-                        {typeof fee.memberId === "object" ? fee.memberId?.name || "Unknown" : fee.memberId}
+                        $
+                        {(
+                          Number(item.shuttlesUsed || 0) * Number(item.perShuttleCost || 0)
+                        ).toFixed(2)}
                       </TableCell>
-                      <TableCell className="font-semibold">${Number(fee.amount || 0).toFixed(2)}</TableCell>
+                      <TableCell className="font-semibold">${Number(item.amount || 0).toFixed(2)}</TableCell>
                       <TableCell>
-                        <Badge variant={Number(fee.amount || 0) > 0 ? "secondary" : "destructive"}>
-                          {Number(fee.amount || 0) > 0 ? "Paid" : "Not Paid"}
-                        </Badge>
+                        {(item.selectedMembers || [])
+                          .map((m: any) => (typeof m === "object" ? m?.name : m))
+                          .filter(Boolean)
+                          .join(", ") || "-"}
                       </TableCell>
-                      <TableCell>
-                        {typeof fee.receivedBy === "object" ? fee.receivedBy?.name || "Unknown" : fee.receivedBy || "-"}
-                      </TableCell>
-                      <TableCell className="max-w-[240px] truncate">{fee.note || "-"}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

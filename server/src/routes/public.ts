@@ -14,50 +14,85 @@ const normalizeAdvanceStatus = (totalAmount: number, remainingAmount: number) =>
 
 router.get('/bills', async (_req: Request, res: Response) => {
   try {
-    const members = await Member.find({ role: 'member' })
+    const members = await Member.find()
       .select('_id name status')
       .sort({ name: 1 });
 
-    const shares = await ExpenseShare.find()
-      .populate(
-        'expenseId',
-        'description amount date category isInventory itemName quantityPurchased courtBookingCost perShuttleCost shuttlesUsed',
+    const expenses = await Expense.find()
+      .select(
+        '_id description amount date category isInventory itemName perMemberShare paidBy selectedMembers'
       )
-      .populate('memberId', 'name email');
+      .populate('paidBy', '_id')
+      .populate('selectedMembers', '_id')
+      .sort({ date: -1, createdAt: -1 });
+
+    const shares = await ExpenseShare.find().select('expenseId memberId paidStatus');
+    const shareStatusByExpenseAndMember = new Map<string, boolean>();
+    shares.forEach((share) => {
+      const expenseId = (share.expenseId as any)?.toString?.();
+      const memberId = (share.memberId as any)?.toString?.();
+      if (!expenseId || !memberId) return;
+      shareStatusByExpenseAndMember.set(`${expenseId}:${memberId}`, Boolean(share.paidStatus));
+    });
 
     const byMemberId = new Map<string, any>();
-    shares.forEach((share) => {
-      const memberId = (share.memberId as any)?._id?.toString();
-      if (!memberId) return;
-      if (!byMemberId.has(memberId)) {
-        byMemberId.set(memberId, {
-          totalShare: 0,
-          totalPaid: 0,
-          paidCount: 0,
-          unpaidCount: 0,
-          breakdown: [],
-        });
-      }
-      const agg = byMemberId.get(memberId);
-      agg.totalShare += share.amount;
-      if (share.paidStatus) {
-        agg.totalPaid += share.amount;
-        agg.paidCount += 1;
-      } else {
-        agg.unpaidCount += 1;
-      }
+    members.forEach((member) => {
+      byMemberId.set(member._id.toString(), {
+        totalShare: 0,
+        totalPaid: 0,
+        paidCount: 0,
+        unpaidCount: 0,
+        breakdown: [],
+      });
+    });
 
-      const expense = share.expenseId as any;
-      agg.breakdown.push({
-        expenseId: expense?._id,
-        description: expense?.description || 'Expense',
-        category: expense?.category || 'other',
-        isInventory: !!expense?.isInventory,
-        itemName: expense?.itemName,
-        date: expense?.date,
-        totalAmount: expense?.amount || 0,
-        shareAmount: share.amount,
-        paidStatus: share.paidStatus,
+    expenses.forEach((expense: any) => {
+      const selected = (expense.selectedMembers || []) as any[];
+      if (selected.length === 0) return;
+
+      const expenseId = expense._id?.toString?.();
+      const payerId = (expense.paidBy as any)?._id?.toString?.() || (expense.paidBy as any)?.toString?.();
+      const shareAmount = Number(expense.perMemberShare || 0);
+
+      selected.forEach((memberRef: any) => {
+        const memberId = (memberRef?._id || memberRef)?.toString?.();
+        if (!memberId) return;
+
+        if (!byMemberId.has(memberId)) {
+          byMemberId.set(memberId, {
+            totalShare: 0,
+            totalPaid: 0,
+            paidCount: 0,
+            unpaidCount: 0,
+            breakdown: [],
+          });
+        }
+
+        const agg = byMemberId.get(memberId);
+        const paidStatus =
+          memberId === payerId
+            ? true
+            : Boolean(shareStatusByExpenseAndMember.get(`${expenseId}:${memberId}`));
+
+        agg.totalShare += shareAmount;
+        if (paidStatus) {
+          agg.totalPaid += shareAmount;
+          agg.paidCount += 1;
+        } else {
+          agg.unpaidCount += 1;
+        }
+
+        agg.breakdown.push({
+          expenseId: expense._id,
+          description: expense.description || 'Expense',
+          category: expense.category || 'other',
+          isInventory: !!expense.isInventory,
+          itemName: expense.itemName,
+          date: expense.date,
+          totalAmount: Number(expense.amount || 0),
+          shareAmount,
+          paidStatus,
+        });
       });
     });
 
@@ -83,14 +118,16 @@ router.get('/bills', async (_req: Request, res: Response) => {
       };
     });
 
-    const advancesByMember = new Map<string, { total: number; used: number; remaining: number }>();
+    const advancesByMember = new Map<string, { totalPaid: number; used: number; remaining: number }>();
     normalizedJoiningFees.forEach((fee: any) => {
       const memberId = fee.memberId?._id?.toString?.() || fee.memberId?.toString?.();
       if (!memberId) return;
-      const prev = advancesByMember.get(memberId) || { total: 0, used: 0, remaining: 0 };
+      const isAutoCredit = fee.sourceType === 'expense_share_payment';
+      const prev = advancesByMember.get(memberId) || { totalPaid: 0, used: 0, remaining: 0 };
       advancesByMember.set(memberId, {
-        total: prev.total + Number(fee.amount || 0),
-        used: prev.used + Number(fee.usedAmount || 0),
+        // "Advance Paid" should only include direct/manual advance payments.
+        totalPaid: prev.totalPaid + (isAutoCredit ? 0 : Number(fee.amount || 0)),
+        used: prev.used + (isAutoCredit ? 0 : Number(fee.usedAmount || 0)),
         remaining: prev.remaining + Number(fee.remainingAmount || 0),
       });
     });
@@ -103,14 +140,14 @@ router.get('/bills', async (_req: Request, res: Response) => {
       const paidCount = Number(agg?.paidCount || 0);
       const unpaidCount = Number(agg?.unpaidCount || 0);
       const advance = advancesByMember.get(member._id.toString()) || {
-        total: 0,
+        totalPaid: 0,
         used: 0,
         remaining: 0,
       };
       const advanceStatus =
-        advance.total <= 0
+        advance.totalPaid <= 0
           ? 'no_advance'
-          : normalizeAdvanceStatus(advance.total, advance.remaining);
+          : normalizeAdvanceStatus(advance.totalPaid, Math.min(advance.remaining, advance.totalPaid));
 
       return {
         memberId: member._id,
@@ -119,7 +156,7 @@ router.get('/bills', async (_req: Request, res: Response) => {
         totalExpenseShare: totalShare,
         amountPaid: totalPaid,
         outstandingBalance,
-        advanceTotalPaid: Number(advance.total.toFixed(2)),
+        advanceTotalPaid: Number(advance.totalPaid.toFixed(2)),
         advanceUsed: Number(advance.used.toFixed(2)),
         advanceRemaining: Number(advance.remaining.toFixed(2)),
         advanceStatus,
@@ -139,16 +176,31 @@ router.get('/bills', async (_req: Request, res: Response) => {
     const courtAdvanceBookings = await Expense.find({ isCourtAdvanceBooking: true })
       .populate('paidBy', 'name email')
       .sort({ courtBookedDate: -1, date: -1 });
+    const sessionHistory = await Expense.find({
+      category: 'court',
+      isInventory: { $ne: true },
+      isCourtAdvanceBooking: { $ne: true },
+    })
+      .populate('paidBy', 'name email')
+      .populate('selectedMembers', 'name email')
+      .sort({ date: -1, createdAt: -1 });
 
     const totalAdvancePaid = normalizedJoiningFees.reduce(
-      (sum: number, fee: any) => sum + Number(fee.amount || 0),
+      (sum: number, fee: any) =>
+        sum + (fee.sourceType === 'expense_share_payment' ? 0 : Number(fee.amount || 0)),
       0
     );
     const totalAdvanceRemaining = normalizedJoiningFees.reduce(
       (sum: number, fee: any) => sum + Number(fee.remainingAmount || 0),
       0
     );
-    const totalAdvanceUsed = Number((totalAdvancePaid - totalAdvanceRemaining).toFixed(2));
+    const totalAdvanceUsed = Number(
+      normalizedJoiningFees.reduce(
+        (sum: number, fee: any) =>
+          sum + (fee.sourceType === 'expense_share_payment' ? 0 : Number(fee.usedAmount || 0)),
+        0
+      ).toFixed(2)
+    );
 
     return res.json({
       updatedAt: new Date().toISOString(),
@@ -156,6 +208,7 @@ router.get('/bills', async (_req: Request, res: Response) => {
       joiningFees: normalizedJoiningFees,
       equipment,
       courtAdvanceBookings,
+      sessionHistory,
       summary: {
         totalShare: bills.reduce((sum, item) => sum + item.totalExpenseShare, 0),
         totalPaid: bills.reduce((sum, item) => sum + item.amountPaid, 0),

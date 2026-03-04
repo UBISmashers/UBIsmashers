@@ -73,6 +73,7 @@ interface Expense {
   itemName?: string;
   quantityPurchased?: number;
   quantityUsed?: number;
+  boughtByName?: string;
 }
 
 const categoryInfo = {
@@ -109,6 +110,9 @@ export default function Expenses() {
     category: "court" as "court" | "equipment" | "refreshments" | "other",
     description: "",
     amount: 0,
+    courtBookingCost: 0,
+    perShuttleCost: 0,
+    shuttlesUsed: 0,
     paidBy: "",
     presentMembers: 1,
     selectedMemberIds: [] as string[],
@@ -128,12 +132,14 @@ export default function Expenses() {
   });
   const [newEquipment, setNewEquipment] = useState<{
     date: string;
+    boughtByName: string;
     description: string;
     amount: number;
     quantityPurchased: string;
     reduceFromAdvance: boolean;
   }>({
     date: format(new Date(), "yyyy-MM-dd"),
+    boughtByName: "",
     description: "",
     amount: 0,
     quantityPurchased: "",
@@ -182,6 +188,10 @@ export default function Expenses() {
     queryKey: ["court-advance-bookings"],
     queryFn: () => api.getCourtAdvanceBookings(),
   });
+  const { data: publicBills } = useQuery({
+    queryKey: ["publicBillsSummary"],
+    queryFn: () => api.getPublicBills(),
+  });
 
   // Fetch members for checkbox list
   const { data: members = [] } = useQuery({
@@ -228,6 +238,7 @@ export default function Expenses() {
       setIsAddEquipmentOpen(false);
       setNewEquipment({
         date: format(new Date(), "yyyy-MM-dd"),
+        boughtByName: "",
         description: "",
         amount: 0,
         quantityPurchased: "",
@@ -399,6 +410,7 @@ export default function Expenses() {
   const handleAddEquipment = () => {
     const quantityPurchased = parseInt(newEquipment.quantityPurchased, 10);
     if (
+      !newEquipment.boughtByName.trim() ||
       newEquipment.amount < 0 ||
       Number.isNaN(quantityPurchased) ||
       quantityPurchased <= 0
@@ -408,6 +420,7 @@ export default function Expenses() {
     }
     createEquipmentMutation.mutate({
       date: newEquipment.date,
+      boughtByName: newEquipment.boughtByName.trim(),
       description: newEquipment.description,
       amount: newEquipment.amount,
       quantityPurchased,
@@ -507,6 +520,9 @@ export default function Expenses() {
       category: expense.category,
       description: expense.description || "",
       amount: Number(expense.amount || 0),
+      courtBookingCost: Number(expense.courtBookingCost || 0),
+      perShuttleCost: Number(expense.perShuttleCost || 0),
+      shuttlesUsed: Number(expense.shuttlesUsed || 0),
       paidBy: paidById,
       presentMembers: Number(expense.presentMembers || selectedIds.length || 1),
       selectedMemberIds: selectedIds,
@@ -523,8 +539,11 @@ export default function Expenses() {
 
   const editMemberCount =
     editSplitMode === "manual" ? editExpense.selectedMemberIds.length : editExpense.presentMembers;
+  const editComputedCourtAmount =
+    (editExpense.courtBookingCost || 0) + (editExpense.perShuttleCost || 0) * (editExpense.shuttlesUsed || 0);
+  const editEffectiveAmount = editExpense.category === "court" ? editComputedCourtAmount : editExpense.amount;
   const editPerMemberShare =
-    editExpense.amount > 0 && editMemberCount > 0 ? editExpense.amount / editMemberCount : 0;
+    editEffectiveAmount > 0 && editMemberCount > 0 ? editEffectiveAmount / editMemberCount : 0;
 
   const handleSaveEditedExpense = () => {
     if (!editingExpense) return;
@@ -535,7 +554,7 @@ export default function Expenses() {
       return;
     }
 
-    if (!editExpense.description.trim() || editExpense.amount < 0 || !editExpense.paidBy) {
+    if (!editExpense.description.trim() || editEffectiveAmount < 0 || !editExpense.paidBy) {
       toast.error("Please fill in category, description, amount and paid by");
       return;
     }
@@ -556,7 +575,10 @@ export default function Expenses() {
         date: editExpense.date,
         category: editExpense.category,
         description: editExpense.description.trim(),
-        amount: editExpense.amount,
+        amount: editEffectiveAmount,
+        courtBookingCost: editExpense.category === "court" ? editExpense.courtBookingCost : undefined,
+        perShuttleCost: editExpense.category === "court" ? editExpense.perShuttleCost : undefined,
+        shuttlesUsed: editExpense.category === "court" ? editExpense.shuttlesUsed : undefined,
         paidBy: editExpense.paidBy,
         presentMembers:
           editSplitMode === "manual"
@@ -570,27 +592,10 @@ export default function Expenses() {
     });
   };
 
-  const getBreakdownMembers = (expenseItem: any) => {
-    const memberMap = new Map<string, any>();
-    members.forEach((m: any) => {
-      const id = getItemId(m)?.toString();
-      if (id) memberMap.set(id, m);
-    });
-    (expenseItem?.selectedMembers || []).forEach((m: any) => {
-      const id = getItemId(m)?.toString();
-      if (id && !memberMap.has(id)) memberMap.set(id, m);
-    });
-    if (expenseItem?.paidBy) {
-      const id = getItemId(expenseItem.paidBy)?.toString();
-      if (id && !memberMap.has(id)) memberMap.set(id, expenseItem.paidBy);
-    }
-    return Array.from(memberMap.values());
-  };
-
   const getBreakdownRows = (expenseItem: any, shares: any[]) => {
     if (!expenseItem) return [];
-    const selectedIds = new Set(
-      (expenseItem.selectedMembers || []).map((m: any) => getItemId(m)?.toString())
+    const selectedMembers = (expenseItem.selectedMembers || []).filter((m: any) =>
+      Boolean(getItemId(m)?.toString())
     );
     const paidById = getItemId(expenseItem.paidBy)?.toString();
     const shareMap = new Map(
@@ -600,26 +605,16 @@ export default function Expenses() {
       Number(expenseItem.perMemberShare || 0) ||
       (Number(expenseItem.amount || 0) / Number(expenseItem.presentMembers || 1));
 
-    return getBreakdownMembers(expenseItem).map((memberItem: any) => {
+    return selectedMembers.map((memberItem: any) => {
       const memberId = getItemId(memberItem)?.toString();
-      const isPresent = selectedIds.has(memberId);
       const isPayer = Boolean(memberId && paidById && memberId === paidById);
       const share = shareMap.get(memberId);
-      const shareAmount = isPresent
-        ? Number(isPayer ? defaultShare : share?.amount ?? defaultShare)
-        : 0;
-      const paymentStatus = !isPresent
-        ? "—"
-        : isPayer
-          ? "Paid"
-          : share?.paidStatus
-            ? "Paid"
-            : "Pending";
+      const shareAmount = Number(isPayer ? defaultShare : share?.amount ?? defaultShare);
+      const paymentStatus = isPayer ? "Paid" : share?.paidStatus ? "Paid" : "Pending";
 
       return {
         memberId,
         memberName: memberItem?.name || "Unknown",
-        present: isPresent,
         shareAmount,
         paymentStatus,
       };
@@ -744,6 +739,7 @@ export default function Expenses() {
                       used,
                       Math.max(0, purchased - used),
                       Number(purchase.amount || 0).toFixed(2),
+                      purchase.boughtByName || "-",
                       typeof purchase.paidBy === "object"
                         ? purchase.paidBy?.name || "Unknown"
                         : purchase.paidBy || "Unknown",
@@ -807,7 +803,7 @@ export default function Expenses() {
                     },
                     {
                       title: "Shuttle Stock",
-                      headers: ["Date", "Item", "Purchased", "Used", "Remaining", "Cost", "Paid By"],
+                      headers: ["Date", "Item", "Purchased", "Used", "Remaining", "Cost", "Bought By", "Paid By"],
                       rows: stockRows,
                     },
                     {
@@ -1136,64 +1132,30 @@ export default function Expenses() {
           </div>
         </div>
 
-        {/* Stats */}
-        <div className="grid gap-4 sm:grid-cols-4">
+        {/* Summary (match Public Bills) */}
+        <div className="grid gap-4 md:grid-cols-3">
           <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">Total This Month</p>
-                  <p className="text-2xl font-bold font-display">${totalExpenses.toFixed(2)}</p>
-                </div>
-                <div className="p-3 rounded-lg bg-primary/10">
-                  <DollarSign className="h-5 w-5 text-primary" />
-                </div>
-              </div>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm text-muted-foreground">Total Share</CardTitle>
+            </CardHeader>
+            <CardContent className="text-2xl font-bold">
+              ${(publicBills?.summary?.totalShare || 0).toFixed(2)}
             </CardContent>
           </Card>
           <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">Session Expenses</p>
-                  <p className="text-2xl font-bold font-display">
-                    ${expenses.filter((e: any) => e.category === "court").reduce((s: number, e: any) => s + e.amount, 0).toFixed(2)}
-                  </p>
-                </div>
-                <div className="p-3 rounded-lg bg-primary/10">
-                  <CircleDollarSign className="h-5 w-5 text-primary" />
-                </div>
-              </div>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm text-muted-foreground">Total Paid</CardTitle>
+            </CardHeader>
+            <CardContent className="text-2xl font-bold text-success">
+              ${(publicBills?.summary?.totalPaid || 0).toFixed(2)}
             </CardContent>
           </Card>
           <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">Equipment</p>
-                  <p className="text-2xl font-bold font-display">
-                    ${expenses.filter((e: any) => e.category === "equipment").reduce((s: number, e: any) => s + e.amount, 0).toFixed(2)}
-                  </p>
-                </div>
-                <div className="p-3 rounded-lg bg-accent/10">
-                  <Receipt className="h-5 w-5 text-accent" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">Pending</p>
-                  <p className="text-2xl font-bold font-display text-warning">
-                    ${pendingAmount.toFixed(2)}
-                  </p>
-                </div>
-                <Badge variant="outline" className="border-warning/30 text-warning">
-                  {expenses.filter((e: any) => e.status === "pending").length} items
-                </Badge>
-              </div>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm text-muted-foreground">Outstanding</CardTitle>
+            </CardHeader>
+            <CardContent className="text-2xl font-bold text-destructive">
+              ${(publicBills?.summary?.totalOutstanding || 0).toFixed(2)}
             </CardContent>
           </Card>
         </div>
@@ -1408,19 +1370,71 @@ export default function Expenses() {
                         placeholder="What this expense is for"
                       />
                     </div>
+                    {editExpense.category === "court" && (
+                      <>
+                        <div className="space-y-2">
+                          <Label>Court Booking Cost ($)</Label>
+                          <Input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={editExpense.courtBookingCost}
+                            onChange={(e) =>
+                              setEditExpense((prev) => ({
+                                ...prev,
+                                courtBookingCost: parseFloat(e.target.value) || 0,
+                              }))
+                            }
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Per Shuttle Cost ($)</Label>
+                          <Input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={editExpense.perShuttleCost}
+                            onChange={(e) =>
+                              setEditExpense((prev) => ({
+                                ...prev,
+                                perShuttleCost: parseFloat(e.target.value) || 0,
+                              }))
+                            }
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>No. of Shuttles Used</Label>
+                          <Input
+                            type="number"
+                            min="0"
+                            step="1"
+                            className="no-spinner"
+                            value={editExpense.shuttlesUsed}
+                            onChange={(e) =>
+                              setEditExpense((prev) => ({
+                                ...prev,
+                                shuttlesUsed: parseInt(e.target.value, 10) || 0,
+                              }))
+                            }
+                          />
+                        </div>
+                      </>
+                    )}
                     <div className="space-y-2">
                       <Label>Total Amount ($)</Label>
                       <Input
                         type="number"
                         min="0"
                         step="0.01"
-                        value={editExpense.amount}
-                        onChange={(e) =>
+                        value={editExpense.category === "court" ? editEffectiveAmount : editExpense.amount}
+                        onChange={(e) => {
+                          if (editExpense.category === "court") return;
                           setEditExpense((prev) => ({
                             ...prev,
                             amount: parseFloat(e.target.value) || 0,
-                          }))
-                        }
+                          }));
+                        }}
+                        disabled={editExpense.category === "court"}
                       />
                     </div>
                     <div className="space-y-2">
@@ -1607,12 +1621,19 @@ export default function Expenses() {
                         <p className="text-sm"><span className="font-medium">Total Amount:</span> ${Number(editDetailExpense.amount || 0).toFixed(2)}</p>
                         <p className="text-sm"><span className="font-medium">Paid By:</span> {typeof editDetailExpense.paidBy === "object" ? editDetailExpense.paidBy?.name || "Unknown" : editDetailExpense.paidBy}</p>
                         <p className="text-sm"><span className="font-medium">Status:</span> {editDetailExpense.status === "completed" ? "Settled" : "Pending"}</p>
+                        {editDetailExpense.category === "court" && (
+                          <>
+                            <p className="text-sm"><span className="font-medium">Court Booking Cost:</span> ${Number(editDetailExpense.courtBookingCost || 0).toFixed(2)}</p>
+                            <p className="text-sm"><span className="font-medium">Shuttles Used:</span> {Number(editDetailExpense.shuttlesUsed || 0)}</p>
+                            <p className="text-sm"><span className="font-medium">Per Shuttle Cost:</span> ${Number(editDetailExpense.perShuttleCost || 0).toFixed(2)}</p>
+                            <p className="text-sm"><span className="font-medium">Total Shuttle Cost:</span> ${(Number(editDetailExpense.shuttlesUsed || 0) * Number(editDetailExpense.perShuttleCost || 0)).toFixed(2)}</p>
+                          </>
+                        )}
                       </div>
                       <Table>
                         <TableHeader>
                           <TableRow>
                             <TableHead>Member Name</TableHead>
-                            <TableHead>Present</TableHead>
                             <TableHead>Share Amount</TableHead>
                             <TableHead>Payment Status</TableHead>
                           </TableRow>
@@ -1621,7 +1642,6 @@ export default function Expenses() {
                           {editDetailRows.map((row: any) => (
                             <TableRow key={row.memberId || row.memberName}>
                               <TableCell>{row.memberName}</TableCell>
-                              <TableCell>{row.present ? "Present" : "Absent"}</TableCell>
                               <TableCell>${Number(row.shareAmount || 0).toFixed(2)}</TableCell>
                               <TableCell>{row.paymentStatus}</TableCell>
                             </TableRow>
@@ -1668,12 +1688,19 @@ export default function Expenses() {
                   <p className="text-sm"><span className="font-medium">Total Amount:</span> ${Number(detailExpense.amount || 0).toFixed(2)}</p>
                   <p className="text-sm"><span className="font-medium">Paid By:</span> {typeof detailExpense.paidBy === "object" ? detailExpense.paidBy?.name || "Unknown" : detailExpense.paidBy}</p>
                   <p className="text-sm"><span className="font-medium">Status:</span> {detailExpense.status === "completed" ? "Settled" : "Pending"}</p>
+                  {detailExpense.category === "court" && (
+                    <>
+                      <p className="text-sm"><span className="font-medium">Court Booking Cost:</span> ${Number(detailExpense.courtBookingCost || 0).toFixed(2)}</p>
+                      <p className="text-sm"><span className="font-medium">Shuttles Used:</span> {Number(detailExpense.shuttlesUsed || 0)}</p>
+                      <p className="text-sm"><span className="font-medium">Per Shuttle Cost:</span> ${Number(detailExpense.perShuttleCost || 0).toFixed(2)}</p>
+                      <p className="text-sm"><span className="font-medium">Total Shuttle Cost:</span> ${(Number(detailExpense.shuttlesUsed || 0) * Number(detailExpense.perShuttleCost || 0)).toFixed(2)}</p>
+                    </>
+                  )}
                 </div>
                 <Table>
                   <TableHeader>
                     <TableRow>
                       <TableHead>Member Name</TableHead>
-                      <TableHead>Present</TableHead>
                       <TableHead>Share Amount</TableHead>
                       <TableHead>Payment Status</TableHead>
                     </TableRow>
@@ -1682,7 +1709,6 @@ export default function Expenses() {
                     {detailRows.map((row: any) => (
                       <TableRow key={row.memberId || row.memberName}>
                         <TableCell>{row.memberName}</TableCell>
-                        <TableCell>{row.present ? "Present" : "Absent"}</TableCell>
                         <TableCell>${Number(row.shareAmount || 0).toFixed(2)}</TableCell>
                         <TableCell>{row.paymentStatus}</TableCell>
                       </TableRow>
@@ -1726,6 +1752,16 @@ export default function Expenses() {
                           value={newEquipment.date}
                           onChange={(e) =>
                             setNewEquipment({ ...newEquipment, date: e.target.value })
+                          }
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Bought By (Name)</Label>
+                        <Input
+                          value={newEquipment.boughtByName}
+                          placeholder="Enter name"
+                          onChange={(e) =>
+                            setNewEquipment({ ...newEquipment, boughtByName: e.target.value })
                           }
                         />
                       </div>
@@ -1862,6 +1898,7 @@ export default function Expenses() {
                     <TableHead>Used</TableHead>
                     <TableHead>Remaining</TableHead>
                     <TableHead>Cost</TableHead>
+                    <TableHead>Bought By</TableHead>
                     <TableHead>Paid By</TableHead>
                     <TableHead>Per Member</TableHead>
                     {user?.role === "admin" && (
@@ -1897,6 +1934,7 @@ export default function Expenses() {
                           {remainingQty}
                         </TableCell>
                         <TableCell className="font-semibold">${purchase.amount.toFixed(2)}</TableCell>
+                        <TableCell>{purchase.boughtByName || "-"}</TableCell>
                         <TableCell>
                           {typeof purchase.paidBy === "object"
                             ? purchase.paidBy?.name || "Unknown"

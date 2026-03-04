@@ -87,8 +87,12 @@ export default function JoiningFees() {
     }
   };
 
-  const totalAdvancePaid = fees.reduce((sum: number, fee: any) => sum + Number(fee.amount || 0), 0);
-  const totalAdvanceAmount = fees.reduce(
+  const totalAdvancePaid = fees.reduce(
+    (sum: number, fee: any) =>
+      sum + (fee.sourceType ? 0 : Number(fee.amount || 0)),
+    0
+  );
+  const remainingAdvanceAmount = fees.reduce(
     (sum: number, fee: any) =>
       sum + Number(fee.remainingAmount ?? fee.amount ?? 0),
     0
@@ -196,8 +200,8 @@ export default function JoiningFees() {
                 <p className="text-lg font-semibold">${totalAdvancePaid.toFixed(2)}</p>
               </div>
               <div className="rounded-lg border p-3">
-                <p className="text-xs text-muted-foreground">Total Advance Amount</p>
-                <p className="text-lg font-semibold">${totalAdvanceAmount.toFixed(2)}</p>
+                <p className="text-xs text-muted-foreground">Remaining Advance Amount</p>
+                <p className="text-lg font-semibold">${remainingAdvanceAmount.toFixed(2)}</p>
               </div>
             </div>
             {isLoading ? (
