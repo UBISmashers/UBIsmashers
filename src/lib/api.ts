@@ -57,9 +57,13 @@ class ApiClient {
     this.clearTokens();
   }
 
-  async getPublicBills() {
+  async getPublicBills(period: "all" | "last_week" | "last_month" | "last_6_months" | "last_year" = "all") {
+    const query = new URLSearchParams();
+    if (period && period !== "all") query.append("period", period);
+    const queryString = query.toString();
     return this.request<{
       updatedAt: string;
+      period: "all" | "last_week" | "last_month" | "last_6_months" | "last_year";
       summary: {
         totalShare: number;
         totalPaid: number;
@@ -92,7 +96,7 @@ class ApiClient {
       equipment: any[];
       courtAdvanceBookings: any[];
       sessionHistory: any[];
-    }>("/public/bills");
+    }>(`/public/bills${queryString ? `?${queryString}` : ""}`);
   }
 
   async submitJoiningRequest(data: {

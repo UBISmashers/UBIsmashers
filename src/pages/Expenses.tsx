@@ -100,6 +100,9 @@ export default function Expenses() {
   const [usageTarget, setUsageTarget] = useState<any>(null);
   const [usageValue, setUsageValue] = useState(0);
   const [filterCategory, setFilterCategory] = useState<string>("all");
+  const [filterPeriod, setFilterPeriod] = useState<
+    "all" | "last_week" | "last_month" | "last_6_months" | "last_year"
+  >("all");
   const [memberSearch, setMemberSearch] = useState("");
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editingExpense, setEditingExpense] = useState<any>(null);
@@ -143,7 +146,7 @@ export default function Expenses() {
     description: "",
     amount: 0,
     quantityPurchased: "",
-    reduceFromAdvance: false,
+    reduceFromAdvance: true,
   });
   const [newCourtAdvance, setNewCourtAdvance] = useState({
     date: format(new Date(), "yyyy-MM-dd"),
@@ -152,7 +155,7 @@ export default function Expenses() {
     courtsBooked: "",
     amount: 0,
     description: "",
-    reduceFromAdvance: false,
+    reduceFromAdvance: true,
   });
 
   // Fetch expenses - filter by member if not admin
@@ -160,6 +163,27 @@ export default function Expenses() {
     queryKey: ["expenses"],
     queryFn: () => api.getExpenses(),
   });
+
+  const isWithinPeriod = (dateInput: string | Date) => {
+    if (filterPeriod === "all") return true;
+
+    const now = new Date();
+    const start = new Date(now);
+
+    if (filterPeriod === "last_week") {
+      start.setDate(now.getDate() - 6);
+    } else if (filterPeriod === "last_month") {
+      start.setMonth(now.getMonth() - 1);
+    } else if (filterPeriod === "last_6_months") {
+      start.setMonth(now.getMonth() - 6);
+    } else if (filterPeriod === "last_year") {
+      start.setFullYear(now.getFullYear() - 1);
+    }
+
+    start.setHours(0, 0, 0, 0);
+    const value = new Date(dateInput);
+    return value >= start && value <= now;
+  };
 
   // Filter expenses based on role
   const baseExpenses = user?.role === "admin" 
@@ -178,7 +202,10 @@ export default function Expenses() {
         );
       });
 
-  const expenses = baseExpenses.filter((expense: any) => !expense.isInventory && !expense.isCourtAdvanceBooking);
+  const expenses = baseExpenses.filter(
+    (expense: any) =>
+      !expense.isInventory && !expense.isCourtAdvanceBooking && isWithinPeriod(expense.date)
+  );
 
   const { data: equipmentPurchases = [], isLoading: isEquipmentLoading } = useQuery({
     queryKey: ["equipment"],
@@ -189,8 +216,8 @@ export default function Expenses() {
     queryFn: () => api.getCourtAdvanceBookings(),
   });
   const { data: publicBills } = useQuery({
-    queryKey: ["publicBillsSummary"],
-    queryFn: () => api.getPublicBills(),
+    queryKey: ["publicBillsSummary", filterPeriod],
+    queryFn: () => api.getPublicBills(filterPeriod),
   });
 
   // Fetch members for checkbox list
@@ -242,7 +269,7 @@ export default function Expenses() {
         description: "",
         amount: 0,
         quantityPurchased: "",
-        reduceFromAdvance: false,
+        reduceFromAdvance: true,
       });
       toast.success("Equipment purchase added successfully!");
     },
@@ -283,7 +310,7 @@ export default function Expenses() {
         courtsBooked: "",
         amount: 0,
         description: "",
-        reduceFromAdvance: false,
+        reduceFromAdvance: true,
       });
       toast.success("Court advance booking added successfully!");
     },
@@ -1167,6 +1194,25 @@ export default function Expenses() {
               <CardTitle>Expense History</CardTitle>
               <div className="flex items-center gap-2">
                 <Filter className="h-4 w-4 text-muted-foreground" />
+                <Select
+                  value={filterPeriod}
+                  onValueChange={(value) =>
+                    setFilterPeriod(
+                      value as "all" | "last_week" | "last_month" | "last_6_months" | "last_year"
+                    )
+                  }
+                >
+                  <SelectTrigger className="w-40">
+                    <SelectValue placeholder="Filter by period" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Time</SelectItem>
+                    <SelectItem value="last_week">Last Week</SelectItem>
+                    <SelectItem value="last_month">Last Month</SelectItem>
+                    <SelectItem value="last_6_months">Last 6 Months</SelectItem>
+                    <SelectItem value="last_year">Last Year</SelectItem>
+                  </SelectContent>
+                </Select>
                 <Select value={filterCategory} onValueChange={setFilterCategory}>
                   <SelectTrigger className="w-40">
                     <SelectValue placeholder="Filter by category" />

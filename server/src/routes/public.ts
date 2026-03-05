@@ -12,13 +12,53 @@ const normalizeAdvanceStatus = (totalAmount: number, remainingAmount: number) =>
   return 'available';
 };
 
-router.get('/bills', async (_req: Request, res: Response) => {
+const PERIOD_VALUES = new Set(['all', 'last_week', 'last_month', 'last_6_months', 'last_year']);
+
+const getPeriodStartDate = (period: string): Date | null => {
+  const now = new Date();
+  const start = new Date(now);
+
+  switch (period) {
+    case 'last_week':
+      start.setDate(now.getDate() - 6);
+      break;
+    case 'last_month':
+      start.setMonth(now.getMonth() - 1);
+      break;
+    case 'last_6_months':
+      start.setMonth(now.getMonth() - 6);
+      break;
+    case 'last_year':
+      start.setFullYear(now.getFullYear() - 1);
+      break;
+    default:
+      return null;
+  }
+
+  start.setHours(0, 0, 0, 0);
+  return start;
+};
+
+router.get('/bills', async (req: Request, res: Response) => {
   try {
+    const requestedPeriod = String(req.query.period || 'all');
+    const period = PERIOD_VALUES.has(requestedPeriod) ? requestedPeriod : 'all';
+    const periodStartDate = getPeriodStartDate(period);
+    const expenseDateFilter =
+      periodStartDate
+        ? {
+            date: {
+              $gte: periodStartDate,
+              $lte: new Date(),
+            },
+          }
+        : {};
+
     const members = await Member.find()
       .select('_id name status')
       .sort({ name: 1 });
 
-    const expenses = await Expense.find()
+    const expenses = await Expense.find(expenseDateFilter)
       .select(
         '_id description amount date category isInventory itemName perMemberShare paidBy selectedMembers'
       )
@@ -26,7 +66,13 @@ router.get('/bills', async (_req: Request, res: Response) => {
       .populate('selectedMembers', '_id')
       .sort({ date: -1, createdAt: -1 });
 
-    const shares = await ExpenseShare.find().select('expenseId memberId paidStatus');
+    const filteredExpenseIds = expenses.map((expense) => expense._id);
+    const shares =
+      filteredExpenseIds.length > 0
+        ? await ExpenseShare.find({ expenseId: { $in: filteredExpenseIds } }).select(
+            'expenseId memberId paidStatus'
+          )
+        : [];
     const shareStatusByExpenseAndMember = new Map<string, boolean>();
     shares.forEach((share) => {
       const expenseId = (share.expenseId as any)?.toString?.();
@@ -170,16 +216,20 @@ router.get('/bills', async (_req: Request, res: Response) => {
       };
     });
 
-    const equipment = await Expense.find({ isInventory: true })
+    const equipment = await Expense.find({ isInventory: true, ...expenseDateFilter })
       .populate('paidBy', 'name email')
       .sort({ date: -1 });
-    const courtAdvanceBookings = await Expense.find({ isCourtAdvanceBooking: true })
+    const courtAdvanceBookings = await Expense.find({
+      isCourtAdvanceBooking: true,
+      ...expenseDateFilter,
+    })
       .populate('paidBy', 'name email')
       .sort({ courtBookedDate: -1, date: -1 });
     const sessionHistory = await Expense.find({
       category: 'court',
       isInventory: { $ne: true },
       isCourtAdvanceBooking: { $ne: true },
+      ...expenseDateFilter,
     })
       .populate('paidBy', 'name email')
       .populate('selectedMembers', 'name email')
@@ -204,6 +254,7 @@ router.get('/bills', async (_req: Request, res: Response) => {
 
     return res.json({
       updatedAt: new Date().toISOString(),
+      period,
       members: bills,
       joiningFees: normalizedJoiningFees,
       equipment,

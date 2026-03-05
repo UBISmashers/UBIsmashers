@@ -6,16 +6,27 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, ChevronDown, ChevronUp, Boxes } from "lucide-react";
 import { format } from "date-fns";
 
 const publicApi = createApiClient(() => null, () => {});
+type PeriodFilter = "all" | "last_week" | "last_month" | "last_6_months" | "last_year";
+
+const periodLabel: Record<PeriodFilter, string> = {
+  all: "All Time",
+  last_week: "Last Week",
+  last_month: "Last Month",
+  last_6_months: "Last 6 Months",
+  last_year: "Last Year",
+};
 
 export default function PublicBills() {
   const [expandedMemberId, setExpandedMemberId] = useState<string | null>(null);
+  const [period, setPeriod] = useState<PeriodFilter>("all");
   const { data, isLoading } = useQuery({
-    queryKey: ["publicBills"],
-    queryFn: () => publicApi.getPublicBills(),
+    queryKey: ["publicBills", period],
+    queryFn: () => publicApi.getPublicBills(period),
   });
 
   return (
@@ -36,9 +47,23 @@ export default function PublicBills() {
             <h1 className="text-3xl font-display font-bold">Group Bills (Read-only)</h1>
             <p className="text-muted-foreground">Transparent member-wise expense and payment status.</p>
           </div>
-          <Link to="/admin-login">
-            <Button variant="outline">Admin Login</Button>
-          </Link>
+          <div className="flex items-center gap-2">
+            <Select value={period} onValueChange={(value) => setPeriod(value as PeriodFilter)}>
+              <SelectTrigger className="w-44">
+                <SelectValue placeholder="Select range" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{periodLabel.all}</SelectItem>
+                <SelectItem value="last_week">{periodLabel.last_week}</SelectItem>
+                <SelectItem value="last_month">{periodLabel.last_month}</SelectItem>
+                <SelectItem value="last_6_months">{periodLabel.last_6_months}</SelectItem>
+                <SelectItem value="last_year">{periodLabel.last_year}</SelectItem>
+              </SelectContent>
+            </Select>
+            <Link to="/admin-login">
+              <Button variant="outline">Admin Login</Button>
+            </Link>
+          </div>
         </div>
 
         <div className="grid gap-4 md:grid-cols-3">
