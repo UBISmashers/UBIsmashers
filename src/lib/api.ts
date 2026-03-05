@@ -57,13 +57,15 @@ class ApiClient {
     this.clearTokens();
   }
 
-  async getPublicBills(period: "all" | "last_week" | "last_month" | "last_6_months" | "last_year" = "all") {
+  async getPublicBills(
+    period: "all" | "this_month" | "last_week" | "last_month" | "last_6_months" | "last_year" = "all"
+  ) {
     const query = new URLSearchParams();
     if (period && period !== "all") query.append("period", period);
     const queryString = query.toString();
     return this.request<{
       updatedAt: string;
-      period: "all" | "last_week" | "last_month" | "last_6_months" | "last_year";
+      period: "all" | "this_month" | "last_week" | "last_month" | "last_6_months" | "last_year";
       summary: {
         totalShare: number;
         totalPaid: number;

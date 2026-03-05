@@ -2,7 +2,7 @@
  * Export data to Excel format (CSV that opens in Excel)
  */
 
-const toCsvCell = (value: any) => {
+const toCsvCell = (value: string | number | boolean | null | undefined) => {
   const cellStr = String(value ?? "");
   if (cellStr.includes(",") || cellStr.includes('"') || cellStr.includes("\n")) {
     return `"${cellStr.replace(/"/g, '""')}"`;
@@ -10,11 +10,11 @@ const toCsvCell = (value: any) => {
   return cellStr;
 };
 
-export function exportToExcel(
-  data: any[],
+export function exportToExcel<T>(
+  data: T[],
   filename: string,
   headers: string[],
-  getRowData: (item: any) => string[]
+  getRowData: (item: T) => Array<string | number | boolean | null | undefined>
 ) {
   const csvContent = [
     headers.join(","),

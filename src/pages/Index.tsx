@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { MainLayout } from "@/components/layout/MainLayout";
@@ -23,85 +24,133 @@ import { format } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
+type PeriodFilter = "all" | "this_month" | "last_week" | "last_month" | "last_6_months" | "last_year";
+
+const periodLabel: Record<PeriodFilter, string> = {
+  all: "All Time",
+  this_month: "This Month",
+  last_week: "Last Week",
+  last_month: "Last Month",
+  last_6_months: "Last 6 Months",
+  last_year: "Last Year",
+};
+
+interface MemberLite {
+  name: string;
+  status: string;
+}
+
+interface ExpenseLite {
+  amount: number;
+  date: string;
+  category?: string;
+}
+
+interface BookingLite {
+  date: string;
+}
+
+interface AttendanceLite {
+  date: string;
+  isPresent: boolean;
+}
+
+interface MemberExpenseShare {
+  _id?: string;
+  id?: string;
+  amount: number;
+  paidStatus: boolean;
+  expenseId?: {
+    description?: string;
+    date?: string;
+  };
+}
+
+interface MemberPaymentsResponse {
+  summary?: {
+    totalShare: number;
+    totalPaid: number;
+    totalUnpaid: number;
+  };
+  expenseShares?: MemberExpenseShare[];
+}
 
 const Index = () => {
   const { api, user, member } = useAuth();
   const navigate = useNavigate();
+  const [period, setPeriod] = useState<PeriodFilter>("all");
 
   // Fetch members
-  const { data: members = [] } = useQuery({
+  const { data: members = [] } = useQuery<MemberLite[]>({
     queryKey: ["members"],
     queryFn: () => api.getMembers(),
   });
 
   // Fetch expenses
-  const { data: expenses = [] } = useQuery({
+  const { data: expenses = [] } = useQuery<ExpenseLite[]>({
     queryKey: ["expenses"],
     queryFn: () => api.getExpenses(),
   });
 
   // Fetch bookings
-  const { data: bookings = [] } = useQuery({
+  const { data: bookings = [] } = useQuery<BookingLite[]>({
     queryKey: ["bookings"],
     queryFn: () => api.getBookings(),
   });
 
-  // Fetch all payments for admin dashboard
-  const { data: paymentData } = useQuery({
-    queryKey: ["allPayments"],
-    queryFn: () => api.getAllPayments(),
+  const { data: publicBillsSummary } = useQuery({
+    queryKey: ["publicBills", period],
+    queryFn: () => api.getPublicBills(period),
     enabled: user?.role === "admin",
   });
 
   // Fetch today's attendance
   const today = format(new Date(), "yyyy-MM-dd");
-  const { data: todayAttendance = [] } = useQuery({
+  const { data: todayAttendance = [] } = useQuery<AttendanceLite[]>({
     queryKey: ["attendance", today],
     queryFn: () => api.getAttendanceByDate(today),
   });
 
   // Fetch member's own attendance history (for members only)
   const memberId = member?._id || member?.id;
-  const { data: memberAttendance = [] } = useQuery({
+  const { data: memberAttendance = [] } = useQuery<AttendanceLite[]>({
     queryKey: ["memberAttendance", memberId],
     queryFn: () => api.getAttendance({ memberId: memberId }),
     enabled: !!memberId && user?.role === "member",
   });
 
   // Fetch member's payment data (for members only)
-  const { data: memberPayments } = useQuery({
+  const { data: memberPayments } = useQuery<MemberPaymentsResponse>({
     queryKey: ["memberPayments", memberId],
     queryFn: () => api.getMemberPayments(memberId!),
     enabled: !!memberId && user?.role === "member",
   });
 
   // Calculate stats
-  const activeMembers = members.filter((m: any) => m.status === "active").length;
+  const activeMembers = members.filter((m) => m.status === "active").length;
   const totalMembers = members.length;
   const monthlyExpenses = expenses
-    .filter((e: any) => {
+    .filter((e) => {
       const expenseDate = new Date(e.date);
       const now = new Date();
       return expenseDate.getMonth() === now.getMonth() && expenseDate.getFullYear() === now.getFullYear();
     })
-    .reduce((sum: number, e: any) => sum + e.amount, 0);
+    .reduce((sum, e) => sum + Number(e.amount || 0), 0);
   
-  const thisMonthBookings = bookings.filter((b: any) => {
+  const thisMonthBookings = bookings.filter((b) => {
     const bookingDate = new Date(b.date);
     const now = new Date();
     return bookingDate.getMonth() === now.getMonth() && bookingDate.getFullYear() === now.getFullYear();
   }).length;
 
-  const todayPresent = todayAttendance.filter((a: any) => a.isPresent).length;
+  const todayPresent = todayAttendance.filter((a) => a.isPresent).length;
   const todayTotal = todayAttendance.length;
-
-  // Calculate pending payments and outstanding balances for admin
-  const totalPendingPayments = paymentData?.memberPayments?.reduce((sum: number, mp: any) => sum + mp.totalUnpaid, 0) || 0;
-  const pendingPaymentCount = paymentData?.memberPayments?.reduce((sum: number, mp: any) => sum + mp.unpaidCount, 0) || 0;
 
   // Member-specific dashboard
   if (user?.role === "member" && member) {
-    const attendanceCount = memberAttendance.filter((a: any) => a.isPresent).length;
+    const attendanceCount = memberAttendance.filter((a) => a.isPresent).length;
     const totalSessions = memberAttendance.length;
     const attendanceRate = totalSessions > 0 ? (attendanceCount / totalSessions) * 100 : 0;
 
@@ -109,7 +158,7 @@ const Index = () => {
     const recentAttendance = memberAttendance
       .slice(0, 7)
       .reverse()
-      .map((a: any) => ({
+      .map((a) => ({
         date: format(new Date(a.date), "MMM dd"),
         present: a.isPresent ? 1 : 0,
       }));
@@ -188,7 +237,7 @@ const Index = () => {
               <CardContent>
                 {memberPayments?.expenseShares && memberPayments.expenseShares.length > 0 ? (
                   <div className="space-y-3">
-                    {memberPayments.expenseShares.slice(0, 5).map((share: any) => (
+                    {memberPayments.expenseShares.slice(0, 5).map((share) => (
                       <div
                         key={share._id || share.id}
                         className="flex items-center justify-between p-3 border rounded-lg"
@@ -239,15 +288,30 @@ const Index = () => {
     <MainLayout>
       <div className="space-y-6 animate-fade-in">
         {/* Page Header */}
-        <div>
-          <h1 className="text-3xl font-display font-bold">Dashboard</h1>
-          <p className="text-muted-foreground mt-1">
-            Welcome back! Here's what's happening with our club.
-          </p>
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h1 className="text-3xl font-display font-bold">Dashboard</h1>
+            <p className="text-muted-foreground mt-1">
+              Welcome back! Here's what's happening with our club.
+            </p>
+          </div>
+          <Select value={period} onValueChange={(value) => setPeriod(value as PeriodFilter)}>
+            <SelectTrigger className="w-44">
+              <SelectValue placeholder="Select range" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">{periodLabel.all}</SelectItem>
+              <SelectItem value="this_month">{periodLabel.this_month}</SelectItem>
+              <SelectItem value="last_week">{periodLabel.last_week}</SelectItem>
+              <SelectItem value="last_month">{periodLabel.last_month}</SelectItem>
+              <SelectItem value="last_6_months">{periodLabel.last_6_months}</SelectItem>
+              <SelectItem value="last_year">{periodLabel.last_year}</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
         {/* Stats Grid */}
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <StatCard
             title="Total Members"
             value={totalMembers}
@@ -274,15 +338,47 @@ const Index = () => {
             icon={ClipboardCheck}
             variant="accent"
           />
-          {user?.role === "admin" && (
-            <StatCard
-              title="Pending Payments"
-              value={`$${totalPendingPayments.toFixed(2)}`}
-              description={`${pendingPaymentCount} unpaid expense${pendingPaymentCount !== 1 ? 's' : ''}`}
-              icon={DollarSign}
-              variant="destructive"
-            />
-          )}
+        </div>
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <h2 className="text-base font-semibold">Billing Overview</h2>
+            <span className="text-xs text-muted-foreground">{periodLabel[period]}</span>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+          <StatCard
+            title="Total Expense"
+            value={`$${(publicBillsSummary?.summary?.totalShare || 0).toFixed(2)}`}
+            description={`${periodLabel[period]} shared expenses`}
+            icon={DollarSign}
+          />
+          <StatCard
+            title="Total Paid"
+            value={`$${(publicBillsSummary?.summary?.totalPaid || 0).toFixed(2)}`}
+            description={`${periodLabel[period]} payments received`}
+            icon={CheckCircle2}
+            variant="accent"
+          />
+          <StatCard
+            title="Outstanding"
+            value={`$${(publicBillsSummary?.summary?.totalOutstanding || 0).toFixed(2)}`}
+            description={`${periodLabel[period]} unpaid balance`}
+            icon={XCircle}
+            variant="destructive"
+          />
+          <StatCard
+            title="Advance Paid"
+            value={`$${(publicBillsSummary?.summary?.totalAdvancePaid || 0).toFixed(2)}`}
+            description={`${periodLabel[period]} advances collected`}
+            icon={BadgeDollarSign}
+          />
+          <StatCard
+            title="Remaining Advance Amount"
+            value={`$${(publicBillsSummary?.summary?.totalAdvanceRemaining || 0).toFixed(2)}`}
+            description="Available advance balance"
+            icon={BadgeDollarSign}
+            variant="accent"
+          />
+        </div>
         </div>
 
         {/* Main Content Grid */}
@@ -363,13 +459,14 @@ const Index = () => {
               <div className="space-y-3">
                 {(() => {
                   const monthlyExpensesByCategory = expenses
-                    .filter((e: any) => {
+                    .filter((e) => {
                       const expenseDate = new Date(e.date);
                       const now = new Date();
                       return expenseDate.getMonth() === now.getMonth() && expenseDate.getFullYear() === now.getFullYear();
                     })
-                    .reduce((acc: any, e: any) => {
-                      acc[e.category] = (acc[e.category] || 0) + e.amount;
+                    .reduce((acc: Record<string, number>, e) => {
+                      const key = e.category || "other";
+                      acc[key] = (acc[key] || 0) + Number(e.amount || 0);
                       return acc;
                     }, {});
 
@@ -380,12 +477,15 @@ const Index = () => {
                     other: "Other Expenses",
                   };
 
-                  const totalMonthly = Object.values(monthlyExpensesByCategory).reduce((sum: number, val: any) => sum + val, 0);
+                  const totalMonthly = Object.values(monthlyExpensesByCategory).reduce(
+                    (sum, val) => sum + val,
+                    0
+                  );
                   const avgPerMember = totalMonthly > 0 && totalMembers > 0 ? totalMonthly / totalMembers : 0;
 
                   return (
                     <>
-                      {Object.entries(monthlyExpensesByCategory).map(([category, amount]: [string, any]) => (
+                      {Object.entries(monthlyExpensesByCategory).map(([category, amount]) => (
                         <SummaryRow
                           key={category}
                           label={categoryLabels[category] || category}

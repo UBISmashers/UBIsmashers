@@ -101,7 +101,7 @@ export default function Expenses() {
   const [usageValue, setUsageValue] = useState(0);
   const [filterCategory, setFilterCategory] = useState<string>("all");
   const [filterPeriod, setFilterPeriod] = useState<
-    "all" | "last_week" | "last_month" | "last_6_months" | "last_year"
+    "all" | "this_month" | "last_week" | "last_month" | "last_6_months" | "last_year"
   >("all");
   const [memberSearch, setMemberSearch] = useState("");
   const [isEditOpen, setIsEditOpen] = useState(false);
@@ -170,7 +170,9 @@ export default function Expenses() {
     const now = new Date();
     const start = new Date(now);
 
-    if (filterPeriod === "last_week") {
+    if (filterPeriod === "this_month") {
+      start.setDate(1);
+    } else if (filterPeriod === "last_week") {
       start.setDate(now.getDate() - 6);
     } else if (filterPeriod === "last_month") {
       start.setMonth(now.getMonth() - 1);
@@ -1198,7 +1200,7 @@ export default function Expenses() {
                   value={filterPeriod}
                   onValueChange={(value) =>
                     setFilterPeriod(
-                      value as "all" | "last_week" | "last_month" | "last_6_months" | "last_year"
+                      value as "all" | "this_month" | "last_week" | "last_month" | "last_6_months" | "last_year"
                     )
                   }
                 >
@@ -1207,6 +1209,7 @@ export default function Expenses() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Time</SelectItem>
+                    <SelectItem value="this_month">This Month</SelectItem>
                     <SelectItem value="last_week">Last Week</SelectItem>
                     <SelectItem value="last_month">Last Month</SelectItem>
                     <SelectItem value="last_6_months">Last 6 Months</SelectItem>

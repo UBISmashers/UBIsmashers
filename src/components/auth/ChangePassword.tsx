@@ -49,10 +49,11 @@ export function ChangePassword({ userId, currentPassword, onSuccess }: ChangePas
         description: 'You can now access your account',
       });
       onSuccess();
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to change password. Please try again.';
       toast({
         title: 'Password change failed',
-        description: error.message || 'Failed to change password. Please try again.',
+        description: message,
         variant: 'destructive',
       });
     } finally {

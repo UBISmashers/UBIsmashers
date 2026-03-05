@@ -12,13 +12,16 @@ const normalizeAdvanceStatus = (totalAmount: number, remainingAmount: number) =>
   return 'available';
 };
 
-const PERIOD_VALUES = new Set(['all', 'last_week', 'last_month', 'last_6_months', 'last_year']);
+export const PERIOD_VALUES = new Set(['all', 'this_month', 'last_week', 'last_month', 'last_6_months', 'last_year']);
 
-const getPeriodStartDate = (period: string): Date | null => {
+export const getPeriodStartDate = (period: string): Date | null => {
   const now = new Date();
   const start = new Date(now);
 
   switch (period) {
+    case 'this_month':
+      start.setDate(1);
+      break;
     case 'last_week':
       start.setDate(now.getDate() - 6);
       break;

@@ -11,15 +11,57 @@ import { Loader2, ChevronDown, ChevronUp, Boxes } from "lucide-react";
 import { format } from "date-fns";
 
 const publicApi = createApiClient(() => null, () => {});
-type PeriodFilter = "all" | "last_week" | "last_month" | "last_6_months" | "last_year";
+type PeriodFilter = "all" | "this_month" | "last_week" | "last_month" | "last_6_months" | "last_year";
 
 const periodLabel: Record<PeriodFilter, string> = {
   all: "All Time",
+  this_month: "This Month",
   last_week: "Last Week",
   last_month: "Last Month",
   last_6_months: "Last 6 Months",
   last_year: "Last Year",
 };
+
+interface PublicBreakdownItem {
+  date?: string;
+  description?: string;
+  category?: string;
+  isInventory?: boolean;
+  itemName?: string;
+  shareAmount: number;
+  paidStatus: boolean;
+}
+
+interface EquipmentItem {
+  _id?: string;
+  id?: string;
+  date?: string;
+  quantityPurchased?: number;
+  quantityUsed?: number;
+  boughtByName?: string;
+  paidBy?: string | { name?: string };
+}
+
+interface CourtAdvanceItem {
+  _id?: string;
+  id?: string;
+  date?: string;
+  courtBookedDate?: string;
+  bookedByName?: string;
+  courtsBooked?: number;
+}
+
+interface SessionHistoryItem {
+  _id?: string;
+  id?: string;
+  date?: string;
+  description?: string;
+  courtBookingCost?: number;
+  shuttlesUsed?: number;
+  perShuttleCost?: number;
+  amount?: number;
+  selectedMembers?: Array<string | { name?: string }>;
+}
 
 export default function PublicBills() {
   const [expandedMemberId, setExpandedMemberId] = useState<string | null>(null);
@@ -54,6 +96,7 @@ export default function PublicBills() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">{periodLabel.all}</SelectItem>
+                <SelectItem value="this_month">{periodLabel.this_month}</SelectItem>
                 <SelectItem value="last_week">{periodLabel.last_week}</SelectItem>
                 <SelectItem value="last_month">{periodLabel.last_month}</SelectItem>
                 <SelectItem value="last_6_months">{periodLabel.last_6_months}</SelectItem>
@@ -64,47 +107,6 @@ export default function PublicBills() {
               <Button variant="outline">Admin Login</Button>
             </Link>
           </div>
-        </div>
-
-        <div className="grid gap-4 md:grid-cols-3">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm text-muted-foreground">Total Expense</CardTitle>
-            </CardHeader>
-            <CardContent className="text-2xl font-bold">${(data?.summary.totalShare || 0).toFixed(2)}</CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm text-muted-foreground">Total Paid</CardTitle>
-            </CardHeader>
-            <CardContent className="text-2xl font-bold text-success">${(data?.summary.totalPaid || 0).toFixed(2)}</CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm text-muted-foreground">Outstanding</CardTitle>
-            </CardHeader>
-            <CardContent className="text-2xl font-bold text-destructive">
-              ${(data?.summary.totalOutstanding || 0).toFixed(2)}
-            </CardContent>
-          </Card>
-        </div>
-        <div className="grid gap-4 md:grid-cols-2">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm text-muted-foreground">Advance Paid</CardTitle>
-            </CardHeader>
-            <CardContent className="text-2xl font-bold">
-              ${(data?.summary.totalAdvancePaid || 0).toFixed(2)}
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm text-muted-foreground">Remaining Advance Amount</CardTitle>
-            </CardHeader>
-            <CardContent className="text-2xl font-bold text-success">
-              ${(data?.summary.totalAdvanceRemaining || 0).toFixed(2)}
-            </CardContent>
-          </Card>
         </div>
 
         <Card>
@@ -125,8 +127,6 @@ export default function PublicBills() {
                     <TableHead>Amount Paid</TableHead>
                     <TableHead>Outstanding Balance</TableHead>
                     <TableHead>Advance Status</TableHead>
-                    <TableHead>Paid</TableHead>
-                    <TableHead>Unpaid</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -167,18 +167,10 @@ export default function PublicBills() {
                               {Number(member.advanceTotalPaid || 0) > 0 ? "Paid" : "Unpaid"}
                             </span>
                           </TableCell>
-                          <TableCell>
-                            <Badge variant="outline">{member.paidExpenses}</Badge>
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant={member.unpaidExpenses > 0 ? "destructive" : "secondary"}>
-                              {member.unpaidExpenses}
-                            </Badge>
-                          </TableCell>
                         </TableRow>
                         {isExpanded && (
                           <TableRow>
-                            <TableCell colSpan={7} className="bg-secondary/30">
+                            <TableCell colSpan={5} className="bg-secondary/30">
                               {member.breakdown?.length ? (
                                 <div className="p-2">
                                   <div className="text-sm font-medium mb-2">Expense Breakdown</div>
@@ -193,7 +185,7 @@ export default function PublicBills() {
                                       </TableRow>
                                     </TableHeader>
                                     <TableBody>
-                                      {member.breakdown.map((item: any, index: number) => (
+                                      {member.breakdown.map((item: PublicBreakdownItem, index: number) => (
                                         <TableRow key={`${member.memberId}-${index}`}>
                                           <TableCell>
                                             {item.date ? format(new Date(item.date), "MMM d") : "-"}
@@ -256,13 +248,12 @@ export default function PublicBills() {
                     <TableHead>Qty</TableHead>
                     <TableHead>Used</TableHead>
                     <TableHead>Remaining</TableHead>
-                    <TableHead>Cost</TableHead>
                     <TableHead>Bought By</TableHead>
                     <TableHead>Paid By</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {(data?.equipment || []).map((item: any) => {
+                  {((data?.equipment as EquipmentItem[]) || []).map((item) => {
                     const purchasedQty = item.quantityPurchased || 0;
                     const usedQty = item.quantityUsed || 0;
                     const remainingQty = Math.max(0, purchasedQty - usedQty);
@@ -288,7 +279,6 @@ export default function PublicBills() {
                         <TableCell className={remainingQty > 0 ? "text-success font-medium" : "text-destructive"}>
                           {remainingQty}
                         </TableCell>
-                        <TableCell className="font-semibold">${(item.amount || 0).toFixed(2)}</TableCell>
                         <TableCell>{item.boughtByName || "-"}</TableCell>
                         <TableCell>
                           {typeof item.paidBy === "object" ? item.paidBy?.name || "Unknown" : item.paidBy || "-"}
@@ -322,11 +312,10 @@ export default function PublicBills() {
                     <TableHead>Date</TableHead>
                     <TableHead>Booked By</TableHead>
                     <TableHead>No. of Courts</TableHead>
-                    <TableHead>Amount</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {(data?.courtAdvanceBookings || []).map((item: any) => (
+                  {((data?.courtAdvanceBookings as CourtAdvanceItem[]) || []).map((item) => (
                     <TableRow key={item._id || item.id}>
                       <TableCell className="font-medium">
                         {item.courtBookedDate
@@ -339,7 +328,6 @@ export default function PublicBills() {
                       <TableCell>
                         <Badge variant="secondary">{item.courtsBooked || 0}</Badge>
                       </TableCell>
-                      <TableCell className="font-semibold">${Number(item.amount || 0).toFixed(2)}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -376,7 +364,7 @@ export default function PublicBills() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {(data?.sessionHistory || []).map((item: any) => (
+                  {((data?.sessionHistory as SessionHistoryItem[]) || []).map((item) => (
                     <TableRow key={item._id || item.id}>
                       <TableCell className="font-medium">
                         {item.date ? format(new Date(item.date), "MMM d") : "-"}
@@ -394,7 +382,7 @@ export default function PublicBills() {
                       <TableCell className="font-semibold">${Number(item.amount || 0).toFixed(2)}</TableCell>
                       <TableCell>
                         {(item.selectedMembers || [])
-                          .map((m: any) => (typeof m === "object" ? m?.name : m))
+                          .map((m) => (typeof m === "object" ? m?.name : m))
                           .filter(Boolean)
                           .join(", ") || "-"}
                       </TableCell>
