@@ -269,12 +269,6 @@ export default function Expenses() {
     queryKey: ["members"],
     queryFn: () => api.getMembers(),
   });
-  const { data: joiningFees = [] } = useQuery({
-    queryKey: ["joining-fees"],
-    queryFn: () => api.getJoiningFees(),
-    enabled: user?.role === "admin",
-  });
-
   // Create expense mutation
   const createExpenseMutation = useMutation({
     mutationFn: (data: any) => api.createExpense(data),
@@ -850,6 +844,128 @@ export default function Expenses() {
     });
   };
 
+  const formatExportDate = (value?: string | Date) =>
+    value ? format(new Date(value), "yyyy-MM-dd") : "-";
+
+  const handleExportPublicBillsFormat = () => {
+    try {
+      const members = publicBills?.members || [];
+      const equipment = publicBills?.equipment || [];
+      const courtAdvance = publicBills?.courtAdvanceBookings || [];
+      const sessionHistory = publicBills?.sessionHistory || [];
+
+      const memberRows = members.map((memberItem: any) => [
+        memberItem.name || "Unknown",
+        Number(memberItem.totalExpenseShare || 0).toFixed(2),
+        Number(memberItem.amountPaid || 0).toFixed(2),
+        Number(memberItem.outstandingBalance || 0).toFixed(2),
+        Number(memberItem.advanceTotalPaid || 0) > 0 ? "Paid" : "Unpaid",
+      ]);
+
+      const memberBreakdownRows = members.flatMap((memberItem: any) =>
+        (memberItem.breakdown || []).map((item: any) => [
+          memberItem.name || "Unknown",
+          formatExportDate(item.date),
+          item.isInventory ? item.itemName || item.description || "-" : item.description || "-",
+          item.isInventory ? "equipment-stock" : item.category || "-",
+          Number(item.shareAmount || 0).toFixed(2),
+          item.paidStatus ? "Paid" : "Unpaid",
+        ])
+      );
+
+      const equipmentRows = equipment.map((item: any) => {
+        const purchased = Number(item.quantityPurchased || 0);
+        const used = Number(item.quantityUsed || 0);
+        return [
+          formatExportDate(item.date),
+          "Shuttle",
+          purchased,
+          used,
+          Math.max(0, purchased - used),
+          item.boughtByName || "-",
+          typeof item.paidBy === "object" ? item.paidBy?.name || "Unknown" : item.paidBy || "-",
+        ];
+      });
+
+      const courtAdvanceRows = courtAdvance.map((item: any) => [
+        formatExportDate(item.courtBookedDate || item.date),
+        item.bookedByName || "-",
+        Number(item.courtsBooked || 0),
+      ]);
+
+      const sessionRows = sessionHistory.map((item: any) => [
+        formatExportDate(item.date),
+        item.description || "-",
+        Number(item.courtBookingCost || 0).toFixed(2),
+        Number(item.shuttlesUsed || 0),
+        Number(item.perShuttleCost || 0).toFixed(2),
+        (Number(item.shuttlesUsed || 0) * Number(item.perShuttleCost || 0)).toFixed(2),
+        Number(item.amount || 0).toFixed(2),
+        (item.selectedMembers || [])
+          .map((m: any) => (typeof m === "object" ? m?.name : m))
+          .filter(Boolean)
+          .join(", ") || "-",
+      ]);
+
+      const sections: Array<{
+        title: string;
+        headers: string[];
+        rows: Array<Array<string | number | boolean | null | undefined>>;
+      }> = [
+        {
+          title: "Member Billing Status",
+          headers: [
+            "Member",
+            "Total Expense Share",
+            "Amount Paid",
+            "Outstanding Balance",
+            "Advance Status",
+          ],
+          rows: memberRows,
+        },
+        {
+          title: "Member Expense Breakdown",
+          headers: ["Member", "Date", "Description", "Category", "Share", "Status"],
+          rows: memberBreakdownRows,
+        },
+        {
+          title: "Equipment Stock",
+          headers: ["Date", "Item", "Qty", "Used", "Remaining", "Bought By", "Paid By"],
+          rows: equipmentRows,
+        },
+        {
+          title: "Court Advance Bookings",
+          headers: ["Date", "Booked By", "No. of Courts"],
+          rows: courtAdvanceRows,
+        },
+        {
+          title: "Session History",
+          headers: [
+            "Date",
+            "Description",
+            "Court Cost",
+            "Shuttles Used",
+            "Per Shuttle Cost",
+            "Total Shuttle Cost",
+            "Total Amount",
+            "Players Played",
+          ],
+          rows: sessionRows,
+        },
+      ];
+
+      exportSectionsToExcel(
+        `UBISmashers_Public_Bills_${format(new Date(), "yyyy-MM-dd")}`,
+        sections
+      );
+      toast.success("Public bills format exported successfully!");
+    } catch (error: any) {
+      toast.error("Failed to export public bills format", {
+        description: error.message || "An error occurred",
+      });
+    }
+  };
+
   return (
     <MainLayout>
       <div className="space-y-6 animate-fade-in">
@@ -864,190 +980,7 @@ export default function Expenses() {
           <div className="flex gap-2">
             <Button 
               variant="outline"
-              onClick={() => {
-                try {
-                  const memberId = member?._id || member?.id;
-                  const exportExpenses =
-                    user?.role === "admin"
-                      ? expenses
-                      : expenses.filter((exp: any) => {
-                          const selectedMemberIds =
-                            exp.selectedMembers?.map((m: any) => m._id || m.id || m) || [];
-                          return selectedMemberIds.some(
-                            (id: any) => id?.toString() === memberId?.toString()
-                          );
-                        });
-
-                  const expenseHistoryRows = exportExpenses.map((expense: any) => [
-                    format(new Date(expense.date), "yyyy-MM-dd"),
-                    categoryLabels[expense.category] || expense.category,
-                    expense.description || "",
-                    Number(expense.amount || 0).toFixed(2),
-                    typeof expense.paidBy === "object"
-                      ? expense.paidBy?.name || "Unknown"
-                      : expense.paidBy || "Unknown",
-                    Number(expense.presentMembers || 0),
-                    Number(expense.perMemberShare || 0).toFixed(2),
-                    expense.status || "pending",
-                  ]);
-
-                  const memberShareRows = exportExpenses.flatMap((expense: any) => {
-                    const selected = expense.selectedMembers || [];
-                    if (selected.length === 0) {
-                      return [[
-                        format(new Date(expense.date), "yyyy-MM-dd"),
-                        expense.description || "",
-                        "-",
-                        Number(expense.perMemberShare || 0).toFixed(2),
-                        "No",
-                      ]];
-                    }
-
-                    return selected
-                      .filter((memberItem: any) =>
-                        user?.role === "admin"
-                          ? true
-                          : getItemId(memberItem)?.toString() === memberId?.toString()
-                      )
-                      .map((memberItem: any) => {
-                        const currentId = getItemId(memberItem)?.toString();
-                        const payerId = getItemId(expense.paidBy)?.toString();
-                        return [
-                          format(new Date(expense.date), "yyyy-MM-dd"),
-                          expense.description || "",
-                          memberItem?.name || "Unknown",
-                          Number(expense.perMemberShare || 0).toFixed(2),
-                          currentId === payerId ? "Yes" : "No",
-                        ];
-                      });
-                  });
-
-                  const stockRows = equipmentPurchases.map((purchase: any) => {
-                    const purchased = Number(purchase.quantityPurchased || 0);
-                    const used = Number(purchase.quantityUsed || 0);
-                    return [
-                      format(new Date(purchase.date), "yyyy-MM-dd"),
-                      "Shuttle",
-                      purchased,
-                      used,
-                      Math.max(0, purchased - used),
-                      Number(purchase.amount || 0).toFixed(2),
-                      purchase.boughtByName || "-",
-                      typeof purchase.paidBy === "object"
-                        ? purchase.paidBy?.name || "Unknown"
-                        : purchase.paidBy || "Unknown",
-                    ];
-                  });
-
-                  const courtBookingRows = courtAdvanceBookings.map((item: any) => [
-                    item.courtBookedDate
-                      ? format(new Date(item.courtBookedDate), "yyyy-MM-dd")
-                      : format(new Date(item.date), "yyyy-MM-dd"),
-                    item.bookedByName || "-",
-                    Number(item.courtsBooked || 0),
-                    Number(item.amount || 0).toFixed(2),
-                    Number(item.advanceDeductedAmount || 0).toFixed(2),
-                  ]);
-
-                  const sections: Array<{
-                    title: string;
-                    headers: string[];
-                    rows: Array<Array<string | number | boolean | null | undefined>>;
-                  }> = [
-                    {
-                      title: "Summary",
-                      headers: ["Metric", "Value"],
-                      rows: [
-                        ["Generated At", format(new Date(), "yyyy-MM-dd HH:mm:ss")],
-                        ["Role", user?.role || "-"],
-                        ["Expense Records", exportExpenses.length],
-                        ["Total Expenses", Number(totalExpenses || 0).toFixed(2)],
-                        ["Pending Amount", Number(pendingAmount || 0).toFixed(2)],
-                        ["Shuttle Purchased", totalShuttlesPurchased],
-                        ["Shuttle Used", totalShuttlesUsed],
-                        ["Shuttle Remaining", totalShuttlesRemaining],
-                        ["Total Courts Booked", totalCourtsBooked],
-                      ],
-                    },
-                    {
-                      title: "Expense History",
-                      headers: [
-                        "Date",
-                        "Category",
-                        "Description",
-                        "Amount",
-                        "Paid By",
-                        "Present Members",
-                        "Per Member Share",
-                        "Status",
-                      ],
-                      rows: expenseHistoryRows,
-                    },
-                    {
-                      title: "Per Member Share History",
-                      headers: [
-                        "Date",
-                        "Expense Description",
-                        "Member",
-                        "Share Amount",
-                        "Is Payer",
-                      ],
-                      rows: memberShareRows,
-                    },
-                    {
-                      title: "Shuttle Stock",
-                      headers: ["Date", "Item", "Purchased", "Used", "Remaining", "Cost", "Bought By", "Paid By"],
-                      rows: stockRows,
-                    },
-                    {
-                      title: "Court Advance Bookings",
-                      headers: [
-                        "Court Booked Date",
-                        "Booked By Name",
-                        "No. of Courts",
-                        "Amount",
-                        "Deducted From Advance",
-                      ],
-                      rows: courtBookingRows,
-                    },
-                  ];
-
-                  if (user?.role === "admin") {
-                    sections.push({
-                      title: "Advance Ledger",
-                      headers: [
-                        "Date",
-                        "Member",
-                        "Amount",
-                        "Status",
-                        "Note",
-                      ],
-                      rows: joiningFees.map((fee: any) => {
-                        const totalPaid = Number(fee.amount || 0);
-                        return [
-                          fee.date ? format(new Date(fee.date), "yyyy-MM-dd") : "-",
-                          typeof fee.memberId === "object"
-                            ? fee.memberId?.name || "Unknown"
-                            : fee.memberId || "Unknown",
-                          totalPaid.toFixed(2),
-                          totalPaid > 0 ? "Paid" : "Not Paid",
-                          fee.note || "",
-                        ];
-                      }),
-                    });
-                  }
-
-                  exportSectionsToExcel(
-                    `UBISmashers_Complete_Report_${format(new Date(), "yyyy-MM-dd")}`,
-                    sections
-                  );
-                  toast.success("Expenses exported successfully!");
-                } catch (error: any) {
-                  toast.error("Failed to export expenses", {
-                    description: error.message || "An error occurred",
-                  });
-                }
-              }}
+              onClick={handleExportPublicBillsFormat}
             >
               <Download className="h-4 w-4 mr-2" />
               Export

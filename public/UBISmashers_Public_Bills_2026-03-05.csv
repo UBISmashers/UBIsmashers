@@ -1,0 +1,122 @@
+﻿Member Billing Status
+Member,Total Expense Share,Amount Paid,Outstanding Balance,Advance Status
+Admin,3.20,3.20,0.00,Unpaid
+Arshath,41.01,41.01,0.00,Unpaid
+Arun,5.50,5.50,0.00,Unpaid
+Asif,38.91,0.00,38.91,Unpaid
+Bala,11.50,0.00,11.50,Unpaid
+Deepan,5.50,5.50,0.00,Paid
+Dhileepan,0.00,0.00,0.00,Paid
+Eshwar,5.50,5.50,0.00,Paid
+Habib,17.21,17.21,0.00,Unpaid
+Hari,46.51,46.51,0.00,Unpaid
+Jeeva,12.00,0.00,12.00,Unpaid
+Kannan,0.00,0.00,0.00,Paid
+Kavi,11.10,11.10,0.00,Paid
+Mani,6.50,6.50,0.00,Paid
+Mathi,5.50,5.50,0.00,Paid
+Nadhan,13.31,0.00,13.31,Unpaid
+Nikas,23.71,23.71,0.00,Paid
+Ponraj,5.50,5.50,0.00,Paid
+Prakash - Mathi,5.50,5.50,0.00,Paid
+Prakash C,25.60,25.60,0.00,Paid
+Rajkannan,13.60,13.60,0.00,Unpaid
+Sakthi,5.50,5.50,0.00,Paid
+Sakthi- Kavi,12.00,12.00,0.00,Unpaid
+Saravanan,12.90,12.90,0.00,Paid
+Siva,0.00,0.00,0.00,Paid
+Solai,0.00,0.00,0.00,Paid
+Srini,14.41,14.41,0.00,Unpaid
+Vino,0.00,0.00,0.00,Paid
+
+
+Member Expense Breakdown
+Member,Date,Description,Category,Share,Status
+Admin,2026-02-15,Session expense,court,3.20,Paid
+Arshath,2026-02-28,Session expense,court,6.50,Paid
+Arshath,2026-02-21,Session expense,court,7.60,Paid
+Arshath,2026-02-17,Session expense,court,5.71,Paid
+Arshath,2026-02-15,Session expense,court,3.20,Paid
+Arshath,2026-02-14,Session expense,court,6.00,Paid
+Arshath,2026-02-08,Session expense,court,5.60,Paid
+Arshath,2026-02-01,Session expense,court,6.40,Paid
+Arun,2026-02-07,Session expense,court,5.50,Paid
+Asif,2026-02-28,Session expense,court,6.50,Unpaid
+Asif,2026-02-17,Session expense,court,5.71,Unpaid
+Asif,2026-02-15,Session expense,court,3.20,Unpaid
+Asif,2026-02-14,Session expense,court,6.00,Unpaid
+Asif,2026-02-08,Session expense,court,5.60,Unpaid
+Asif,2026-02-07,Session expense,court,5.50,Unpaid
+Asif,2026-02-01,Session expense,court,6.40,Unpaid
+Bala,2026-02-14,Session expense,court,6.00,Unpaid
+Bala,2026-02-07,Session expense,court,5.50,Unpaid
+Deepan,2026-02-07,Session expense,court,5.50,Paid
+Eshwar,2026-02-07,Session expense,court,5.50,Paid
+Habib,2026-02-17,Session expense,court,5.71,Paid
+Habib,2026-02-14,Session expense,court,6.00,Paid
+Habib,2026-02-07,Session expense,court,5.50,Paid
+Hari,2026-02-28,Session expense,court,6.50,Paid
+Hari,2026-02-21,Session expense,court,7.60,Paid
+Hari,2026-02-17,Session expense,court,5.71,Paid
+Hari,2026-02-15,Session expense,court,3.20,Paid
+Hari,2026-02-14,Session expense,court,6.00,Paid
+Hari,2026-02-08,Session expense,court,5.60,Paid
+Hari,2026-02-07,Session expense,court,5.50,Paid
+Hari,2026-02-01,Session expense,court,6.40,Paid
+Jeeva,2026-02-28,Session expense,court,6.50,Unpaid
+Jeeva,2026-02-07,Session expense,court,5.50,Unpaid
+Kavi,2026-02-08,Session expense,court,5.60,Paid
+Kavi,2026-02-07,Session expense,court,5.50,Paid
+Mani,2026-02-28,Session expense,court,6.50,Paid
+Mathi,2026-02-07,Session expense,court,5.50,Paid
+Nadhan,2026-02-21,Session expense,court,7.60,Unpaid
+Nadhan,2026-02-17,Session expense,court,5.71,Unpaid
+Nikas,2026-02-28,Session expense,court,6.50,Paid
+Nikas,2026-02-17,Session expense,court,5.71,Paid
+Nikas,2026-02-14,Session expense,court,6.00,Paid
+Nikas,2026-02-07,Session expense,court,5.50,Paid
+Ponraj,2026-02-07,Session expense,court,5.50,Paid
+Prakash - Mathi,2026-02-07,Session expense,court,5.50,Paid
+Prakash C,2026-02-28,Session expense,court,6.50,Paid
+Prakash C,2026-02-21,Session expense,court,7.60,Paid
+Prakash C,2026-02-14,Session expense,court,6.00,Paid
+Prakash C,2026-02-07,Session expense,court,5.50,Paid
+Rajkannan,2026-02-21,Session expense,court,7.60,Paid
+Rajkannan,2026-02-14,Session expense,court,6.00,Paid
+Sakthi,2026-02-07,Session expense,court,5.50,Paid
+Sakthi- Kavi,2026-02-08,Session expense,court,5.60,Paid
+Sakthi- Kavi,2026-02-01,Session expense,court,6.40,Paid
+Saravanan,2026-02-28,Session expense,court,6.50,Paid
+Saravanan,2026-02-01,Session expense,court,6.40,Paid
+Srini,2026-02-17,Session expense,court,5.71,Paid
+Srini,2026-02-15,Session expense,court,3.20,Paid
+Srini,2026-02-07,Session expense,court,5.50,Paid
+
+
+Equipment Stock
+Date,Item,Qty,Used,Remaining,Bought By,Paid By
+2026-02-02,Shuttle,72,46,26,Ponraj & Mathivanan,Mani
+2026-02-01,Shuttle,18,18,0,Carry Forward,Mani
+
+
+Court Advance Bookings
+Date,Booked By,No. of Courts
+2026-03-07,Prakash C,1
+2026-02-28,Prakash C,1
+2026-02-21,Bala,1
+2026-02-14,Prakash C,1
+2026-02-07,Bala,2
+
+
+Session History
+Date,Description,Court Cost,Shuttles Used,Per Shuttle Cost,Total Shuttle Cost,Total Amount,Players Played
+2026-02-28,Session expense,16.00,9,4.00,36.00,52.00,"Mani, Saravanan, Jeeva, Hari, Arshath, Asif, Nikas, Prakash C"
+2026-02-21,Session expense,18.00,5,4.00,20.00,38.00,"Rajkannan, Nadhan, Hari, Prakash C, Arshath"
+2026-02-17,Session expense,0.00,10,4.00,40.00,40.00,"Hari, Srini, Asif, Nikas, Arshath, Nadhan, Habib"
+2026-02-15,Session expense,0.00,4,4.00,16.00,16.00,"Hari, Srini, Asif, Arshath, Admin"
+2026-02-14,Session expense,16.00,8,4.00,32.00,48.00,"Rajkannan, Hari, Bala, Prakash C, Asif, Nikas, Arshath, Habib"
+2026-02-08,Session expense,0.00,7,4.00,28.00,28.00,"Kavi, Hari, Asif, Arshath, Sakthi- Kavi"
+2026-02-07,Session expense,36.00,13,4.00,52.00,88.00,"Arun, Eshwar, Hari, Srini, Prakash - Mathi, Mathi, Ponraj, Deepan, Jeeva, Kavi, Bala, Prakash C, Habib, Asif, Nikas, Sakthi"
+2026-02-01,Session expense,0.00,8,4.00,32.00,32.00,"Sakthi- Kavi, Saravanan, Hari, Asif, Arshath"
+
+UBISmashers

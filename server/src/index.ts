@@ -1,6 +1,7 @@
 import dotenv from 'dotenv';
 import { connectDB } from './config/database.js';
 import app from './app.js';
+import { startMonthlyPublicBillsEmailJob } from './services/monthlyPublicBillsEmail.js';
 
 dotenv.config();
 
@@ -85,6 +86,7 @@ const startServer = async () => {
     app.listen(PORT, () => {
       console.log(`🚀 Server running on port ${PORT}`);
       console.log(`📡 API available at http://localhost:${PORT}/api`);
+      startMonthlyPublicBillsEmailJob(PORT);
     });
   } catch (error) {
     console.error('Failed to start server:', error);
