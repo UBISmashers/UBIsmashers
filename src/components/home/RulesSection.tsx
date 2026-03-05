@@ -1,9 +1,11 @@
 const rules = [
-  "Maintain sportsmanship and respect",
-  "One-time Advance fee: $30",
-  "Confirm attendance before match day",
-  "Expenses are shared equally among players",
-  " At End of Every month need to pay the expenses",
+  "The weekly players list or voting poll (usually created on Sunday) is the reference for court booking. If your name is on the list and you withdraw at the last moment, it is still counted as played and you must share the session cost.",
+  "If you want to withdraw from the players list, it is your responsibility to find a replacement. Otherwise, it will be considered as played.",
+  "Maintain sportsmanship and respect.",
+  "One-time advance fee: $30.",
+  "Confirm attendance before match day.",
+  "Expenses are shared equally among players.",
+  "At the end of every month, expenses must be paid.",
 ];
 
 export function RulesSection() {
@@ -14,7 +16,7 @@ export function RulesSection() {
           📝 Rules to Join UBISmashers
         </h2>
 
-        <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="mt-8 grid gap-4">
           {rules.map((rule) => (
             <div
               key={rule}

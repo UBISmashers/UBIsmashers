@@ -7,14 +7,16 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
 import { Loader2, ChevronDown, ChevronUp, Boxes } from "lucide-react";
 import { format } from "date-fns";
 
 const publicApi = createApiClient(() => null, () => {});
-type PeriodFilter = "all" | "this_month" | "last_week" | "last_month" | "last_6_months" | "last_year";
+type PeriodFilter = "all" | "custom" | "this_month" | "last_week" | "last_month" | "last_6_months" | "last_year";
 
 const periodLabel: Record<PeriodFilter, string> = {
   all: "All Time",
+  custom: "Custom Range",
   this_month: "This Month",
   last_week: "Last Week",
   last_month: "Last Month",
@@ -64,11 +66,19 @@ interface SessionHistoryItem {
 }
 
 export default function PublicBills() {
+  const todayString = format(new Date(), "yyyy-MM-dd");
   const [expandedMemberId, setExpandedMemberId] = useState<string | null>(null);
   const [period, setPeriod] = useState<PeriodFilter>("all");
+  const [customStartDate, setCustomStartDate] = useState(todayString);
+  const [customEndDate, setCustomEndDate] = useState(todayString);
   const { data, isLoading } = useQuery({
-    queryKey: ["publicBills", period],
-    queryFn: () => publicApi.getPublicBills(period),
+    queryKey: ["publicBills", period, customStartDate, customEndDate],
+    queryFn: () =>
+      publicApi.getPublicBills(
+        period,
+        period === "custom" ? { customStartDate, customEndDate } : undefined
+      ),
+    enabled: period !== "custom" || (Boolean(customStartDate) && Boolean(customEndDate)),
   });
 
   return (
@@ -96,6 +106,7 @@ export default function PublicBills() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">{periodLabel.all}</SelectItem>
+                <SelectItem value="custom">{periodLabel.custom}</SelectItem>
                 <SelectItem value="this_month">{periodLabel.this_month}</SelectItem>
                 <SelectItem value="last_week">{periodLabel.last_week}</SelectItem>
                 <SelectItem value="last_month">{periodLabel.last_month}</SelectItem>
@@ -103,6 +114,25 @@ export default function PublicBills() {
                 <SelectItem value="last_year">{periodLabel.last_year}</SelectItem>
               </SelectContent>
             </Select>
+            {period === "custom" && (
+              <>
+                <Input
+                  type="date"
+                  value={customStartDate}
+                  onChange={(e) => setCustomStartDate(e.target.value)}
+                  className="w-40"
+                />
+                <Input
+                  type="date"
+                  value={customEndDate}
+                  onChange={(e) => setCustomEndDate(e.target.value)}
+                  className="w-40"
+                />
+                <span className="text-xs text-muted-foreground whitespace-nowrap">
+                  Applied: {customStartDate || "-"} to {customEndDate || "-"}
+                </span>
+              </>
+            )}
             <Link to="/admin-login">
               <Button variant="outline">Admin Login</Button>
             </Link>

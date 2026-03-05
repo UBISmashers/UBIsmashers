@@ -100,9 +100,12 @@ export default function Expenses() {
   const [usageTarget, setUsageTarget] = useState<any>(null);
   const [usageValue, setUsageValue] = useState(0);
   const [filterCategory, setFilterCategory] = useState<string>("all");
+  const todayString = format(new Date(), "yyyy-MM-dd");
   const [filterPeriod, setFilterPeriod] = useState<
-    "all" | "this_month" | "last_week" | "last_month" | "last_6_months" | "last_year"
+    "all" | "custom" | "this_month" | "last_week" | "last_month" | "last_6_months" | "last_year"
   >("all");
+  const [customStartDate, setCustomStartDate] = useState(todayString);
+  const [customEndDate, setCustomEndDate] = useState(todayString);
   const [memberSearch, setMemberSearch] = useState("");
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editingExpense, setEditingExpense] = useState<any>(null);
@@ -169,13 +172,23 @@ export default function Expenses() {
 
     const now = new Date();
     const start = new Date(now);
+    const end = new Date(now);
 
-    if (filterPeriod === "this_month") {
+    if (filterPeriod === "custom") {
+      const parsedStart = new Date(customStartDate);
+      const parsedEnd = new Date(customEndDate);
+      if (Number.isNaN(parsedStart.getTime()) || Number.isNaN(parsedEnd.getTime())) return true;
+      parsedStart.setHours(0, 0, 0, 0);
+      parsedEnd.setHours(23, 59, 59, 999);
+      const value = new Date(dateInput);
+      return value >= parsedStart && value <= parsedEnd;
+    } else if (filterPeriod === "this_month") {
       start.setDate(1);
     } else if (filterPeriod === "last_week") {
       start.setDate(now.getDate() - 6);
     } else if (filterPeriod === "last_month") {
-      start.setMonth(now.getMonth() - 1);
+      start.setFullYear(now.getFullYear(), now.getMonth() - 1, 1);
+      end.setFullYear(now.getFullYear(), now.getMonth(), 0);
     } else if (filterPeriod === "last_6_months") {
       start.setMonth(now.getMonth() - 6);
     } else if (filterPeriod === "last_year") {
@@ -183,8 +196,11 @@ export default function Expenses() {
     }
 
     start.setHours(0, 0, 0, 0);
+    if (filterPeriod === "last_month") {
+      end.setHours(23, 59, 59, 999);
+    }
     const value = new Date(dateInput);
-    return value >= start && value <= now;
+    return value >= start && value <= (filterPeriod === "last_month" ? end : now);
   };
 
   // Filter expenses based on role
@@ -218,8 +234,13 @@ export default function Expenses() {
     queryFn: () => api.getCourtAdvanceBookings(),
   });
   const { data: publicBills } = useQuery({
-    queryKey: ["publicBillsSummary", filterPeriod],
-    queryFn: () => api.getPublicBills(filterPeriod),
+    queryKey: ["publicBillsSummary", filterPeriod, customStartDate, customEndDate],
+    queryFn: () =>
+      api.getPublicBills(
+        filterPeriod,
+        filterPeriod === "custom" ? { customStartDate, customEndDate } : undefined
+      ),
+    enabled: filterPeriod !== "custom" || (Boolean(customStartDate) && Boolean(customEndDate)),
   });
 
   // Fetch members for checkbox list
@@ -1200,7 +1221,7 @@ export default function Expenses() {
                   value={filterPeriod}
                   onValueChange={(value) =>
                     setFilterPeriod(
-                      value as "all" | "this_month" | "last_week" | "last_month" | "last_6_months" | "last_year"
+                      value as "all" | "custom" | "this_month" | "last_week" | "last_month" | "last_6_months" | "last_year"
                     )
                   }
                 >
@@ -1209,6 +1230,7 @@ export default function Expenses() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Time</SelectItem>
+                    <SelectItem value="custom">Custom Range</SelectItem>
                     <SelectItem value="this_month">This Month</SelectItem>
                     <SelectItem value="last_week">Last Week</SelectItem>
                     <SelectItem value="last_month">Last Month</SelectItem>
@@ -1216,6 +1238,25 @@ export default function Expenses() {
                     <SelectItem value="last_year">Last Year</SelectItem>
                   </SelectContent>
                 </Select>
+                {filterPeriod === "custom" && (
+                  <>
+                    <Input
+                      type="date"
+                      value={customStartDate}
+                      onChange={(e) => setCustomStartDate(e.target.value)}
+                      className="w-40"
+                    />
+                    <Input
+                      type="date"
+                      value={customEndDate}
+                      onChange={(e) => setCustomEndDate(e.target.value)}
+                      className="w-40"
+                    />
+                    <span className="text-xs text-muted-foreground whitespace-nowrap">
+                      Applied: {customStartDate || "-"} to {customEndDate || "-"}
+                    </span>
+                  </>
+                )}
                 <Select value={filterCategory} onValueChange={setFilterCategory}>
                   <SelectTrigger className="w-40">
                     <SelectValue placeholder="Filter by category" />

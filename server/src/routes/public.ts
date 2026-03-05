@@ -12,13 +12,28 @@ const normalizeAdvanceStatus = (totalAmount: number, remainingAmount: number) =>
   return 'available';
 };
 
-export const PERIOD_VALUES = new Set(['all', 'this_month', 'last_week', 'last_month', 'last_6_months', 'last_year']);
+export const PERIOD_VALUES = new Set(['all', 'custom', 'this_month', 'last_week', 'last_month', 'last_6_months', 'last_year']);
 
-export const getPeriodStartDate = (period: string): Date | null => {
+export const getPeriodDateRange = (
+  period: string,
+  customStartDate?: string,
+  customEndDate?: string
+): { start: Date; end: Date } | null => {
   const now = new Date();
   const start = new Date(now);
+  const end = new Date(now);
 
   switch (period) {
+    case 'custom': {
+      if (!customStartDate || !customEndDate) return null;
+      const parsedStart = new Date(customStartDate);
+      const parsedEnd = new Date(customEndDate);
+      if (Number.isNaN(parsedStart.getTime()) || Number.isNaN(parsedEnd.getTime())) return null;
+      parsedStart.setHours(0, 0, 0, 0);
+      parsedEnd.setHours(23, 59, 59, 999);
+      if (parsedStart > parsedEnd) return null;
+      return { start: parsedStart, end: parsedEnd };
+    }
     case 'this_month':
       start.setDate(1);
       break;
@@ -26,7 +41,8 @@ export const getPeriodStartDate = (period: string): Date | null => {
       start.setDate(now.getDate() - 6);
       break;
     case 'last_month':
-      start.setMonth(now.getMonth() - 1);
+      start.setFullYear(now.getFullYear(), now.getMonth() - 1, 1);
+      end.setFullYear(now.getFullYear(), now.getMonth(), 0);
       break;
     case 'last_6_months':
       start.setMonth(now.getMonth() - 6);
@@ -39,20 +55,32 @@ export const getPeriodStartDate = (period: string): Date | null => {
   }
 
   start.setHours(0, 0, 0, 0);
-  return start;
+  if (period === 'last_month') {
+    end.setHours(23, 59, 59, 999);
+  }
+  return { start, end };
+};
+
+export const getPeriodStartDate = (period: string): Date | null => {
+  return getPeriodDateRange(period)?.start || null;
 };
 
 router.get('/bills', async (req: Request, res: Response) => {
   try {
     const requestedPeriod = String(req.query.period || 'all');
     const period = PERIOD_VALUES.has(requestedPeriod) ? requestedPeriod : 'all';
-    const periodStartDate = getPeriodStartDate(period);
+    const customStartDate = req.query.customStartDate ? String(req.query.customStartDate) : undefined;
+    const customEndDate = req.query.customEndDate ? String(req.query.customEndDate) : undefined;
+    const periodDateRange = getPeriodDateRange(period, customStartDate, customEndDate);
+    if (period === 'custom' && !periodDateRange) {
+      return res.status(400).json({ error: 'Invalid custom date range' });
+    }
     const expenseDateFilter =
-      periodStartDate
+      periodDateRange
         ? {
             date: {
-              $gte: periodStartDate,
-              $lte: new Date(),
+              $gte: periodDateRange.start,
+              $lte: periodDateRange.end,
             },
           }
         : {};

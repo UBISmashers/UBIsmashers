@@ -25,11 +25,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
 
-type PeriodFilter = "all" | "this_month" | "last_week" | "last_month" | "last_6_months" | "last_year";
+type PeriodFilter = "all" | "custom" | "this_month" | "last_week" | "last_month" | "last_6_months" | "last_year";
 
 const periodLabel: Record<PeriodFilter, string> = {
   all: "All Time",
+  custom: "Custom Range",
   this_month: "This Month",
   last_week: "Last Week",
   last_month: "Last Month",
@@ -80,7 +82,10 @@ interface MemberPaymentsResponse {
 const Index = () => {
   const { api, user, member } = useAuth();
   const navigate = useNavigate();
+  const todayString = format(new Date(), "yyyy-MM-dd");
   const [period, setPeriod] = useState<PeriodFilter>("all");
+  const [customStartDate, setCustomStartDate] = useState(todayString);
+  const [customEndDate, setCustomEndDate] = useState(todayString);
 
   // Fetch members
   const { data: members = [] } = useQuery<MemberLite[]>({
@@ -101,9 +106,15 @@ const Index = () => {
   });
 
   const { data: publicBillsSummary } = useQuery({
-    queryKey: ["publicBills", period],
-    queryFn: () => api.getPublicBills(period),
-    enabled: user?.role === "admin",
+    queryKey: ["publicBills", period, customStartDate, customEndDate],
+    queryFn: () =>
+      api.getPublicBills(
+        period,
+        period === "custom" ? { customStartDate, customEndDate } : undefined
+      ),
+    enabled:
+      user?.role === "admin" &&
+      (period !== "custom" || (Boolean(customStartDate) && Boolean(customEndDate))),
   });
 
   // Fetch today's attendance
@@ -301,6 +312,7 @@ const Index = () => {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">{periodLabel.all}</SelectItem>
+              <SelectItem value="custom">{periodLabel.custom}</SelectItem>
               <SelectItem value="this_month">{periodLabel.this_month}</SelectItem>
               <SelectItem value="last_week">{periodLabel.last_week}</SelectItem>
               <SelectItem value="last_month">{periodLabel.last_month}</SelectItem>
@@ -309,6 +321,25 @@ const Index = () => {
             </SelectContent>
           </Select>
         </div>
+        {period === "custom" && (
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:flex-wrap">
+            <Input
+              type="date"
+              value={customStartDate}
+              onChange={(e) => setCustomStartDate(e.target.value)}
+              className="w-full sm:w-44"
+            />
+            <Input
+              type="date"
+              value={customEndDate}
+              onChange={(e) => setCustomEndDate(e.target.value)}
+              className="w-full sm:w-44"
+            />
+            <span className="text-xs text-muted-foreground">
+              Applied: {customStartDate || "-"} to {customEndDate || "-"}
+            </span>
+          </div>
+        )}
 
         {/* Stats Grid */}
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

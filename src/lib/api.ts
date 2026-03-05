@@ -58,14 +58,19 @@ class ApiClient {
   }
 
   async getPublicBills(
-    period: "all" | "this_month" | "last_week" | "last_month" | "last_6_months" | "last_year" = "all"
+    period: "all" | "custom" | "this_month" | "last_week" | "last_month" | "last_6_months" | "last_year" = "all",
+    customRange?: { customStartDate: string; customEndDate: string }
   ) {
     const query = new URLSearchParams();
     if (period && period !== "all") query.append("period", period);
+    if (period === "custom" && customRange) {
+      query.append("customStartDate", customRange.customStartDate);
+      query.append("customEndDate", customRange.customEndDate);
+    }
     const queryString = query.toString();
     return this.request<{
       updatedAt: string;
-      period: "all" | "this_month" | "last_week" | "last_month" | "last_6_months" | "last_year";
+      period: "all" | "custom" | "this_month" | "last_week" | "last_month" | "last_6_months" | "last_year";
       summary: {
         totalShare: number;
         totalPaid: number;

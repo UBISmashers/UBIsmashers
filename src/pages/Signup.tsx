@@ -25,6 +25,16 @@ const availabilityLabels: Record<AvailabilityOption, string> = {
   flexible: "Flexible",
 };
 
+const joiningRules = [
+  "The weekly players list or voting poll (usually created on Sunday) is the reference for court booking. If your name is on the list and you withdraw at the last moment, it is still counted as played and you must share the session cost.",
+  "If you want to withdraw from the players list, it is your responsibility to find a replacement. Otherwise, it will be considered as played.",
+  "Maintain sportsmanship and respect.",
+  "One-time advance fee: $30.",
+  "Confirm attendance before match day.",
+  "Expenses are shared equally among players.",
+  "At the end of every month, expenses must be paid.",
+];
+
 export default function Signup() {
   const { api } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -83,6 +93,14 @@ export default function Signup() {
 
         <form onSubmit={handleSubmit}>
           <CardContent className="space-y-4">
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+              <p className="text-sm font-semibold text-amber-900">Important Rules to Join</p>
+              <ol className="mt-2 list-decimal space-y-2 pl-5 text-sm text-amber-900">
+                {joiningRules.map((rule) => (
+                  <li key={rule}>{rule}</li>
+                ))}
+              </ol>
+            </div>
             <div className="space-y-2">
               <Label htmlFor="name">Name</Label>
               <Input
@@ -163,4 +181,3 @@ export default function Signup() {
     </div>
   );
 }
-
