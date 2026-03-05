@@ -253,6 +253,84 @@ router.post('/court-advance', authorize('admin'), async (req: Request, res: Resp
   }
 });
 
+// Update court advance booking (Admin only)
+router.put('/court-advance/:id', authorize('admin'), async (req: Request, res: Response) => {
+  try {
+    const validatedData = courtAdvanceSchema.parse(req.body);
+    const record = await Expense.findOne({ _id: req.params.id, isCourtAdvanceBooking: true });
+    if (!record) {
+      return res.status(404).json({ error: 'Court advance booking not found' });
+    }
+
+    await restoreAdvanceFromExpense(record);
+
+    let deductedFromAdvance = 0;
+    const advanceDeductions: Array<{ joiningFeeId: mongoose.Types.ObjectId; amount: number }> = [];
+    if (validatedData.reduceFromAdvance && validatedData.amount > 0) {
+      const advances = await JoiningFee.find({
+        $or: [
+          { remainingAmount: { $gt: 0 } },
+          { remainingAmount: { $exists: false }, amount: { $gt: 0 } },
+        ],
+      }).sort({ date: 1, createdAt: 1 });
+
+      let remaining = Number(validatedData.amount || 0);
+      for (const fee of advances) {
+        if (remaining <= 0) break;
+
+        const totalAmount = Number((fee as any).amount || 0);
+        const rawRemaining = (fee as any).remainingAmount;
+        const currentRemaining =
+          rawRemaining === undefined || rawRemaining === null
+            ? totalAmount
+            : Number(rawRemaining);
+        if (currentRemaining <= 0) continue;
+
+        const deduction = Math.min(currentRemaining, remaining);
+        const nextAmount = Number((currentRemaining - deduction).toFixed(2));
+        remaining = Number((remaining - deduction).toFixed(2));
+        deductedFromAdvance = Number((deductedFromAdvance + deduction).toFixed(2));
+        advanceDeductions.push({
+          joiningFeeId: fee._id as mongoose.Types.ObjectId,
+          amount: deduction,
+        });
+
+        (fee as any).remainingAmount = nextAmount;
+        (fee as any).status = normalizeAdvanceStatus(totalAmount, nextAmount);
+        await fee.save();
+      }
+    }
+
+    const entryDate = new Date(validatedData.date);
+    entryDate.setHours(0, 0, 0, 0);
+    const bookedDate = new Date(validatedData.courtBookedDate);
+    bookedDate.setHours(0, 0, 0, 0);
+
+    record.date = entryDate;
+    (record as any).courtBookedDate = bookedDate;
+    (record as any).bookedByName = validatedData.bookedByName;
+    (record as any).courtsBooked = validatedData.courtsBooked;
+    record.amount = validatedData.amount;
+    record.description = validatedData.description || 'Court booked using advance';
+    (record as any).reduceFromAdvance = validatedData.reduceFromAdvance || false;
+    (record as any).advanceDeductedAmount = deductedFromAdvance;
+    (record as any).advanceShortfallAmount = validatedData.reduceFromAdvance
+      ? Number(Math.max(0, validatedData.amount - deductedFromAdvance).toFixed(2))
+      : 0;
+    (record as any).advanceDeductions = advanceDeductions;
+
+    await record.save();
+    await record.populate('paidBy', 'name email');
+    return res.json(record);
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: error.errors[0].message });
+    }
+    console.error('Update court advance booking error:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Create equipment purchase
 router.post('/', async (req: Request, res: Response) => {
   try {
@@ -373,6 +451,141 @@ router.post('/', async (req: Request, res: Response) => {
       return res.status(400).json({ error: error.errors[0].message });
     }
     console.error('Create equipment error:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Update equipment purchase (Admin only)
+router.put('/:id', authorize('admin'), async (req: Request, res: Response) => {
+  try {
+    const validatedData = equipmentSchema.parse(req.body);
+    const equipment = await Expense.findOne({ _id: req.params.id, isInventory: true });
+    if (!equipment) {
+      return res.status(404).json({ error: 'Equipment purchase not found' });
+    }
+
+    await restoreAdvanceFromExpense(equipment);
+
+    const expenseDate = new Date(validatedData.date);
+    expenseDate.setHours(0, 0, 0, 0);
+
+    const selectedMemberIds =
+      validatedData.selectedMembers !== undefined
+        ? validatedData.selectedMembers.map((id: string) => new mongoose.Types.ObjectId(id))
+        : ((equipment.selectedMembers || []) as mongoose.Types.ObjectId[]);
+    const memberCount = selectedMemberIds.length;
+    const perMemberShare = memberCount > 0 ? validatedData.amount / memberCount : 0;
+    const payerId = (equipment.paidBy as any)?._id?.toString?.() || (equipment.paidBy as any)?.toString?.();
+
+    let deductedFromAdvance = 0;
+    const advanceDeductions: Array<{ joiningFeeId: mongoose.Types.ObjectId; amount: number }> = [];
+    if (validatedData.reduceFromAdvance && validatedData.amount > 0) {
+      const advanceQuery: any = {
+        $or: [
+          { remainingAmount: { $gt: 0 } },
+          { remainingAmount: { $exists: false }, amount: { $gt: 0 } },
+        ],
+      };
+      if (selectedMemberIds.length > 0) {
+        advanceQuery.memberId = { $in: selectedMemberIds };
+      }
+
+      const advances = await JoiningFee.find(advanceQuery).sort({ date: 1, createdAt: 1 });
+      let remaining = Number(validatedData.amount || 0);
+      for (const fee of advances) {
+        if (remaining <= 0) break;
+
+        const totalAmount = Number((fee as any).amount || 0);
+        const rawRemaining = (fee as any).remainingAmount;
+        const currentRemaining =
+          rawRemaining === undefined || rawRemaining === null
+            ? totalAmount
+            : Number(rawRemaining);
+        if (currentRemaining <= 0) continue;
+
+        const deduction = Math.min(currentRemaining, remaining);
+        const nextAmount = Number((currentRemaining - deduction).toFixed(2));
+        remaining = Number((remaining - deduction).toFixed(2));
+        deductedFromAdvance = Number((deductedFromAdvance + deduction).toFixed(2));
+        advanceDeductions.push({
+          joiningFeeId: fee._id as mongoose.Types.ObjectId,
+          amount: deduction,
+        });
+
+        (fee as any).remainingAmount = nextAmount;
+        (fee as any).status = normalizeAdvanceStatus(totalAmount, nextAmount);
+        await fee.save();
+      }
+    }
+
+    const existingShares = await ExpenseShare.find({ expenseId: equipment._id });
+    await Promise.all(
+      existingShares.map(async (share) => {
+        if (!share.paidStatus) {
+          await Member.findByIdAndUpdate(share.memberId, {
+            $inc: { balance: -share.amount },
+          });
+        }
+      })
+    );
+    await ExpenseShare.deleteMany({ expenseId: equipment._id });
+
+    equipment.date = expenseDate;
+    equipment.description = validatedData.description || 'Shuttle purchase';
+    (equipment as any).boughtByName = validatedData.boughtByName;
+    equipment.amount = validatedData.amount;
+    (equipment as any).itemName = validatedData.itemName || 'Shuttle';
+    (equipment as any).quantityPurchased = validatedData.quantityPurchased;
+    (equipment as any).quantityUsed = Math.min(
+      validatedData.quantityUsed ?? Number((equipment as any).quantityUsed || 0),
+      validatedData.quantityPurchased
+    );
+    equipment.selectedMembers = selectedMemberIds as any;
+    equipment.presentMembers = Math.max(1, memberCount);
+    equipment.perMemberShare = perMemberShare;
+    equipment.status = validatedData.status || equipment.status;
+    (equipment as any).reduceFromAdvance = validatedData.reduceFromAdvance || false;
+    (equipment as any).advanceDeductedAmount = deductedFromAdvance;
+    (equipment as any).advanceShortfallAmount = validatedData.reduceFromAdvance
+      ? Number(Math.max(0, validatedData.amount - deductedFromAdvance).toFixed(2))
+      : 0;
+    (equipment as any).advanceDeductions = advanceDeductions;
+    await equipment.save();
+
+    if (memberCount > 0) {
+      await Promise.all(
+        selectedMemberIds.map(async (memberId) => {
+          if (memberId.toString() === payerId) {
+            return null;
+          }
+          return ExpenseShare.create({
+            expenseId: equipment._id,
+            memberId,
+            amount: perMemberShare,
+            paidStatus: false,
+          });
+        })
+      );
+
+      await Promise.all(
+        selectedMemberIds.map(async (memberId) => {
+          if (memberId.toString() !== payerId) {
+            await Member.findByIdAndUpdate(memberId, {
+              $inc: { balance: perMemberShare },
+            });
+          }
+        })
+      );
+    }
+
+    await equipment.populate('paidBy', 'name email');
+    await equipment.populate('selectedMembers', 'name email');
+    return res.json(equipment);
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: error.errors[0].message });
+    }
+    console.error('Update equipment purchase error:', error);
     return res.status(500).json({ error: 'Internal server error' });
   }
 });

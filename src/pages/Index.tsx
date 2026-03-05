@@ -6,7 +6,6 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { UpcomingBookings } from "@/components/dashboard/UpcomingBookings";
 import { RecentActivity } from "@/components/dashboard/RecentActivity";
-import { MemberBalances } from "@/components/dashboard/MemberBalances";
 import {
   Users,
   DollarSign,
@@ -52,6 +51,11 @@ interface ExpenseLite {
 
 interface BookingLite {
   date: string;
+}
+
+interface EquipmentPurchaseLite {
+  quantityPurchased?: number;
+  quantityUsed?: number;
 }
 
 interface AttendanceLite {
@@ -117,11 +121,9 @@ const Index = () => {
       (period !== "custom" || (Boolean(customStartDate) && Boolean(customEndDate))),
   });
 
-  // Fetch today's attendance
-  const today = format(new Date(), "yyyy-MM-dd");
-  const { data: todayAttendance = [] } = useQuery<AttendanceLite[]>({
-    queryKey: ["attendance", today],
-    queryFn: () => api.getAttendanceByDate(today),
+  const { data: equipmentPurchases = [] } = useQuery<EquipmentPurchaseLite[]>({
+    queryKey: ["equipment"],
+    queryFn: () => api.getEquipmentPurchases(),
   });
 
   // Fetch member's own attendance history (for members only)
@@ -156,8 +158,15 @@ const Index = () => {
     return bookingDate.getMonth() === now.getMonth() && bookingDate.getFullYear() === now.getFullYear();
   }).length;
 
-  const todayPresent = todayAttendance.filter((a) => a.isPresent).length;
-  const todayTotal = todayAttendance.length;
+  const totalShuttlesPurchased = equipmentPurchases.reduce(
+    (sum: number, purchase: EquipmentPurchaseLite) => sum + Number(purchase.quantityPurchased || 0),
+    0
+  );
+  const totalShuttlesUsed = equipmentPurchases.reduce(
+    (sum: number, purchase: EquipmentPurchaseLite) => sum + Number(purchase.quantityUsed || 0),
+    0
+  );
+  const remainingShuttles = Math.max(0, totalShuttlesPurchased - totalShuttlesUsed);
 
   // Member-specific dashboard
   if (user?.role === "member" && member) {
@@ -363,9 +372,9 @@ const Index = () => {
             icon={Calendar}
           />
           <StatCard
-            title="Today's Attendance"
-            value={todayTotal > 0 ? `${todayPresent}/${todayTotal}` : "0/0"}
-            description="Members marked present"
+            title="Remaining Shuttle"
+            value={remainingShuttles}
+            description={`${totalShuttlesUsed} used from ${totalShuttlesPurchased} purchased`}
             icon={ClipboardCheck}
             variant="accent"
           />
@@ -412,18 +421,7 @@ const Index = () => {
         </div>
         </div>
 
-        {/* Main Content Grid */}
-        <div className="grid gap-6 lg:grid-cols-3">
-          {/* Left Column - Bookings */}
-          <div className="lg:col-span-2">
-            <UpcomingBookings />
-          </div>
-
-          {/* Right Column - Balances */}
-          <div>
-            <MemberBalances />
-          </div>
-        </div>
+        <UpcomingBookings />
 
         {/* Activity Section */}
         <div className="grid gap-6 lg:grid-cols-2">
@@ -481,65 +479,6 @@ const Index = () => {
                 />
               </div>
             </div>
-            
-            {/* Monthly Summary */}
-            <div className="p-6 rounded-xl border bg-card">
-              <h3 className="font-display font-semibold text-lg mb-4">
-                {format(new Date(), "MMMM")} Summary
-              </h3>
-              <div className="space-y-3">
-                {(() => {
-                  const monthlyExpensesByCategory = expenses
-                    .filter((e) => {
-                      const expenseDate = new Date(e.date);
-                      const now = new Date();
-                      return expenseDate.getMonth() === now.getMonth() && expenseDate.getFullYear() === now.getFullYear();
-                    })
-                    .reduce((acc: Record<string, number>, e) => {
-                      const key = e.category || "other";
-                      acc[key] = (acc[key] || 0) + Number(e.amount || 0);
-                      return acc;
-                    }, {});
-
-                  const categoryLabels: Record<string, string> = {
-                    court: "Total Court Fees",
-                    equipment: "Equipment",
-                    refreshments: "Refreshments",
-                    other: "Other Expenses",
-                  };
-
-                  const totalMonthly = Object.values(monthlyExpensesByCategory).reduce(
-                    (sum, val) => sum + val,
-                    0
-                  );
-                  const avgPerMember = totalMonthly > 0 && totalMembers > 0 ? totalMonthly / totalMembers : 0;
-
-                  return (
-                    <>
-                      {Object.entries(monthlyExpensesByCategory).map(([category, amount]) => (
-                        <SummaryRow
-                          key={category}
-                          label={categoryLabels[category] || category}
-                          value={`$${amount.toFixed(2)}`}
-                        />
-                      ))}
-                      {Object.keys(monthlyExpensesByCategory).length === 0 && (
-                        <p className="text-sm text-muted-foreground">No expenses this month</p>
-                      )}
-                      {totalMonthly > 0 && (
-                        <div className="border-t pt-3 mt-3">
-                          <SummaryRow
-                            label="Per Member Average"
-                            value={`$${avgPerMember.toFixed(2)}`}
-                            highlight
-                          />
-                        </div>
-                      )}
-                    </>
-                  );
-                })()}
-              </div>
-            </div>
           </div>
         </div>
       </div>
@@ -579,25 +518,5 @@ function QuickActionButton({
   );
 }
 
-function SummaryRow({
-  label,
-  value,
-  highlight = false,
-}: {
-  label: string;
-  value: string;
-  highlight?: boolean;
-}) {
-  return (
-    <div className="flex items-center justify-between">
-      <span className={highlight ? "font-medium" : "text-muted-foreground text-sm"}>
-        {label}
-      </span>
-      <span className={highlight ? "font-bold text-primary" : "font-medium"}>
-        {value}
-      </span>
-    </div>
-  );
-}
 
 export default Index;

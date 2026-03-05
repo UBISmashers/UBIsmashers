@@ -147,6 +147,13 @@ class ApiClient {
     });
   }
 
+  async updateEquipmentPurchase(id: string, data: any) {
+    return this.request<any>(`/equipment/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  }
+
   async deleteEquipmentPurchase(id: string) {
     return this.request<{ message: string }>(`/equipment/${id}`, {
       method: "DELETE",
@@ -160,6 +167,13 @@ class ApiClient {
   async createCourtAdvanceBooking(data: any) {
     return this.request<any>("/equipment/court-advance", {
       method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateCourtAdvanceBooking(id: string, data: any) {
+    return this.request<any>(`/equipment/court-advance/${id}`, {
+      method: "PUT",
       body: JSON.stringify(data),
     });
   }

@@ -151,7 +151,28 @@ export default function Expenses() {
     quantityPurchased: "",
     reduceFromAdvance: true,
   });
+  const [isEditEquipmentOpen, setIsEditEquipmentOpen] = useState(false);
+  const [editingEquipment, setEditingEquipment] = useState<any>(null);
+  const [editEquipment, setEditEquipment] = useState({
+    date: format(new Date(), "yyyy-MM-dd"),
+    boughtByName: "",
+    description: "",
+    amount: 0,
+    quantityPurchased: "",
+    reduceFromAdvance: true,
+  });
   const [newCourtAdvance, setNewCourtAdvance] = useState({
+    date: format(new Date(), "yyyy-MM-dd"),
+    courtBookedDate: format(new Date(), "yyyy-MM-dd"),
+    bookedByName: "",
+    courtsBooked: "",
+    amount: 0,
+    description: "",
+    reduceFromAdvance: true,
+  });
+  const [isEditCourtAdvanceOpen, setIsEditCourtAdvanceOpen] = useState(false);
+  const [editingCourtAdvance, setEditingCourtAdvance] = useState<any>(null);
+  const [editCourtAdvance, setEditCourtAdvance] = useState({
     date: format(new Date(), "yyyy-MM-dd"),
     courtBookedDate: format(new Date(), "yyyy-MM-dd"),
     bookedByName: "",
@@ -319,6 +340,24 @@ export default function Expenses() {
     },
   });
 
+  const updateEquipmentMutation = useMutation({
+    mutationFn: (data: { id: string; payload: any }) =>
+      api.updateEquipmentPurchase(data.id, data.payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["equipment"] });
+      queryClient.invalidateQueries({ queryKey: ["joining-fees"] });
+      queryClient.invalidateQueries({ queryKey: ["publicBills"] });
+      setIsEditEquipmentOpen(false);
+      setEditingEquipment(null);
+      toast.success("Equipment purchase updated successfully!");
+    },
+    onError: (error: any) => {
+      toast.error("Failed to update equipment purchase", {
+        description: error.message || "An error occurred",
+      });
+    },
+  });
+
   const createCourtAdvanceMutation = useMutation({
     mutationFn: (data: any) => api.createCourtAdvanceBooking(data),
     onSuccess: () => {
@@ -369,6 +408,24 @@ export default function Expenses() {
     },
     onError: (error: any) => {
       toast.error("Failed to delete court advance booking", {
+        description: error.message || "An error occurred",
+      });
+    },
+  });
+
+  const updateCourtAdvanceMutation = useMutation({
+    mutationFn: (data: { id: string; payload: any }) =>
+      api.updateCourtAdvanceBooking(data.id, data.payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["court-advance-bookings"] });
+      queryClient.invalidateQueries({ queryKey: ["joining-fees"] });
+      queryClient.invalidateQueries({ queryKey: ["publicBills"] });
+      setIsEditCourtAdvanceOpen(false);
+      setEditingCourtAdvance(null);
+      toast.success("Court advance booking updated successfully!");
+    },
+    onError: (error: any) => {
+      toast.error("Failed to update court advance booking", {
         description: error.message || "An error occurred",
       });
     },
@@ -701,10 +758,96 @@ export default function Expenses() {
     }
   };
 
+  const openEditEquipmentModal = (purchase: any) => {
+    setEditingEquipment(purchase);
+    setEditEquipment({
+      date: format(new Date(purchase.date), "yyyy-MM-dd"),
+      boughtByName: purchase.boughtByName || "",
+      description: purchase.description || "",
+      amount: Number(purchase.amount || 0),
+      quantityPurchased: String(purchase.quantityPurchased || ""),
+      reduceFromAdvance: Boolean(purchase.reduceFromAdvance),
+    });
+    setIsEditEquipmentOpen(true);
+  };
+
+  const handleSaveEditedEquipment = () => {
+    if (!editingEquipment) return;
+    const id = editingEquipment._id || editingEquipment.id;
+    const quantityPurchased = parseInt(editEquipment.quantityPurchased, 10);
+
+    if (
+      !id ||
+      !editEquipment.boughtByName.trim() ||
+      editEquipment.amount < 0 ||
+      Number.isNaN(quantityPurchased) ||
+      quantityPurchased <= 0
+    ) {
+      toast.error("Please fill in all required fields");
+      return;
+    }
+
+    updateEquipmentMutation.mutate({
+      id,
+      payload: {
+        date: editEquipment.date,
+        boughtByName: editEquipment.boughtByName.trim(),
+        description: editEquipment.description,
+        amount: editEquipment.amount,
+        quantityPurchased,
+        reduceFromAdvance: editEquipment.reduceFromAdvance,
+      },
+    });
+  };
+
   const handleDeleteCourtAdvance = (id: string) => {
     if (confirm("Are you sure you want to delete this court advance booking?")) {
       deleteCourtAdvanceMutation.mutate(id);
     }
+  };
+
+  const openEditCourtAdvanceModal = (record: any) => {
+    setEditingCourtAdvance(record);
+    setEditCourtAdvance({
+      date: format(new Date(record.date), "yyyy-MM-dd"),
+      courtBookedDate: format(new Date(record.courtBookedDate || record.date), "yyyy-MM-dd"),
+      bookedByName: record.bookedByName || "",
+      courtsBooked: String(record.courtsBooked || ""),
+      amount: Number(record.amount || 0),
+      description: record.description || "",
+      reduceFromAdvance: Boolean(record.reduceFromAdvance),
+    });
+    setIsEditCourtAdvanceOpen(true);
+  };
+
+  const handleSaveEditedCourtAdvance = () => {
+    if (!editingCourtAdvance) return;
+    const id = editingCourtAdvance._id || editingCourtAdvance.id;
+    const courtsBooked = parseInt(editCourtAdvance.courtsBooked, 10);
+
+    if (
+      !id ||
+      !editCourtAdvance.bookedByName.trim() ||
+      Number.isNaN(courtsBooked) ||
+      courtsBooked <= 0 ||
+      editCourtAdvance.amount < 0
+    ) {
+      toast.error("Please fill in all required fields");
+      return;
+    }
+
+    updateCourtAdvanceMutation.mutate({
+      id,
+      payload: {
+        date: editCourtAdvance.date,
+        courtBookedDate: editCourtAdvance.courtBookedDate,
+        bookedByName: editCourtAdvance.bookedByName.trim(),
+        courtsBooked,
+        amount: editCourtAdvance.amount,
+        description: editCourtAdvance.description,
+        reduceFromAdvance: editCourtAdvance.reduceFromAdvance,
+      },
+    });
   };
 
   return (
@@ -2040,13 +2183,21 @@ export default function Expenses() {
                                 variant="ghost"
                                 size="icon"
                                 className="h-8 w-8"
+                                onClick={() => openEditEquipmentModal(purchase)}
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8"
                                 onClick={() => {
                                   setUsageTarget(purchase);
                                   setUsageValue(usedQty);
                                   setIsUsageOpen(true);
                                 }}
                               >
-                                <Edit className="h-4 w-4" />
+                                <CheckSquare className="h-4 w-4" />
                               </Button>
                               <Button
                                 variant="ghost"
@@ -2270,15 +2421,25 @@ export default function Expenses() {
                         </TableCell>
                         {user?.role === "admin" && (
                           <TableCell className="text-right">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-destructive hover:text-destructive"
-                              onClick={() => handleDeleteCourtAdvance(item._id || item.id)}
-                              disabled={deleteCourtAdvanceMutation.isPending}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
+                            <div className="flex items-center justify-end gap-1">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8"
+                                onClick={() => openEditCourtAdvanceModal(item)}
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-destructive hover:text-destructive"
+                                onClick={() => handleDeleteCourtAdvance(item._id || item.id)}
+                                disabled={deleteCourtAdvanceMutation.isPending}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
                           </TableCell>
                         )}
                       </TableRow>
@@ -2289,6 +2450,266 @@ export default function Expenses() {
             )}
           </CardContent>
         </Card>
+
+        {/* Edit Equipment Dialog */}
+        <Dialog
+          open={isEditEquipmentOpen}
+          onOpenChange={(open) => {
+            setIsEditEquipmentOpen(open);
+            if (!open) setEditingEquipment(null);
+          }}
+        >
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Edit Equipment Purchase</DialogTitle>
+              <DialogDescription>
+                Update shuttle stock purchase details.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label>Date</Label>
+                <Input
+                  type="date"
+                  value={editEquipment.date}
+                  onChange={(e) => setEditEquipment((prev) => ({ ...prev, date: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Bought By (Name)</Label>
+                <Input
+                  value={editEquipment.boughtByName}
+                  placeholder="Enter name"
+                  onChange={(e) =>
+                    setEditEquipment((prev) => ({ ...prev, boughtByName: e.target.value }))
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Description</Label>
+                <Textarea
+                  placeholder="Optional notes..."
+                  value={editEquipment.description}
+                  onChange={(e) =>
+                    setEditEquipment((prev) => ({ ...prev, description: e.target.value }))
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Amount ($)</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={editEquipment.amount}
+                  onChange={(e) =>
+                    setEditEquipment((prev) => ({
+                      ...prev,
+                      amount: parseFloat(e.target.value) || 0,
+                    }))
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Quantity Purchased</Label>
+                <Input
+                  type="number"
+                  min="1"
+                  step="1"
+                  className="no-spinner"
+                  value={editEquipment.quantityPurchased}
+                  onChange={(e) =>
+                    setEditEquipment((prev) => ({ ...prev, quantityPurchased: e.target.value }))
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Reduce Cost From Advance?</Label>
+                <RadioGroup
+                  className="grid grid-cols-2 gap-4"
+                  value={editEquipment.reduceFromAdvance ? "yes" : "no"}
+                  onValueChange={(value) =>
+                    setEditEquipment((prev) => ({
+                      ...prev,
+                      reduceFromAdvance: value === "yes",
+                    }))
+                  }
+                >
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="yes" id="edit-equipment-advance-yes" />
+                    <Label htmlFor="edit-equipment-advance-yes" className="font-normal">
+                      Yes
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="no" id="edit-equipment-advance-no" />
+                    <Label htmlFor="edit-equipment-advance-no" className="font-normal">
+                      No
+                    </Label>
+                  </div>
+                </RadioGroup>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setIsEditEquipmentOpen(false)}
+                disabled={updateEquipmentMutation.isPending}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleSaveEditedEquipment}
+                disabled={updateEquipmentMutation.isPending}
+              >
+                {updateEquipmentMutation.isPending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  "Save Changes"
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Edit Court Advance Dialog */}
+        <Dialog
+          open={isEditCourtAdvanceOpen}
+          onOpenChange={(open) => {
+            setIsEditCourtAdvanceOpen(open);
+            if (!open) setEditingCourtAdvance(null);
+          }}
+        >
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Edit Court Advance Booking</DialogTitle>
+              <DialogDescription>
+                Update court advance booking details.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label>Entry Date</Label>
+                <Input
+                  type="date"
+                  value={editCourtAdvance.date}
+                  onChange={(e) =>
+                    setEditCourtAdvance((prev) => ({ ...prev, date: e.target.value }))
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Date of Court Booked</Label>
+                <Input
+                  type="date"
+                  value={editCourtAdvance.courtBookedDate}
+                  onChange={(e) =>
+                    setEditCourtAdvance((prev) => ({ ...prev, courtBookedDate: e.target.value }))
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Booked By (Name)</Label>
+                <Input
+                  value={editCourtAdvance.bookedByName}
+                  placeholder="Enter name"
+                  onChange={(e) =>
+                    setEditCourtAdvance((prev) => ({ ...prev, bookedByName: e.target.value }))
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>No. of Courts Booked</Label>
+                <Input
+                  type="number"
+                  min="1"
+                  step="1"
+                  className="no-spinner"
+                  value={editCourtAdvance.courtsBooked}
+                  onChange={(e) =>
+                    setEditCourtAdvance((prev) => ({ ...prev, courtsBooked: e.target.value }))
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Amount ($)</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={editCourtAdvance.amount}
+                  onChange={(e) =>
+                    setEditCourtAdvance((prev) => ({
+                      ...prev,
+                      amount: parseFloat(e.target.value) || 0,
+                    }))
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Description</Label>
+                <Textarea
+                  placeholder="Optional notes..."
+                  value={editCourtAdvance.description}
+                  onChange={(e) =>
+                    setEditCourtAdvance((prev) => ({ ...prev, description: e.target.value }))
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Reduce Cost From Advance?</Label>
+                <RadioGroup
+                  className="grid grid-cols-2 gap-4"
+                  value={editCourtAdvance.reduceFromAdvance ? "yes" : "no"}
+                  onValueChange={(value) =>
+                    setEditCourtAdvance((prev) => ({
+                      ...prev,
+                      reduceFromAdvance: value === "yes",
+                    }))
+                  }
+                >
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="yes" id="edit-court-advance-yes" />
+                    <Label htmlFor="edit-court-advance-yes" className="font-normal">
+                      Yes
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="no" id="edit-court-advance-no" />
+                    <Label htmlFor="edit-court-advance-no" className="font-normal">
+                      No
+                    </Label>
+                  </div>
+                </RadioGroup>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setIsEditCourtAdvanceOpen(false)}
+                disabled={updateCourtAdvanceMutation.isPending}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleSaveEditedCourtAdvance}
+                disabled={updateCourtAdvanceMutation.isPending}
+              >
+                {updateCourtAdvanceMutation.isPending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  "Save Changes"
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {/* Update Usage Dialog */}
         <Dialog open={isUsageOpen} onOpenChange={setIsUsageOpen}>
