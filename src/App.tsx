@@ -18,6 +18,8 @@ import Signup from "./pages/Signup";
 import PublicBills from "./pages/PublicBills";
 import JoiningFees from "./pages/JoiningFees";
 import JoiningRequests from "./pages/JoiningRequests";
+import TournamentPage from "./pages/Tournament";
+import Tournaments from "./pages/Tournaments";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -33,6 +35,7 @@ const App = () => (
             <Route path="/" element={<Home />} />
             <Route path="/admin-login" element={<Login />} />
             <Route path="/member-bills" element={<PublicBills />} />
+            <Route path="/tournament" element={<TournamentPage />} />
             <Route path="/login" element={<Navigate to="/admin-login" replace />} />
             <Route path="/signup" element={<Signup />} />
             <Route path="/bills" element={<Navigate to="/member-bills" replace />} />
@@ -105,6 +108,14 @@ const App = () => (
               element={
                 <ProtectedRoute requireAdmin>
                   <JoiningRequests />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/tournaments"
+              element={
+                <ProtectedRoute requireAdmin>
+                  <Tournaments />
                 </ProtectedRoute>
               }
             />

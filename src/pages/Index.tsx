@@ -18,6 +18,7 @@ import {
   Settings,
   ReceiptText,
   UserPlus,
+  Trophy,
 } from "lucide-react";
 import { format } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -471,6 +472,11 @@ const Index = () => {
                   icon={UserPlus}
                   label="Join Requests"
                   href="/joining-requests"
+                />
+                <QuickActionButton
+                  icon={Trophy}
+                  label="Tournaments"
+                  href="/tournaments"
                 />
                 <QuickActionButton
                   icon={Settings}

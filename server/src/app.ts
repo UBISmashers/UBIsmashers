@@ -12,7 +12,9 @@ import memberRoutes from "./routes/members.js";
 import notificationRoutes from "./routes/notifications.js";
 import paymentRoutes from "./routes/payments.js";
 import publicRoutes from "./routes/public.js";
+import publicTournamentRoutes from "./routes/publicTournaments.js";
 import reportRoutes from "./routes/reports.js";
+import tournamentRoutes from "./routes/tournaments.js";
 
 dotenv.config();
 
@@ -66,9 +68,11 @@ app.use("/api/reports", reportRoutes);
 app.use("/api/payments", paymentRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/public", publicRoutes);
+app.use("/api/public/tournaments", publicTournamentRoutes);
 app.use("/api/equipment", equipmentRoutes);
 app.use("/api/joining-fees", joiningFeeRoutes);
 app.use("/api/joining-requests", joiningRequestRoutes);
+app.use("/api/tournaments", tournamentRoutes);
 
 app.use((err: Error & { status?: number }, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error("Error:", err);

@@ -1,3 +1,5 @@
+import type { PublicTournamentPayload, Tournament } from "@/types/tournament";
+
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 
 class ApiClient {
@@ -381,6 +383,106 @@ class ApiClient {
     return this.request<{ message: string }>(`/notifications/${id}`, {
       method: "DELETE",
     });
+  }
+
+  async getTournamentConfig() {
+    return this.request<{ enabled: boolean }>("/tournaments/config");
+  }
+
+  async updateTournamentConfig(enabled: boolean) {
+    return this.request<{ enabled: boolean }>("/tournaments/config", {
+      method: "PATCH",
+      body: JSON.stringify({ enabled }),
+    });
+  }
+
+  async getTournaments() {
+    return this.request<Tournament[]>("/tournaments");
+  }
+
+  async getTournament(id: string) {
+    return this.request<Tournament>(`/tournaments/${id}`);
+  }
+
+  async createTournament(data: {
+    name: string;
+    date: string;
+    location: string;
+    type: "singles" | "doubles";
+    entryFee?: number;
+    status?: "upcoming" | "ongoing" | "completed";
+    isVisibleToMembers?: boolean;
+  }) {
+    return this.request<Tournament>("/tournaments", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateTournament(id: string, data: Partial<{
+    name: string;
+    date: string;
+    location: string;
+    type: "singles" | "doubles";
+    entryFee: number;
+    status: "upcoming" | "ongoing" | "completed";
+    isVisibleToMembers: boolean;
+  }>) {
+    return this.request<Tournament>(`/tournaments/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteTournament(id: string) {
+    return this.request<{ message: string }>(`/tournaments/${id}`, {
+      method: "DELETE",
+    });
+  }
+
+  async addTournamentTeam(id: string, data: { name?: string; players: string[] }) {
+    return this.request<Tournament>(`/tournaments/${id}/teams`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async removeTournamentTeam(id: string, teamId: string) {
+    return this.request<Tournament>(`/tournaments/${id}/teams/${teamId}`, {
+      method: "DELETE",
+    });
+  }
+
+  async generateTournamentBracket(id: string) {
+    return this.request<Tournament>(`/tournaments/${id}/generate-bracket`, {
+      method: "POST",
+    });
+  }
+
+  async updateTournamentMatchScore(id: string, matchId: string, data: { scoreA: number; scoreB: number }) {
+    return this.request<Tournament>(`/tournaments/${id}/matches/${matchId}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async declareTournamentWinner(id: string, teamId: string) {
+    return this.request<Tournament>(`/tournaments/${id}/declare-winner`, {
+      method: "POST",
+      body: JSON.stringify({ teamId }),
+    });
+  }
+
+  async getPublicTournamentConfig() {
+    return this.request<{ enabled: boolean }>("/public/tournaments/config");
+  }
+
+  async getPublicTournaments() {
+    return this.request<PublicTournamentPayload>("/public/tournaments");
+  }
+
+  async getPublicTournamentById(id: string) {
+    return this.request<Tournament>(`/public/tournaments/${id}`);
   }
 }
 

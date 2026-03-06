@@ -12,6 +12,7 @@ import {
   ChevronRight,
   BadgeDollarSign,
   UserPlus,
+  Trophy,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -36,6 +37,7 @@ export function Sidebar({ className }: SidebarProps) {
       ? [
           { to: "/joining-fees", icon: BadgeDollarSign, label: "Advance" },
           { to: "/joining-requests", icon: UserPlus, label: "Joining Requests" },
+          { to: "/tournaments", icon: Trophy, label: "Tournaments" },
         ]
       : []),
   ];
