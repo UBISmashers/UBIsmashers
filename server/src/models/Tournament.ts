@@ -2,6 +2,7 @@ import mongoose, { Document, Schema } from "mongoose";
 
 export type TournamentType = "singles" | "doubles";
 export type TournamentStatus = "upcoming" | "ongoing" | "completed";
+export type TournamentFormat = "knockout" | "round_robin" | "group_knockout";
 
 export interface ITournamentTeam {
   _id: mongoose.Types.ObjectId;
@@ -9,11 +10,54 @@ export interface ITournamentTeam {
   players: string[];
 }
 
+export type TournamentRegistrationStatus = "pending" | "accepted" | "rejected";
+export type RegistrationGender = "male" | "female" | "other";
+
+export interface ITournamentRegistrationMember {
+  name: string;
+  mobileNumber: string;
+  gender: RegistrationGender;
+  isAvailable: boolean;
+}
+
+export interface ITournamentRegistration {
+  _id: mongoose.Types.ObjectId;
+  teamName: string;
+  teamLeadName: string;
+  members: ITournamentRegistrationMember[];
+  status: TournamentRegistrationStatus;
+  reviewNote: string | null;
+  reviewedAt: Date | null;
+  createdAt: Date;
+}
+
+export interface ITournamentRegistryMember {
+  name: string;
+  mobileNumber: string;
+  gender: RegistrationGender;
+}
+
+export interface ITournamentTeamRegistry {
+  _id: mongoose.Types.ObjectId;
+  teamId: mongoose.Types.ObjectId | null;
+  teamName: string;
+  teamLeadName: string;
+  members: ITournamentRegistryMember[];
+  entryFeePaid: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export interface ITournamentMatch {
   matchId: string;
   roundNumber: number;
   roundLabel: string;
   matchNumber: number;
+  matchType: "league" | "semifinal" | "final" | "friendly" | "practice";
+  isManual: boolean;
+  manualOverrideTeams: boolean;
+  scheduledAt: Date | null;
+  court: string | null;
   teamAId: mongoose.Types.ObjectId | null;
   teamBId: mongoose.Types.ObjectId | null;
   scoreA: number | null;
@@ -25,12 +69,18 @@ export interface ITournamentMatch {
 export interface ITournament extends Document {
   name: string;
   date: Date;
+  time: string;
   location: string;
   type: TournamentType;
+  format: TournamentFormat;
   entryFee?: number;
   status: TournamentStatus;
   isVisibleToMembers: boolean;
+  allowTeamRegistration: boolean;
+  registrationDeadline: Date | null;
   teams: ITournamentTeam[];
+  registrations: ITournamentRegistration[];
+  teamRegistry: ITournamentTeamRegistry[];
   matches: ITournamentMatch[];
   totalRounds: number;
   championTeamId: mongoose.Types.ObjectId | null;
@@ -55,12 +105,63 @@ const teamSchema = new Schema<ITournamentTeam>(
   { _id: true }
 );
 
+const registrationMemberSchema = new Schema<ITournamentRegistrationMember>(
+  {
+    name: { type: String, required: true, trim: true },
+    mobileNumber: { type: String, required: true, trim: true },
+    gender: { type: String, enum: ["male", "female", "other"], required: true },
+    isAvailable: { type: Boolean, required: true, default: false },
+  },
+  { _id: false }
+);
+
+const registrationSchema = new Schema<ITournamentRegistration>(
+  {
+    teamName: { type: String, required: true, trim: true },
+    teamLeadName: { type: String, required: true, trim: true },
+    members: { type: [registrationMemberSchema], required: true, default: [] },
+    status: { type: String, enum: ["pending", "accepted", "rejected"], default: "pending" },
+    reviewNote: { type: String, default: null },
+    reviewedAt: { type: Date, default: null },
+  },
+  { _id: true, timestamps: { createdAt: true, updatedAt: false } }
+);
+
+const registryMemberSchema = new Schema<ITournamentRegistryMember>(
+  {
+    name: { type: String, required: true, trim: true },
+    mobileNumber: { type: String, required: true, trim: true },
+    gender: { type: String, enum: ["male", "female", "other"], required: true },
+  },
+  { _id: false }
+);
+
+const teamRegistrySchema = new Schema<ITournamentTeamRegistry>(
+  {
+    teamId: { type: Schema.Types.ObjectId, default: null },
+    teamName: { type: String, required: true, trim: true },
+    teamLeadName: { type: String, required: true, trim: true },
+    members: { type: [registryMemberSchema], required: true, default: [] },
+    entryFeePaid: { type: Number, required: true, min: 0, default: 0 },
+  },
+  { _id: true, timestamps: true }
+);
+
 const matchSchema = new Schema<ITournamentMatch>(
   {
     matchId: { type: String, required: true },
     roundNumber: { type: Number, required: true },
     roundLabel: { type: String, required: true },
     matchNumber: { type: Number, required: true },
+    matchType: {
+      type: String,
+      enum: ["league", "semifinal", "final", "friendly", "practice"],
+      default: "league",
+    },
+    isManual: { type: Boolean, default: false },
+    manualOverrideTeams: { type: Boolean, default: false },
+    scheduledAt: { type: Date, default: null },
+    court: { type: String, trim: true, default: null },
     teamAId: { type: Schema.Types.ObjectId, default: null },
     teamBId: { type: Schema.Types.ObjectId, default: null },
     scoreA: { type: Number, default: null },
@@ -82,6 +183,11 @@ const tournamentSchema = new Schema<ITournament>(
       type: Date,
       required: true,
     },
+    time: {
+      type: String,
+      trim: true,
+      default: "",
+    },
     location: {
       type: String,
       required: true,
@@ -91,6 +197,11 @@ const tournamentSchema = new Schema<ITournament>(
       type: String,
       enum: ["singles", "doubles"],
       required: true,
+    },
+    format: {
+      type: String,
+      enum: ["knockout", "round_robin", "group_knockout"],
+      default: "knockout",
     },
     entryFee: {
       type: Number,
@@ -106,8 +217,24 @@ const tournamentSchema = new Schema<ITournament>(
       type: Boolean,
       default: true,
     },
+    allowTeamRegistration: {
+      type: Boolean,
+      default: false,
+    },
+    registrationDeadline: {
+      type: Date,
+      default: null,
+    },
     teams: {
       type: [teamSchema],
+      default: [],
+    },
+    registrations: {
+      type: [registrationSchema],
+      default: [],
+    },
+    teamRegistry: {
+      type: [teamRegistrySchema],
       default: [],
     },
     matches: {

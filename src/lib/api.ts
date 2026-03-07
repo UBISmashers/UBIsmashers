@@ -407,11 +407,15 @@ class ApiClient {
   async createTournament(data: {
     name: string;
     date: string;
+    time?: string;
     location: string;
     type: "singles" | "doubles";
+    format?: "knockout" | "round_robin" | "group_knockout";
     entryFee?: number;
     status?: "upcoming" | "ongoing" | "completed";
     isVisibleToMembers?: boolean;
+    allowTeamRegistration?: boolean;
+    registrationDeadline?: string | null;
   }) {
     return this.request<Tournament>("/tournaments", {
       method: "POST",
@@ -422,11 +426,15 @@ class ApiClient {
   async updateTournament(id: string, data: Partial<{
     name: string;
     date: string;
+    time: string;
     location: string;
     type: "singles" | "doubles";
+    format: "knockout" | "round_robin" | "group_knockout";
     entryFee: number;
     status: "upcoming" | "ongoing" | "completed";
     isVisibleToMembers: boolean;
+    allowTeamRegistration: boolean;
+    registrationDeadline: string | null;
   }>) {
     return this.request<Tournament>(`/tournaments/${id}`, {
       method: "PUT",
@@ -440,9 +448,42 @@ class ApiClient {
     });
   }
 
-  async addTournamentTeam(id: string, data: { name?: string; players: string[] }) {
+  async addTournamentTeam(
+    id: string,
+    data: {
+      name?: string;
+      players: string[];
+      teamLeadName?: string;
+      members?: Array<{
+        name: string;
+        mobileNumber: string;
+        gender: "male" | "female" | "other";
+      }>;
+      entryFeePaid?: number;
+    }
+  ) {
     return this.request<Tournament>(`/tournaments/${id}/teams`, {
       method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateTournamentTeamRegistry(
+    id: string,
+    registryId: string,
+    data: Partial<{
+      teamName: string;
+      teamLeadName: string;
+      members: Array<{
+        name: string;
+        mobileNumber: string;
+        gender: "male" | "female" | "other";
+      }>;
+      entryFeePaid: number;
+    }>
+  ) {
+    return this.request<Tournament>(`/tournaments/${id}/team-registry/${registryId}`, {
+      method: "PATCH",
       body: JSON.stringify(data),
     });
   }
@@ -459,9 +500,63 @@ class ApiClient {
     });
   }
 
+  async reviewTournamentRegistration(
+    id: string,
+    registrationId: string,
+    data: { status: "accepted" | "rejected"; reviewNote?: string }
+  ) {
+    return this.request<Tournament>(`/tournaments/${id}/registrations/${registrationId}/review`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    });
+  }
+
   async updateTournamentMatchScore(id: string, matchId: string, data: { scoreA: number; scoreB: number }) {
     return this.request<Tournament>(`/tournaments/${id}/matches/${matchId}`, {
       method: "PATCH",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateTournamentPlayoffTeams(
+    id: string,
+    matchId: string,
+    data: { teamAId: string | null; teamBId: string | null }
+  ) {
+    return this.request<Tournament>(`/tournaments/${id}/matches/${matchId}/playoff-teams`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateTournamentMatchDetails(
+    id: string,
+    matchId: string,
+    data: {
+      teamAId?: string | null;
+      teamBId?: string | null;
+      scheduledAt?: string | null;
+      court?: string | null;
+    }
+  ) {
+    return this.request<Tournament>(`/tournaments/${id}/matches/${matchId}/details`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async createTournamentCustomMatch(
+    id: string,
+    data: {
+      matchType: "league" | "semifinal" | "final" | "friendly" | "practice";
+      teamAId: string | null;
+      teamBId: string | null;
+      scheduledAt?: string | null;
+      court?: string | null;
+    }
+  ) {
+    return this.request<Tournament>(`/tournaments/${id}/matches/custom`, {
+      method: "POST",
       body: JSON.stringify(data),
     });
   }
@@ -483,6 +578,25 @@ class ApiClient {
 
   async getPublicTournamentById(id: string) {
     return this.request<Tournament>(`/public/tournaments/${id}`);
+  }
+
+  async registerPublicTournamentTeam(
+    id: string,
+    data: {
+      teamName: string;
+      teamLeadName: string;
+      members: Array<{
+        name: string;
+        mobileNumber: string;
+        gender: "male" | "female" | "other";
+        isAvailable: boolean;
+      }>;
+    }
+  ) {
+    return this.request<Tournament>(`/public/tournaments/${id}/register-team`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
   }
 }
 

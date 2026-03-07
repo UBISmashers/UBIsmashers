@@ -2,6 +2,7 @@ import express from "express";
 import { authenticate, authorize } from "../middleware/auth.js";
 import {
   addTournamentTeam,
+  createTournamentCustomMatch,
   createAdminTournament,
   declareTournamentChampion,
   deleteAdminTournament,
@@ -10,8 +11,12 @@ import {
   getAdminTournaments,
   getTournamentConfig,
   removeTournamentTeam,
+  reviewAdminTournamentRegistration,
   updateAdminTournament,
   updateTournamentConfig,
+  updateAdminTournamentTeamRegistry,
+  updateTournamentMatchDetails,
+  updateTournamentPlayoffTeams,
   updateTournamentMatchScore,
 } from "../controllers/tournamentController.js";
 
@@ -29,8 +34,13 @@ router.put("/:id", updateAdminTournament);
 router.delete("/:id", deleteAdminTournament);
 router.post("/:id/teams", addTournamentTeam);
 router.delete("/:id/teams/:teamId", removeTournamentTeam);
+router.patch("/:id/team-registry/:registryId", updateAdminTournamentTeamRegistry);
+router.patch("/:id/registrations/:registrationId/review", reviewAdminTournamentRegistration);
 router.post("/:id/generate-bracket", generateTournamentBracket);
 router.patch("/:id/matches/:matchId", updateTournamentMatchScore);
+router.patch("/:id/matches/:matchId/details", updateTournamentMatchDetails);
+router.patch("/:id/matches/:matchId/playoff-teams", updateTournamentPlayoffTeams);
+router.post("/:id/matches/custom", createTournamentCustomMatch);
 router.post("/:id/declare-winner", declareTournamentChampion);
 
 export default router;

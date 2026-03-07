@@ -3,6 +3,7 @@ import { z } from "zod";
 import {
   addTeam,
   createTournament,
+  createCustomMatch,
   declareTournamentWinner,
   deleteTournament,
   generateBracket,
@@ -11,8 +12,13 @@ import {
   getPublicTournamentPayload,
   getTournamentVisibility,
   listAdminTournaments,
+  registerTeam,
   removeTeam,
+  reviewTeamRegistration,
   setTournamentVisibility,
+  updateMatchDetails,
+  updateTeamRegistryEntry,
+  updatePlayoffTeams,
   updateMatchScore,
   updateTournament,
 } from "../services/tournamentService.js";
@@ -20,16 +26,31 @@ import {
 const tournamentSchema = z.object({
   name: z.string().min(1, "Tournament name is required"),
   date: z.string().or(z.date()),
+  time: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Time must be in HH:mm format").optional(),
   location: z.string().min(1, "Location is required"),
   type: z.enum(["singles", "doubles"]),
+  format: z.enum(["knockout", "round_robin", "group_knockout"]).optional(),
   entryFee: z.number().min(0).optional(),
   status: z.enum(["upcoming", "ongoing", "completed"]).optional(),
   isVisibleToMembers: z.boolean().optional(),
+  allowTeamRegistration: z.boolean().optional(),
+  registrationDeadline: z.string().or(z.date()).nullable().optional(),
 });
 
 const teamSchema = z.object({
   name: z.string().optional(),
   players: z.array(z.string().min(1)).min(1),
+  teamLeadName: z.string().optional(),
+  members: z
+    .array(
+      z.object({
+        name: z.string().min(1),
+        mobileNumber: z.string().regex(/^\+?[0-9]{8,15}$/),
+        gender: z.enum(["male", "female", "other"]),
+      })
+    )
+    .optional(),
+  entryFeePaid: z.number().min(0).optional(),
 });
 
 const visibilitySchema = z.object({
@@ -43,6 +64,59 @@ const scoreSchema = z.object({
 
 const winnerSchema = z.object({
   teamId: z.string().min(1),
+});
+
+const playoffTeamsSchema = z.object({
+  teamAId: z.string().nullable(),
+  teamBId: z.string().nullable(),
+});
+
+const customMatchSchema = z.object({
+  matchType: z.enum(["league", "semifinal", "final", "friendly", "practice"]),
+  teamAId: z.string().nullable(),
+  teamBId: z.string().nullable(),
+  scheduledAt: z.string().or(z.date()).nullable().optional(),
+  court: z.string().optional().nullable(),
+});
+
+const matchDetailsSchema = z.object({
+  teamAId: z.string().nullable().optional(),
+  teamBId: z.string().nullable().optional(),
+  scheduledAt: z.string().or(z.date()).nullable().optional(),
+  court: z.string().optional().nullable(),
+});
+
+const registrationMemberSchema = z.object({
+  name: z.string().min(1, "Member name is required"),
+  mobileNumber: z.string().regex(/^\+?[0-9]{8,15}$/, "Enter a valid mobile number"),
+  gender: z.enum(["male", "female", "other"]),
+  isAvailable: z.literal(true),
+});
+
+const registerTeamSchema = z.object({
+  teamName: z.string().min(1, "Team name is required"),
+  teamLeadName: z.string().min(1, "Team lead name is required"),
+  members: z.array(registrationMemberSchema).min(1),
+});
+
+const reviewRegistrationSchema = z.object({
+  status: z.enum(["accepted", "rejected"]),
+  reviewNote: z.string().optional(),
+});
+
+const updateTeamRegistrySchema = z.object({
+  teamName: z.string().min(1).optional(),
+  teamLeadName: z.string().min(1).optional(),
+  members: z
+    .array(
+      z.object({
+        name: z.string().min(1),
+        mobileNumber: z.string().regex(/^\+?[0-9]{8,15}$/),
+        gender: z.enum(["male", "female", "other"]),
+      })
+    )
+    .optional(),
+  entryFeePaid: z.number().min(0).optional(),
 });
 
 const isServiceError = (value: any): value is { error: string; status: number } =>
@@ -180,6 +254,51 @@ export const updateTournamentMatchScore = async (req: Request, res: Response) =>
   }
 };
 
+export const updateTournamentPlayoffTeams = async (req: Request, res: Response) => {
+  try {
+    const payload = playoffTeamsSchema.parse(req.body);
+    const result = await updatePlayoffTeams(req.params.id, req.params.matchId, payload);
+    if (isServiceError(result)) return res.status(result.status).json({ error: result.error });
+    return res.json(result.tournament);
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: error.errors[0].message });
+    }
+    console.error("Update playoff teams error:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+export const createTournamentCustomMatch = async (req: Request, res: Response) => {
+  try {
+    const payload = customMatchSchema.parse(req.body);
+    const result = await createCustomMatch(req.params.id, payload);
+    if (isServiceError(result)) return res.status(result.status).json({ error: result.error });
+    return res.status(201).json(result.tournament);
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: error.errors[0].message });
+    }
+    console.error("Create custom match error:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+export const updateTournamentMatchDetails = async (req: Request, res: Response) => {
+  try {
+    const payload = matchDetailsSchema.parse(req.body);
+    const result = await updateMatchDetails(req.params.id, req.params.matchId, payload);
+    if (isServiceError(result)) return res.status(result.status).json({ error: result.error });
+    return res.json(result.tournament);
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: error.errors[0].message });
+    }
+    console.error("Update match details error:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+};
+
 export const declareTournamentChampion = async (req: Request, res: Response) => {
   try {
     const { teamId } = winnerSchema.parse(req.body);
@@ -213,6 +332,51 @@ export const getPublicTournament = async (req: Request, res: Response) => {
     return res.json(payload.tournament);
   } catch (error) {
     console.error("Get public tournament error:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+export const registerPublicTournamentTeam = async (req: Request, res: Response) => {
+  try {
+    const payload = registerTeamSchema.parse(req.body);
+    const result = await registerTeam(req.params.id, payload);
+    if (isServiceError(result)) return res.status(result.status).json({ error: result.error });
+    return res.status(201).json(result.tournament);
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: error.errors[0].message });
+    }
+    console.error("Register tournament team error:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+export const reviewAdminTournamentRegistration = async (req: Request, res: Response) => {
+  try {
+    const payload = reviewRegistrationSchema.parse(req.body);
+    const result = await reviewTeamRegistration(req.params.id, req.params.registrationId, payload);
+    if (isServiceError(result)) return res.status(result.status).json({ error: result.error });
+    return res.json(result.tournament);
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: error.errors[0].message });
+    }
+    console.error("Review tournament registration error:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+export const updateAdminTournamentTeamRegistry = async (req: Request, res: Response) => {
+  try {
+    const payload = updateTeamRegistrySchema.parse(req.body);
+    const result = await updateTeamRegistryEntry(req.params.id, req.params.registryId, payload);
+    if (isServiceError(result)) return res.status(result.status).json({ error: result.error });
+    return res.json(result.tournament);
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: error.errors[0].message });
+    }
+    console.error("Update team registry error:", error);
     return res.status(500).json({ error: "Internal server error" });
   }
 };
