@@ -452,6 +452,7 @@ class ApiClient {
     id: string,
     data: {
       name: string;
+      contactMobileNumber?: string;
       entryFeePaid?: number;
     }
   ) {

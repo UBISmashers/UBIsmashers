@@ -47,6 +47,7 @@ const optionalMobileSchema = z
 
 const teamSchema = z.object({
   name: z.string().min(1, "Team name is required"),
+  contactMobileNumber: optionalMobileSchema.optional(),
   entryFeePaid: z.number().min(0).optional(),
 });
 

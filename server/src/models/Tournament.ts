@@ -110,7 +110,7 @@ const teamSchema = new Schema<ITournamentTeam>(
 const registrationMemberSchema = new Schema<ITournamentRegistrationMember>(
   {
     name: { type: String, required: true, trim: true },
-    mobileNumber: { type: String, required: true, trim: true },
+    mobileNumber: { type: String, trim: true, default: "" },
     gender: { type: String, enum: ["male", "female", "other"], required: true },
     isAvailable: { type: Boolean, required: true, default: false },
   },

@@ -68,6 +68,7 @@ export default function Tournaments() {
     registrationDeadline: "",
   });
   const [teamName, setTeamName] = useState("");
+  const [adminContactMobileNumber, setAdminContactMobileNumber] = useState("");
   const [entryFeePaid, setEntryFeePaid] = useState("");
   const [playoffEditByMatch, setPlayoffEditByMatch] = useState<Record<string, { teamAId: string; teamBId: string }>>({});
   const [customMatchForm, setCustomMatchForm] = useState({
@@ -87,7 +88,6 @@ export default function Tournaments() {
     startTime: "18:00",
     matchDurationMinutes: 10,
   });
-  const [registryFeeDraft, setRegistryFeeDraft] = useState<Record<string, string>>({});
 
   const { data: tournaments = [] } = useQuery<Tournament[]>({
     queryKey: ["tournaments"],
@@ -162,15 +162,6 @@ export default function Tournaments() {
       };
     });
     setPlayoffEditByMatch(next);
-  }, [selectedTournament]);
-
-  useEffect(() => {
-    if (!selectedTournament) return;
-    const next: Record<string, string> = {};
-    (selectedTournament.teamRegistry || []).forEach((entry) => {
-      next[entry._id] = entry.entryFeePaid.toString();
-    });
-    setRegistryFeeDraft(next);
   }, [selectedTournament]);
 
   useEffect(() => {
@@ -270,10 +261,12 @@ export default function Tournaments() {
     mutationFn: () =>
       api.addTournamentTeam(selectedTournament!._id, {
         name: teamName.trim(),
+        contactMobileNumber: adminContactMobileNumber.trim() || undefined,
         entryFeePaid: entryFeePaid ? Number(entryFeePaid) : 0,
       }),
     onSuccess: async () => {
       setTeamName("");
+      setAdminContactMobileNumber("");
       setEntryFeePaid("");
       await refresh();
       toast({ title: "Team added" });
@@ -792,6 +785,12 @@ export default function Tournaments() {
                           onChange={(event) => setTeamName(event.target.value)}
                           disabled={!canAddTeams}
                         />
+                        <Input
+                          placeholder="Phone number (optional)"
+                          value={adminContactMobileNumber}
+                          onChange={(event) => setAdminContactMobileNumber(event.target.value)}
+                          disabled={!canAddTeams}
+                        />
                       </div>
                       <div className="grid gap-2 sm:grid-cols-2">
                         <Input
@@ -953,36 +952,45 @@ export default function Tournaments() {
                               <div className="flex flex-wrap items-start justify-between gap-2">
                                 <div>
                                   <p className="font-medium">{entry.teamName}</p>
-                                  <p className="text-xs text-muted-foreground">Lead: {entry.teamLeadName}</p>
                                 </div>
                                 <div className="flex items-center gap-2">
-                                  <Input
-                                    type="number"
-                                    min={0}
-                                    className="h-8 w-32"
-                                    value={registryFeeDraft[entry._id] ?? entry.entryFeePaid.toString()}
-                                    onChange={(event) =>
-                                      setRegistryFeeDraft((prev) => ({ ...prev, [entry._id]: event.target.value }))
-                                    }
-                                  />
+                                  <Badge variant={Number(entry.entryFeePaid || 0) > 0 ? "default" : "secondary"}>
+                                    {Number(entry.entryFeePaid || 0) > 0 ? "Paid" : "Unpaid"}
+                                  </Badge>
                                   <Button
                                     size="sm"
-                                    variant="outline"
+                                    variant={Number(entry.entryFeePaid || 0) > 0 ? "outline" : "default"}
                                     onClick={() =>
                                       updateRegistryEntryMutation.mutate({
                                         registryId: entry._id,
-                                        entryFeePaid: Number(registryFeeDraft[entry._id] || 0),
+                                        entryFeePaid: selectedTournament.entryFee || 1,
                                       })
                                     }
+                                    disabled={Number(entry.entryFeePaid || 0) > 0}
                                   >
-                                    Save Fee
+                                    Mark Paid
                                   </Button>
+                                  {Number(entry.entryFeePaid || 0) > 0 && (
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() =>
+                                        updateRegistryEntryMutation.mutate({
+                                          registryId: entry._id,
+                                          entryFeePaid: 0,
+                                        })
+                                      }
+                                    >
+                                      Edit: Mark Unpaid
+                                    </Button>
+                                  )}
                                 </div>
                               </div>
                               <div className="mt-2 space-y-1 text-xs text-muted-foreground">
                                 {entry.members.map((member, index) => (
                                   <p key={`${entry._id}-member-${index}`}>
-                                    {member.name} • {member.gender} • {member.mobileNumber}
+                                    {member.name}
+                                    {member.mobileNumber ? ` • ${member.mobileNumber}` : ""}
                                   </p>
                                 ))}
                               </div>

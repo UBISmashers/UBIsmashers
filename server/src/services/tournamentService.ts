@@ -941,6 +941,7 @@ export const updateTournament = async (id: string, input: UpdateTournamentInput)
 
 type AddTeamInput = {
   name: string;
+  contactMobileNumber?: string;
   players?: string[];
   teamLeadName?: string;
   members?: TeamRegistryMemberInput[];
@@ -979,7 +980,7 @@ const normalizeRegistryMembers = (
 
 const parsePlayersFromTeamName = (teamName: string, expectedPlayerCount: number) => {
   const parsed = teamName
-    .split("+")
+    .split(/[+/]/g)
     .map((part) => part.trim())
     .filter(Boolean);
   if (parsed.length !== expectedPlayerCount) return null;
@@ -1035,7 +1036,11 @@ const tryAddTeamToTournament = (tournament: ITournament, input: AddTeamInput): T
   }
 
   const teamName = input.name.trim();
+  const contactMobileNumber = (input.contactMobileNumber || "").trim();
   if (!teamName) return { error: "Team name is required", status: 400 as const };
+  if (contactMobileNumber && !/^\+?[0-9]{8,15}$/.test(contactMobileNumber)) {
+    return { error: "Enter a valid contact mobile number", status: 400 as const };
+  }
 
   const expectedPlayerCount = tournament.type === "doubles" ? 2 : 1;
   const playersFromInput = (input.players || []).map((player) => player.trim()).filter(Boolean);
@@ -1046,7 +1051,7 @@ const tryAddTeamToTournament = (tournament: ITournament, input: AddTeamInput): T
     return {
       error:
         tournament.type === "doubles"
-          ? "For doubles, team name must be in 'Player1+Player2' format"
+          ? "For doubles, use 'Player1+Player2' or 'Player1/Player2'"
           : "For singles, team name must be the player name",
       status: 400 as const,
     };
@@ -1058,6 +1063,9 @@ const tryAddTeamToTournament = (tournament: ITournament, input: AddTeamInput): T
   }
 
   const registryMembers = normalizeRegistryMembers(normalizedPlayers, input.members);
+  if (contactMobileNumber && registryMembers.length > 0) {
+    registryMembers[0].mobileNumber = contactMobileNumber;
+  }
   if (registryMembers.length !== expectedPlayerCount) {
     return {
       error: `Team registry requires exactly ${expectedPlayerCount} member(s)`,
@@ -1166,7 +1174,7 @@ export const registerTeam = async (tournamentId: string, input: RegisterTeamInpu
     return {
       error:
         tournament.type === "doubles"
-          ? "Use team name format 'Player1+Player2' for doubles registration"
+          ? "Use team name format 'Player1+Player2' or 'Player1/Player2' for doubles registration"
           : "Use player name as team name for singles registration",
       status: 400 as const,
     };
