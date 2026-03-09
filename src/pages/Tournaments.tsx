@@ -14,6 +14,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { TournamentBracket } from "@/components/tournament/TournamentBracket";
 import { TournamentOverview } from "@/components/tournament/TournamentOverview";
 import { TournamentPointsTable } from "@/components/tournament/TournamentPointsTable";
+import { buildScheduleRows } from "@/lib/tournamentSchedule";
 import type { Tournament, TournamentMatchType } from "@/types/tournament";
 
 const statusOptions = [
@@ -35,12 +36,6 @@ const customMatchTypeOptions: Array<{ label: string; value: TournamentMatchType 
   { label: "Friendly", value: "friendly" },
   { label: "Practice", value: "practice" },
 ];
-
-type TeamMemberDraft = {
-  name: string;
-  mobileNumber: string;
-  gender: "male" | "female" | "other";
-};
 
 export default function Tournaments() {
   const { api } = useAuth();
@@ -73,12 +68,7 @@ export default function Tournaments() {
     registrationDeadline: "",
   });
   const [teamName, setTeamName] = useState("");
-  const [teamLeadName, setTeamLeadName] = useState("");
   const [entryFeePaid, setEntryFeePaid] = useState("");
-  const [teamMembers, setTeamMembers] = useState<TeamMemberDraft[]>([
-    { name: "", mobileNumber: "", gender: "male" },
-    { name: "", mobileNumber: "", gender: "male" },
-  ]);
   const [playoffEditByMatch, setPlayoffEditByMatch] = useState<Record<string, { teamAId: string; teamBId: string }>>({});
   const [customMatchForm, setCustomMatchForm] = useState({
     matchType: "friendly" as TournamentMatchType,
@@ -92,6 +82,11 @@ export default function Tournaments() {
   const [scheduleDraftByMatch, setScheduleDraftByMatch] = useState<
     Record<string, { teamAId: string; teamBId: string; date: string; time: string; court: string }>
   >({});
+  const [scheduleConfig, setScheduleConfig] = useState({
+    courtCount: 2,
+    startTime: "18:00",
+    matchDurationMinutes: 10,
+  });
   const [registryFeeDraft, setRegistryFeeDraft] = useState<Record<string, string>>({});
 
   const { data: tournaments = [] } = useQuery<Tournament[]>({
@@ -108,7 +103,6 @@ export default function Tournaments() {
     () => tournaments.find((item) => item._id === selectedTournamentId) || tournaments[0],
     [selectedTournamentId, tournaments]
   );
-  const expectedTeamMembers = selectedTournament?.type === "doubles" ? 2 : 1;
 
   useEffect(() => {
     if (!selectedTournament) return;
@@ -126,17 +120,6 @@ export default function Tournaments() {
       registrationDeadline: selectedTournament.registrationDeadline ? selectedTournament.registrationDeadline.slice(0, 10) : "",
     });
   }, [selectedTournament]);
-
-  useEffect(() => {
-    setTeamMembers((prev) => {
-      const next = Array.from({ length: expectedTeamMembers }, (_, index) => ({
-        name: prev[index]?.name || "",
-        mobileNumber: prev[index]?.mobileNumber || "",
-        gender: prev[index]?.gender || "male",
-      }));
-      return next;
-    });
-  }, [expectedTeamMembers]);
 
   useEffect(() => {
     if (!selectedTournament) return;
@@ -188,6 +171,14 @@ export default function Tournaments() {
       next[entry._id] = entry.entryFeePaid.toString();
     });
     setRegistryFeeDraft(next);
+  }, [selectedTournament]);
+
+  useEffect(() => {
+    if (!selectedTournament) return;
+    setScheduleConfig((prev) => ({
+      ...prev,
+      startTime: selectedTournament.time || prev.startTime,
+    }));
   }, [selectedTournament]);
 
   const refresh = async () => {
@@ -278,27 +269,12 @@ export default function Tournaments() {
   const addTeamMutation = useMutation({
     mutationFn: () =>
       api.addTournamentTeam(selectedTournament!._id, {
-        name: teamName || undefined,
-        players: teamMembers.map((member) => member.name).filter(Boolean),
-        teamLeadName: teamLeadName || undefined,
-        members: teamMembers.map((member) => ({
-          name: member.name.trim(),
-          mobileNumber: member.mobileNumber.trim(),
-          gender: member.gender,
-        })),
+        name: teamName.trim(),
         entryFeePaid: entryFeePaid ? Number(entryFeePaid) : 0,
       }),
     onSuccess: async () => {
       setTeamName("");
-      setTeamLeadName("");
       setEntryFeePaid("");
-      setTeamMembers(
-        Array.from({ length: expectedTeamMembers }, () => ({
-          name: "",
-          mobileNumber: "",
-          gender: "male" as const,
-        }))
-      );
       await refresh();
       toast({ title: "Team added" });
     },
@@ -319,6 +295,20 @@ export default function Tournaments() {
     onSuccess: async () => {
       await refresh();
       toast({ title: "Bracket generated" });
+    },
+    onError: (error: Error) => toast({ title: "Failed", description: error.message, variant: "destructive" }),
+  });
+
+  const generateScheduleMutation = useMutation({
+    mutationFn: () =>
+      api.generateTournamentSchedule(selectedTournament!._id, {
+        courtCount: scheduleConfig.courtCount,
+        startTime: scheduleConfig.startTime,
+        matchDurationMinutes: scheduleConfig.matchDurationMinutes,
+      }),
+    onSuccess: async () => {
+      await refresh();
+      toast({ title: "Match schedule generated" });
     },
     onError: (error: Error) => toast({ title: "Failed", description: error.message, variant: "destructive" }),
   });
@@ -432,10 +422,7 @@ export default function Tournaments() {
   });
 
   const canAddTeams = Boolean(selectedTournament && selectedTournament.matches.length === 0);
-  const canSubmitTeam =
-    canAddTeams &&
-    teamMembers.length === expectedTeamMembers &&
-    teamMembers.every((member) => member.name.trim() && member.mobileNumber.trim() && member.gender);
+  const canSubmitTeam = canAddTeams && Boolean(teamName.trim());
   const playoffMatches = (selectedTournament?.matches || []).filter(
     (match) => match.matchType === "semifinal" || match.matchType === "final"
   );
@@ -446,6 +433,30 @@ export default function Tournaments() {
     if (a.roundNumber !== b.roundNumber) return a.roundNumber - b.roundNumber;
     return a.matchNumber - b.matchNumber;
   });
+  const scheduleRows = useMemo(() => buildScheduleRows(scheduleMatches), [scheduleMatches]);
+  const scheduleGroups = useMemo(() => {
+    const grouped = new Map<string, { slotLabel: string; rows: typeof scheduleRows }>();
+    scheduleRows.forEach((row) => {
+      const existing = grouped.get(row.slotKey);
+      if (existing) {
+        existing.rows.push(row);
+        return;
+      }
+      grouped.set(row.slotKey, { slotLabel: row.slotLabel, rows: [row] });
+    });
+    return [...grouped.entries()].map(([key, value]) => ({
+      slotKey: key,
+      slotLabel: value.slotLabel,
+      rows: value.rows,
+    }));
+  }, [scheduleRows]);
+  const registryByTeamName = useMemo(
+    () =>
+      new Map(
+        (selectedTournament?.teamRegistry || []).map((entry) => [entry.teamName.trim().toLowerCase(), entry])
+      ),
+    [selectedTournament?.teamRegistry]
+  );
 
   return (
     <MainLayout>
@@ -776,15 +787,9 @@ export default function Tournaments() {
                     <CardContent className="space-y-3">
                       <div className="grid gap-2 sm:grid-cols-2">
                         <Input
-                          placeholder="Team name (optional)"
+                          placeholder={selectedTournament.type === "doubles" ? "Player1+Player2" : "Player1"}
                           value={teamName}
                           onChange={(event) => setTeamName(event.target.value)}
-                          disabled={!canAddTeams}
-                        />
-                        <Input
-                          placeholder="Team lead name"
-                          value={teamLeadName}
-                          onChange={(event) => setTeamLeadName(event.target.value)}
                           disabled={!canAddTeams}
                         />
                       </div>
@@ -801,56 +806,12 @@ export default function Tournaments() {
                           Add Team
                         </Button>
                       </div>
-                      <div className="space-y-2">
-                        {teamMembers.map((member, index) => (
-                          <div key={`member-${index}`} className="grid gap-2 sm:grid-cols-3">
-                            <Input
-                              placeholder={`Member ${index + 1} name`}
-                              value={member.name}
-                              onChange={(event) =>
-                                setTeamMembers((prev) =>
-                                  prev.map((item, itemIndex) =>
-                                    itemIndex === index ? { ...item, name: event.target.value } : item
-                                  )
-                                )
-                              }
-                              disabled={!canAddTeams}
-                            />
-                            <Input
-                              placeholder="Phone number"
-                              value={member.mobileNumber}
-                              onChange={(event) =>
-                                setTeamMembers((prev) =>
-                                  prev.map((item, itemIndex) =>
-                                    itemIndex === index ? { ...item, mobileNumber: event.target.value } : item
-                                  )
-                                )
-                              }
-                              disabled={!canAddTeams}
-                            />
-                            <Select
-                              value={member.gender}
-                              onValueChange={(value: "male" | "female" | "other") =>
-                                setTeamMembers((prev) =>
-                                  prev.map((item, itemIndex) =>
-                                    itemIndex === index ? { ...item, gender: value } : item
-                                  )
-                                )
-                              }
-                              disabled={!canAddTeams}
-                            >
-                              <SelectTrigger>
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="male">Male</SelectItem>
-                                <SelectItem value="female">Female</SelectItem>
-                                <SelectItem value="other">Other</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        ))}
-                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Team name format:{" "}
+                        <span className="font-medium">
+                          {selectedTournament.type === "doubles" ? "Player1+Player2" : "Player1"}
+                        </span>
+                      </p>
                       {!canAddTeams && (
                         <p className="text-xs text-muted-foreground">
                           Team edits are disabled after bracket generation.
@@ -883,64 +844,96 @@ export default function Tournaments() {
                         <p className="text-sm text-muted-foreground">No registrations yet.</p>
                       ) : (
                         <div className="space-y-3">
-                          {selectedTournament.registrations.map((registration) => (
-                            <div key={registration._id} className="rounded-md border p-3">
-                              <div className="flex flex-wrap items-center justify-between gap-2">
-                                <div>
-                                  <p className="font-medium">{registration.teamName}</p>
-                                  <p className="text-xs text-muted-foreground">
-                                    Team lead: {registration.teamLeadName}
-                                  </p>
+                          {selectedTournament.registrations.map((registration) => {
+                            const matchedEntry = registryByTeamName.get(registration.teamName.trim().toLowerCase());
+                            const isFeePaid = Boolean(matchedEntry && Number(matchedEntry.entryFeePaid || 0) > 0);
+
+                            return (
+                              <div key={registration._id} className="rounded-md border p-3">
+                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                  <div>
+                                    <p className="font-medium">{registration.teamName}</p>
+                                    <p className="text-xs text-muted-foreground">Team lead: {registration.teamLeadName}</p>
+                                    {registration.contactMobileNumber && (
+                                      <p className="text-xs text-muted-foreground">Contact: {registration.contactMobileNumber}</p>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <Badge
+                                      className={
+                                        registration.status === "accepted"
+                                          ? "bg-emerald-600 text-white"
+                                          : registration.status === "rejected"
+                                          ? "bg-red-600 text-white"
+                                          : "bg-amber-500 text-black"
+                                      }
+                                    >
+                                      {registration.status}
+                                    </Badge>
+                                    <Badge variant={isFeePaid ? "default" : "secondary"}>{isFeePaid ? "Paid" : "Unpaid"}</Badge>
+                                  </div>
                                 </div>
-                                <Badge
-                                  className={
-                                    registration.status === "accepted"
-                                      ? "bg-emerald-600 text-white"
-                                      : registration.status === "rejected"
-                                      ? "bg-red-600 text-white"
-                                      : "bg-amber-500 text-black"
-                                  }
-                                >
-                                  {registration.status}
-                                </Badge>
-                              </div>
-                              <div className="mt-2 space-y-1 text-xs text-muted-foreground">
-                                {registration.members.map((member, index) => (
-                                  <p key={`${registration._id}-${index}`}>
-                                    {member.name} • {member.mobileNumber} • {member.gender} •{" "}
-                                    {member.isAvailable ? "Available" : "Not Available"}
-                                  </p>
-                                ))}
-                              </div>
-                              {registration.status === "pending" && (
-                                <div className="mt-3 flex gap-2">
-                                  <Button
-                                    size="sm"
-                                    onClick={() =>
-                                      reviewRegistrationMutation.mutate({
-                                        registrationId: registration._id,
-                                        status: "accepted",
-                                      })
-                                    }
-                                  >
-                                    Accept
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    variant="destructive"
-                                    onClick={() =>
-                                      reviewRegistrationMutation.mutate({
-                                        registrationId: registration._id,
-                                        status: "rejected",
-                                      })
-                                    }
-                                  >
-                                    Reject
-                                  </Button>
+                                <div className="mt-2 space-y-1 text-xs text-muted-foreground">
+                                  <p>Players: {registration.members.map((member) => member.name).join(" / ")}</p>
                                 </div>
-                              )}
-                            </div>
-                          ))}
+                                {matchedEntry && (
+                                  <div className="mt-3 flex flex-wrap gap-2">
+                                    <Button
+                                      size="sm"
+                                      variant={isFeePaid ? "outline" : "default"}
+                                      onClick={() =>
+                                        updateRegistryEntryMutation.mutate({
+                                          registryId: matchedEntry._id,
+                                          entryFeePaid: selectedTournament.entryFee || 1,
+                                        })
+                                      }
+                                    >
+                                      Mark Paid
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant={!isFeePaid ? "outline" : "secondary"}
+                                      onClick={() =>
+                                        updateRegistryEntryMutation.mutate({
+                                          registryId: matchedEntry._id,
+                                          entryFeePaid: 0,
+                                        })
+                                      }
+                                    >
+                                      Mark Unpaid
+                                    </Button>
+                                  </div>
+                                )}
+                                {registration.status === "pending" && (
+                                  <div className="mt-3 flex gap-2">
+                                    <Button
+                                      size="sm"
+                                      onClick={() =>
+                                        reviewRegistrationMutation.mutate({
+                                          registrationId: registration._id,
+                                          status: "accepted",
+                                        })
+                                      }
+                                    >
+                                      Accept
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="destructive"
+                                      onClick={() =>
+                                        reviewRegistrationMutation.mutate({
+                                          registrationId: registration._id,
+                                          status: "rejected",
+                                        })
+                                      }
+                                    >
+                                      Reject
+                                    </Button>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
                         </div>
                       )}
                     </CardContent>
@@ -1190,7 +1183,94 @@ export default function Tournaments() {
                     <CardHeader>
                       <CardTitle className="text-base">Tournament Schedule</CardTitle>
                     </CardHeader>
-                    <CardContent>
+                    <CardContent className="space-y-4">
+                      <div className="grid gap-2 md:grid-cols-4">
+                        <div className="space-y-1">
+                          <Label>Courts Available</Label>
+                          <Input
+                            type="number"
+                            min={1}
+                            max={12}
+                            value={scheduleConfig.courtCount}
+                            onChange={(event) =>
+                              setScheduleConfig((prev) => ({
+                                ...prev,
+                                courtCount: Number(event.target.value || 1),
+                              }))
+                            }
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label>Start Time</Label>
+                          <Input
+                            type="time"
+                            value={scheduleConfig.startTime}
+                            onChange={(event) =>
+                              setScheduleConfig((prev) => ({ ...prev, startTime: event.target.value }))
+                            }
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label>Match Duration (min)</Label>
+                          <Input
+                            type="number"
+                            min={1}
+                            max={240}
+                            value={scheduleConfig.matchDurationMinutes}
+                            onChange={(event) =>
+                              setScheduleConfig((prev) => ({
+                                ...prev,
+                                matchDurationMinutes: Number(event.target.value || 1),
+                              }))
+                            }
+                          />
+                        </div>
+                        <div className="flex items-end">
+                          <Button
+                            className="w-full"
+                            onClick={() => generateScheduleMutation.mutate()}
+                            disabled={!selectedTournament || selectedTournament.matches.length === 0}
+                          >
+                            Generate Match Schedule
+                          </Button>
+                        </div>
+                      </div>
+
+                      {scheduleGroups.length > 0 && (
+                        <div className="space-y-2 rounded-md border p-3">
+                          <p className="text-sm font-medium">Time Slot View</p>
+                          {scheduleGroups.map((group) => (
+                            <div key={group.slotKey} className="rounded-md border">
+                              <div className="border-b bg-secondary/30 px-3 py-2 text-sm font-semibold">
+                                {group.slotLabel}
+                              </div>
+                              <div className="overflow-x-auto">
+                                <table className="min-w-full text-sm">
+                                  <thead>
+                                    <tr className="border-b text-left">
+                                      <th className="px-3 py-2">Time</th>
+                                      <th className="px-3 py-2">Court</th>
+                                      <th className="px-3 py-2">Team A</th>
+                                      <th className="px-3 py-2">Team B</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {group.rows.map((row) => (
+                                      <tr key={`${group.slotKey}-${row.matchId}`} className="border-b last:border-0">
+                                        <td className="px-3 py-2">{group.slotLabel}</td>
+                                        <td className="px-3 py-2">{row.court}</td>
+                                        <td className="px-3 py-2">{row.teamAName}</td>
+                                        <td className="px-3 py-2">{row.teamBName}</td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
                       {scheduleMatches.length === 0 ? (
                         <p className="text-sm text-muted-foreground">No matches scheduled yet.</p>
                       ) : (
@@ -1401,3 +1481,4 @@ export default function Tournaments() {
     </MainLayout>
   );
 }
+

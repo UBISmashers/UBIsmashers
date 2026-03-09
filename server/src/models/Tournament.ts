@@ -24,6 +24,7 @@ export interface ITournamentRegistration {
   _id: mongoose.Types.ObjectId;
   teamName: string;
   teamLeadName: string;
+  contactMobileNumber: string | null;
   members: ITournamentRegistrationMember[];
   status: TournamentRegistrationStatus;
   reviewNote: string | null;
@@ -57,6 +58,7 @@ export interface ITournamentMatch {
   isManual: boolean;
   manualOverrideTeams: boolean;
   scheduledAt: Date | null;
+  scheduledEndAt: Date | null;
   court: string | null;
   teamAId: mongoose.Types.ObjectId | null;
   teamBId: mongoose.Types.ObjectId | null;
@@ -119,6 +121,7 @@ const registrationSchema = new Schema<ITournamentRegistration>(
   {
     teamName: { type: String, required: true, trim: true },
     teamLeadName: { type: String, required: true, trim: true },
+    contactMobileNumber: { type: String, trim: true, default: null },
     members: { type: [registrationMemberSchema], required: true, default: [] },
     status: { type: String, enum: ["pending", "accepted", "rejected"], default: "pending" },
     reviewNote: { type: String, default: null },
@@ -130,7 +133,7 @@ const registrationSchema = new Schema<ITournamentRegistration>(
 const registryMemberSchema = new Schema<ITournamentRegistryMember>(
   {
     name: { type: String, required: true, trim: true },
-    mobileNumber: { type: String, required: true, trim: true },
+    mobileNumber: { type: String, trim: true, default: "" },
     gender: { type: String, enum: ["male", "female", "other"], required: true },
   },
   { _id: false }
@@ -161,6 +164,7 @@ const matchSchema = new Schema<ITournamentMatch>(
     isManual: { type: Boolean, default: false },
     manualOverrideTeams: { type: Boolean, default: false },
     scheduledAt: { type: Date, default: null },
+    scheduledEndAt: { type: Date, default: null },
     court: { type: String, trim: true, default: null },
     teamAId: { type: Schema.Types.ObjectId, default: null },
     teamBId: { type: Schema.Types.ObjectId, default: null },

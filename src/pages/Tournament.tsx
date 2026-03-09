@@ -6,32 +6,16 @@ import { ChevronDown, ChevronRight, Trophy } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "@/hooks/use-toast";
 import { TournamentBracket } from "@/components/tournament/TournamentBracket";
 import { TournamentPointsTable } from "@/components/tournament/TournamentPointsTable";
 import { createApiClient } from "@/lib/api";
+import { buildScheduleRows } from "@/lib/tournamentSchedule";
 import type { PublicTournamentPayload, Tournament } from "@/types/tournament";
 
 const publicApi = createApiClient(() => null, () => {});
-
-type RegistrationMemberForm = {
-  name: string;
-  mobileNumber: string;
-  gender: "male" | "female" | "other";
-  isAvailable: boolean;
-};
-
-const buildMemberForm = (count: number): RegistrationMemberForm[] =>
-  Array.from({ length: count }, () => ({
-    name: "",
-    mobileNumber: "",
-    gender: "male",
-    isAvailable: false,
-  }));
 
 export default function TournamentPage() {
   const queryClient = useQueryClient();
@@ -44,31 +28,27 @@ export default function TournamentPage() {
   const [expandedTournamentId, setExpandedTournamentId] = useState<string>("");
   const [registrationTournamentId, setRegistrationTournamentId] = useState<string>("");
   const [teamName, setTeamName] = useState("");
-  const [teamLeadName, setTeamLeadName] = useState("");
-  const [members, setMembers] = useState<RegistrationMemberForm[]>(buildMemberForm(1));
+  const [contactMobileNumber, setContactMobileNumber] = useState("");
 
   const registrationTournament = tournaments.find((item) => item._id === registrationTournamentId) || null;
-  const expectedMemberCount = registrationTournament?.type === "doubles" ? 2 : 1;
 
   const refresh = async () => {
     await queryClient.invalidateQueries({ queryKey: ["publicTournaments"] });
   };
 
-  const resetRegistrationForm = (memberCount: number) => {
+  const resetRegistrationForm = () => {
     setTeamName("");
-    setTeamLeadName("");
-    setMembers(buildMemberForm(memberCount));
+    setContactMobileNumber("");
   };
 
   const registerMutation = useMutation({
     mutationFn: () =>
       publicApi.registerPublicTournamentTeam(registrationTournament!._id, {
         teamName,
-        teamLeadName,
-        members,
+        contactMobileNumber,
       }),
     onSuccess: async () => {
-      resetRegistrationForm(expectedMemberCount);
+      resetRegistrationForm();
       setRegistrationTournamentId("");
       await refresh();
       toast({ title: "Team registration submitted" });
@@ -77,21 +57,8 @@ export default function TournamentPage() {
   });
 
   const canSubmitRegistration = useMemo(
-    () =>
-      Boolean(
-        registrationTournament &&
-          teamName.trim() &&
-          teamLeadName.trim() &&
-          members.length === expectedMemberCount &&
-          members.every(
-            (member) =>
-              member.name.trim() &&
-              member.mobileNumber.trim() &&
-              member.gender &&
-              member.isAvailable
-          )
-      ),
-    [registrationTournament, teamName, teamLeadName, members, expectedMemberCount]
+    () => Boolean(registrationTournament && teamName.trim()),
+    [registrationTournament, teamName]
   );
 
   if (isLoading) {
@@ -157,6 +124,19 @@ export default function TournamentPage() {
               });
               const upcomingMatches = sortedMatches.filter((match) => !match.isCompleted);
               const pastMatches = sortedMatches.filter((match) => match.isCompleted);
+              const scheduleRows = buildScheduleRows(sortedMatches);
+              const scheduleGroups = scheduleRows.reduce<Array<{ slotKey: string; slotLabel: string; rows: typeof scheduleRows }>>(
+                (acc, row) => {
+                  const existing = acc.find((item) => item.slotKey === row.slotKey);
+                  if (existing) {
+                    existing.rows.push(row);
+                  } else {
+                    acc.push({ slotKey: row.slotKey, slotLabel: row.slotLabel, rows: [row] });
+                  }
+                  return acc;
+                },
+                []
+              );
               const isFormOpen = registrationTournamentId === tournament._id;
 
               return (
@@ -207,7 +187,7 @@ export default function TournamentPage() {
                               return;
                             }
                             setRegistrationTournamentId(tournament._id);
-                            resetRegistrationForm(tournament.type === "doubles" ? 2 : 1);
+                            resetRegistrationForm();
                           }}
                           disabled={!canRegister}
                         >
@@ -236,89 +216,31 @@ export default function TournamentPage() {
                           <CardContent className="space-y-4">
                             <div className="space-y-1">
                               <Label>Team Name</Label>
-                              <Input value={teamName} onChange={(e) => setTeamName(e.target.value)} placeholder="Enter team name" />
-                            </div>
-                            <div className="space-y-1">
-                              <Label>Team Lead Name</Label>
                               <Input
-                                value={teamLeadName}
-                                onChange={(e) => setTeamLeadName(e.target.value)}
-                                placeholder="Enter team lead name"
+                                value={teamName}
+                                onChange={(e) => setTeamName(e.target.value)}
+                                placeholder={
+                                  registrationTournament?.type === "doubles"
+                                    ? "Player1+Player2"
+                                    : "Player1"
+                                }
                               />
                             </div>
-
-                            {members.map((member, index) => (
-                              <div key={index} className="space-y-3 rounded-md border p-3">
-                                <p className="text-sm font-medium">Member {index + 1}</p>
-                                <div className="grid gap-2 sm:grid-cols-2">
-                                  <div className="space-y-1">
-                                    <Label>Name</Label>
-                                    <Input
-                                      value={member.name}
-                                      onChange={(e) =>
-                                        setMembers((prev) =>
-                                          prev.map((item, itemIndex) =>
-                                            itemIndex === index ? { ...item, name: e.target.value } : item
-                                          )
-                                        )
-                                      }
-                                      placeholder="Member name"
-                                    />
-                                  </div>
-                                  <div className="space-y-1">
-                                    <Label>Mobile Number</Label>
-                                    <Input
-                                      value={member.mobileNumber}
-                                      onChange={(e) =>
-                                        setMembers((prev) =>
-                                          prev.map((item, itemIndex) =>
-                                            itemIndex === index ? { ...item, mobileNumber: e.target.value } : item
-                                          )
-                                        )
-                                      }
-                                      placeholder="Mobile number"
-                                    />
-                                  </div>
-                                </div>
-                                <div className="grid gap-2 sm:grid-cols-2">
-                                  <div className="space-y-1">
-                                    <Label>Gender</Label>
-                                    <Select
-                                      value={member.gender}
-                                      onValueChange={(value: "male" | "female" | "other") =>
-                                        setMembers((prev) =>
-                                          prev.map((item, itemIndex) =>
-                                            itemIndex === index ? { ...item, gender: value } : item
-                                          )
-                                        )
-                                      }
-                                    >
-                                      <SelectTrigger>
-                                        <SelectValue />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        <SelectItem value="male">Male</SelectItem>
-                                        <SelectItem value="female">Female</SelectItem>
-                                        <SelectItem value="other">Other</SelectItem>
-                                      </SelectContent>
-                                    </Select>
-                                  </div>
-                                  <div className="flex items-center gap-2 pt-6">
-                                    <Checkbox
-                                      checked={member.isAvailable}
-                                      onCheckedChange={(checked) =>
-                                        setMembers((prev) =>
-                                          prev.map((item, itemIndex) =>
-                                            itemIndex === index ? { ...item, isAvailable: checked === true } : item
-                                          )
-                                        )
-                                      }
-                                    />
-                                    <Label>I confirm availability on tournament day</Label>
-                                  </div>
-                                </div>
-                              </div>
-                            ))}
+                            <div className="space-y-1">
+                              <Label>Contact Mobile Number (Optional)</Label>
+                              <Input
+                                value={contactMobileNumber}
+                                onChange={(e) => setContactMobileNumber(e.target.value)}
+                                placeholder="Enter contact mobile number"
+                              />
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                              Use team name format{" "}
+                              <span className="font-medium">
+                                {registrationTournament?.type === "doubles" ? "Player1+Player2" : "Player1"}
+                              </span>
+                              .
+                            </p>
 
                             <Button onClick={() => registerMutation.mutate()} disabled={!canSubmitRegistration}>
                               Submit Team Registration
@@ -329,6 +251,49 @@ export default function TournamentPage() {
 
                       <TournamentPointsTable tournament={tournament} />
                       {tournament.matches.length > 0 && <TournamentBracket tournament={tournament} />}
+
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="text-base">Match Schedule</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          {scheduleGroups.length === 0 ? (
+                            <p className="text-sm text-muted-foreground">No schedule available yet.</p>
+                          ) : (
+                            <div className="space-y-3">
+                              {scheduleGroups.map((group) => (
+                                <div key={group.slotKey} className="rounded-md border">
+                                  <div className="border-b bg-secondary/30 px-3 py-2 text-sm font-semibold">
+                                    {group.slotLabel}
+                                  </div>
+                                  <div className="overflow-x-auto">
+                                    <table className="min-w-full text-sm">
+                                      <thead>
+                                        <tr className="border-b text-left">
+                                          <th className="px-3 py-2">Time</th>
+                                          <th className="px-3 py-2">Court</th>
+                                          <th className="px-3 py-2">Team A</th>
+                                          <th className="px-3 py-2">Team B</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {group.rows.map((row) => (
+                                          <tr key={`${group.slotKey}-${row.matchId}`} className="border-b last:border-0">
+                                            <td className="px-3 py-2">{group.slotLabel}</td>
+                                            <td className="px-3 py-2">{row.court}</td>
+                                            <td className="px-3 py-2">{row.teamAName}</td>
+                                            <td className="px-3 py-2">{row.teamBName}</td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
 
                       <Card>
                         <CardHeader>

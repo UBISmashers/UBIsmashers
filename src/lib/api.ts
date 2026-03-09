@@ -451,14 +451,7 @@ class ApiClient {
   async addTournamentTeam(
     id: string,
     data: {
-      name?: string;
-      players: string[];
-      teamLeadName?: string;
-      members?: Array<{
-        name: string;
-        mobileNumber: string;
-        gender: "male" | "female" | "other";
-      }>;
+      name: string;
       entryFeePaid?: number;
     }
   ) {
@@ -497,6 +490,16 @@ class ApiClient {
   async generateTournamentBracket(id: string) {
     return this.request<Tournament>(`/tournaments/${id}/generate-bracket`, {
       method: "POST",
+    });
+  }
+
+  async generateTournamentSchedule(
+    id: string,
+    data: { courtCount: number; startTime: string; matchDurationMinutes: number }
+  ) {
+    return this.request<Tournament>(`/tournaments/${id}/generate-schedule`, {
+      method: "POST",
+      body: JSON.stringify(data),
     });
   }
 
@@ -584,13 +587,7 @@ class ApiClient {
     id: string,
     data: {
       teamName: string;
-      teamLeadName: string;
-      members: Array<{
-        name: string;
-        mobileNumber: string;
-        gender: "male" | "female" | "other";
-        isAvailable: boolean;
-      }>;
+      contactMobileNumber?: string;
     }
   ) {
     return this.request<Tournament>(`/public/tournaments/${id}/register-team`, {

@@ -298,6 +298,7 @@ const buildBracketMatches = (teams: ITournament["teams"]) => {
         isManual: false,
         manualOverrideTeams: false,
         scheduledAt: null,
+        scheduledEndAt: null,
         court: null,
         teamAId,
         teamBId,
@@ -328,6 +329,7 @@ const buildRoundRobinMatches = (teams: ITournament["teams"]) => {
         isManual: false,
         manualOverrideTeams: false,
         scheduledAt: null,
+        scheduledEndAt: null,
         court: null,
         teamAId: shuffledTeams[i],
         teamBId: shuffledTeams[j],
@@ -376,6 +378,7 @@ const buildRoundRobinPlayoffMatches = (standings: TeamStanding[]): ITournamentMa
       isManual: false,
       manualOverrideTeams: false,
       scheduledAt: null,
+      scheduledEndAt: null,
       court: null,
       teamAId: first,
       teamBId: fourth,
@@ -393,6 +396,7 @@ const buildRoundRobinPlayoffMatches = (standings: TeamStanding[]): ITournamentMa
       isManual: false,
       manualOverrideTeams: false,
       scheduledAt: null,
+      scheduledEndAt: null,
       court: null,
       teamAId: second,
       teamBId: third,
@@ -410,6 +414,7 @@ const buildRoundRobinPlayoffMatches = (standings: TeamStanding[]): ITournamentMa
       isManual: false,
       manualOverrideTeams: false,
       scheduledAt: null,
+      scheduledEndAt: null,
       court: null,
       teamAId: null,
       teamBId: null,
@@ -489,6 +494,7 @@ const buildGroupKnockoutMatches = (teams: ITournament["teams"]) => {
           isManual: false,
           manualOverrideTeams: false,
           scheduledAt: null,
+          scheduledEndAt: null,
           court: null,
           teamAId: groupTeams[i],
           teamBId: groupTeams[j],
@@ -515,6 +521,7 @@ const buildGroupKnockoutMatches = (teams: ITournament["teams"]) => {
       isManual: false,
       manualOverrideTeams: false,
       scheduledAt: null,
+      scheduledEndAt: null,
       court: null,
       teamAId: null,
       teamBId: null,
@@ -532,6 +539,7 @@ const buildGroupKnockoutMatches = (teams: ITournament["teams"]) => {
       isManual: false,
       manualOverrideTeams: false,
       scheduledAt: null,
+      scheduledEndAt: null,
       court: null,
       teamAId: null,
       teamBId: null,
@@ -549,6 +557,7 @@ const buildGroupKnockoutMatches = (teams: ITournament["teams"]) => {
       isManual: false,
       manualOverrideTeams: false,
       scheduledAt: null,
+      scheduledEndAt: null,
       court: null,
       teamAId: null,
       teamBId: null,
@@ -827,6 +836,7 @@ const serializeTournament = (tournament: ITournament) => {
       isManual: Boolean(match.isManual),
       manualOverrideTeams: Boolean(match.manualOverrideTeams),
       scheduledAt: match.scheduledAt || null,
+      scheduledEndAt: match.scheduledEndAt || null,
       court: match.court || null,
       teamA: match.teamAId ? teamsById.get(match.teamAId.toString()) || null : null,
       teamB: match.teamBId ? teamsById.get(match.teamBId.toString()) || null : null,
@@ -930,24 +940,16 @@ export const updateTournament = async (id: string, input: UpdateTournamentInput)
 };
 
 type AddTeamInput = {
-  name?: string;
-  players: string[];
+  name: string;
+  players?: string[];
   teamLeadName?: string;
   members?: TeamRegistryMemberInput[];
   entryFeePaid?: number;
 };
 
-type RegistrationMemberInput = {
-  name: string;
-  mobileNumber: string;
-  gender: "male" | "female" | "other";
-  isAvailable: boolean;
-};
-
 type RegisterTeamInput = {
   teamName: string;
-  teamLeadName: string;
-  members: RegistrationMemberInput[];
+  contactMobileNumber?: string;
 };
 
 type ReviewRegistrationInput = {
@@ -973,6 +975,15 @@ const normalizeRegistryMembers = (
     mobileNumber: "",
     gender: "other",
   }));
+};
+
+const parsePlayersFromTeamName = (teamName: string, expectedPlayerCount: number) => {
+  const parsed = teamName
+    .split("+")
+    .map((part) => part.trim())
+    .filter(Boolean);
+  if (parsed.length !== expectedPlayerCount) return null;
+  return parsed;
 };
 
 const upsertTeamRegistry = (
@@ -1023,11 +1034,20 @@ const tryAddTeamToTournament = (tournament: ITournament, input: AddTeamInput): T
     return { error: "Cannot add teams after bracket generation", status: 400 as const };
   }
 
-  const normalizedPlayers = input.players.map((player) => player.trim()).filter(Boolean);
+  const teamName = input.name.trim();
+  if (!teamName) return { error: "Team name is required", status: 400 as const };
+
   const expectedPlayerCount = tournament.type === "doubles" ? 2 : 1;
+  const playersFromInput = (input.players || []).map((player) => player.trim()).filter(Boolean);
+  const normalizedPlayers =
+    playersFromInput.length > 0 ? playersFromInput : parsePlayersFromTeamName(teamName, expectedPlayerCount) || [];
+
   if (normalizedPlayers.length !== expectedPlayerCount) {
     return {
-      error: `${tournament.type === "doubles" ? "Doubles" : "Singles"} teams require exactly ${expectedPlayerCount} player(s)`,
+      error:
+        tournament.type === "doubles"
+          ? "For doubles, team name must be in 'Player1+Player2' format"
+          : "For singles, team name must be the player name",
       status: 400 as const,
     };
   }
@@ -1046,17 +1066,17 @@ const tryAddTeamToTournament = (tournament: ITournament, input: AddTeamInput): T
   }
 
   const invalidRegistryMember = registryMembers.some(
-    (member) => !member.name.trim() || member.mobileNumber.trim().length === 0 || !member.gender
+    (member) =>
+      !member.name.trim() ||
+      !member.gender ||
+      (member.mobileNumber.trim().length > 0 && !/^\+?[0-9]{8,15}$/.test(member.mobileNumber.trim()))
   );
   if (invalidRegistryMember) {
     return {
-      error: "Each team registry member needs name, phone number, and gender",
+      error: "Each team registry member needs name and gender. Mobile number is optional but must be valid when provided",
       status: 400 as const,
     };
   }
-
-  const teamName = (input.name || normalizedPlayers.join(" / ")).trim();
-  if (!teamName) return { error: "Team name is required", status: 400 as const };
 
   const existingName = tournament.teams.some(
     (team) => team.name.trim().toLowerCase() === teamName.toLowerCase()
@@ -1078,7 +1098,7 @@ const tryAddTeamToTournament = (tournament: ITournament, input: AddTeamInput): T
   const team = tournament.teams[tournament.teams.length - 1];
   upsertTeamRegistry(tournament, team._id, {
     teamName,
-    teamLeadName: (input.teamLeadName || registryMembers[0]?.name || teamName).trim(),
+    teamLeadName: (input.teamLeadName || normalizedPlayers[0] || teamName).trim(),
     members: registryMembers,
     entryFeePaid: Math.max(0, input.entryFeePaid || 0),
   });
@@ -1134,40 +1154,30 @@ export const registerTeam = async (tournamentId: string, input: RegisterTeamInpu
   if (tournament.status === "completed") return { error: "Tournament already completed", status: 400 as const };
 
   const teamName = input.teamName.trim();
-  const teamLeadName = input.teamLeadName.trim();
+  const contactMobileNumber = (input.contactMobileNumber || "").trim();
   if (!teamName) return { error: "Team name is required", status: 400 as const };
-  if (!teamLeadName) return { error: "Team lead name is required", status: 400 as const };
+  if (contactMobileNumber && !/^\+?[0-9]{8,15}$/.test(contactMobileNumber)) {
+    return { error: "Enter a valid contact mobile number", status: 400 as const };
+  }
 
   const expectedPlayerCount = tournament.type === "doubles" ? 2 : 1;
-  const normalizedMembers = input.members
-    .map((member) => ({
-      name: member.name.trim(),
-      mobileNumber: member.mobileNumber.trim(),
-      gender: member.gender,
-      isAvailable: Boolean(member.isAvailable),
-    }))
-    .filter((member) => member.name);
-
-  if (normalizedMembers.length !== expectedPlayerCount) {
+  const parsedPlayers = parsePlayersFromTeamName(teamName, expectedPlayerCount);
+  if (!parsedPlayers) {
     return {
-      error: `${tournament.type === "doubles" ? "Doubles" : "Singles"} registration requires exactly ${expectedPlayerCount} member(s)`,
+      error:
+        tournament.type === "doubles"
+          ? "Use team name format 'Player1+Player2' for doubles registration"
+          : "Use player name as team name for singles registration",
       status: 400 as const,
     };
   }
-
-  const hasInvalidMember = normalizedMembers.some(
-    (member) =>
-      !member.mobileNumber ||
-      !/^\+?[0-9]{8,15}$/.test(member.mobileNumber) ||
-      !member.gender ||
-      member.isAvailable !== true
-  );
-  if (hasInvalidMember) {
-    return {
-      error: "Each member must provide valid mobile number, gender, and availability confirmation",
-      status: 400 as const,
-    };
-  }
+  const normalizedMembers = parsedPlayers.map((name, index) => ({
+    name,
+    mobileNumber: index === 0 ? contactMobileNumber : "",
+    gender: "other" as const,
+    isAvailable: true,
+  }));
+  const teamLeadName = parsedPlayers[0];
 
   const existingTeamName = tournament.teams.some(
     (team) => team.name.trim().toLowerCase() === teamName.toLowerCase()
@@ -1185,6 +1195,7 @@ export const registerTeam = async (tournamentId: string, input: RegisterTeamInpu
     _id: new mongoose.Types.ObjectId(),
     teamName,
     teamLeadName,
+    contactMobileNumber: contactMobileNumber || null,
     members: normalizedMembers,
     status: "pending",
     reviewNote: null,
@@ -1261,6 +1272,113 @@ export const generateBracket = async (tournamentId: string) => {
   reconcileTournamentState(tournament);
   await tournament.save();
 
+  return { tournament: serializeTournament(tournament) };
+};
+
+type GenerateScheduleInput = {
+  courtCount: number;
+  startTime: string;
+  matchDurationMinutes: number;
+};
+
+const getMatchSchedulingRank = (match: ITournamentMatch) => {
+  if (match.matchType === "league") return 1;
+  if (match.matchType === "semifinal") return 2;
+  if (match.matchType === "final") return 3;
+  if (match.matchType === "friendly") return 4;
+  return 5;
+};
+
+const getMatchTeamIds = (match: ITournamentMatch) => {
+  const ids: string[] = [];
+  if (match.teamAId) ids.push(match.teamAId.toString());
+  if (match.teamBId) ids.push(match.teamBId.toString());
+  return ids;
+};
+
+const buildCourtName = (index: number) => {
+  if (index < 26) return `Court ${String.fromCharCode(65 + index)}`;
+  return `Court ${index + 1}`;
+};
+
+export const generateMatchSchedule = async (tournamentId: string, input: GenerateScheduleInput) => {
+  const tournament = await Tournament.findById(tournamentId);
+  if (!tournament) return { error: "Tournament not found", status: 404 as const };
+  if (tournament.matches.length === 0) {
+    return { error: "Generate matches before creating a schedule", status: 400 as const };
+  }
+
+  const baseDate = new Date(tournament.date);
+  const year = baseDate.getFullYear();
+  const month = String(baseDate.getMonth() + 1).padStart(2, "0");
+  const day = String(baseDate.getDate()).padStart(2, "0");
+  const scheduleStart = new Date(`${year}-${month}-${day}T${input.startTime}:00`);
+
+  if (Number.isNaN(scheduleStart.getTime())) {
+    return { error: "Invalid schedule start time", status: 400 as const };
+  }
+
+  const courtNames = Array.from({ length: input.courtCount }, (_, index) => buildCourtName(index));
+  const sorted = [...tournament.matches].sort((a, b) => {
+    const rankDelta = getMatchSchedulingRank(a) - getMatchSchedulingRank(b);
+    if (rankDelta !== 0) return rankDelta;
+    if (a.roundNumber !== b.roundNumber) return a.roundNumber - b.roundNumber;
+    return a.matchNumber - b.matchNumber;
+  });
+  const queue = sorted.filter((match) => !match.isCompleted && Boolean(match.teamAId) && Boolean(match.teamBId));
+  const unschedulableMatches = sorted.filter(
+    (match) => !match.isCompleted && (!match.teamAId || !match.teamBId)
+  );
+  unschedulableMatches.forEach((match) => {
+    match.scheduledAt = null;
+    match.scheduledEndAt = null;
+    match.court = null;
+  });
+
+  let slotIndex = 0;
+  let previousSlotTeams = new Set<string>();
+  const durationMs = input.matchDurationMinutes * 60 * 1000;
+
+  while (queue.length > 0) {
+    const slotMatches: ITournamentMatch[] = [];
+    const currentSlotTeams = new Set<string>();
+
+    for (let courtIndex = 0; courtIndex < courtNames.length && queue.length > 0; courtIndex += 1) {
+      const preferredIndex = queue.findIndex((match) => {
+        const teams = getMatchTeamIds(match);
+        if (teams.some((teamId) => currentSlotTeams.has(teamId))) return false;
+        if (teams.some((teamId) => previousSlotTeams.has(teamId))) return false;
+        return true;
+      });
+      const relaxedIndex =
+        preferredIndex !== -1
+          ? preferredIndex
+          : queue.findIndex((match) => {
+              const teams = getMatchTeamIds(match);
+              return !teams.some((teamId) => currentSlotTeams.has(teamId));
+            });
+      const matchIndex = relaxedIndex !== -1 ? relaxedIndex : 0;
+      const [pickedMatch] = queue.splice(matchIndex, 1);
+      if (!pickedMatch) break;
+
+      slotMatches.push(pickedMatch);
+      getMatchTeamIds(pickedMatch).forEach((teamId) => currentSlotTeams.add(teamId));
+    }
+
+    const slotStart = new Date(scheduleStart.getTime() + slotIndex * durationMs);
+    const slotEnd = new Date(slotStart.getTime() + durationMs);
+
+    slotMatches.forEach((match, courtIndex) => {
+      match.scheduledAt = new Date(slotStart);
+      match.scheduledEndAt = new Date(slotEnd);
+      match.court = courtNames[courtIndex] || buildCourtName(courtIndex);
+    });
+
+    previousSlotTeams = currentSlotTeams;
+    slotIndex += 1;
+  }
+
+  await tournament.save();
   return { tournament: serializeTournament(tournament) };
 };
 
@@ -1382,7 +1500,21 @@ export const updateMatchDetails = async (
   }
 
   if (input.scheduledAt !== undefined) {
-    match.scheduledAt = input.scheduledAt ? new Date(input.scheduledAt) : null;
+    if (input.scheduledAt) {
+      const nextStart = new Date(input.scheduledAt);
+      const existingDurationMs =
+        match.scheduledAt && match.scheduledEndAt
+          ? new Date(match.scheduledEndAt).getTime() - new Date(match.scheduledAt).getTime()
+          : null;
+      match.scheduledAt = nextStart;
+      match.scheduledEndAt =
+        existingDurationMs && existingDurationMs > 0
+          ? new Date(nextStart.getTime() + existingDurationMs)
+          : null;
+    } else {
+      match.scheduledAt = null;
+      match.scheduledEndAt = null;
+    }
   }
   if (input.court !== undefined) {
     match.court = input.court?.trim() || null;
@@ -1445,6 +1577,7 @@ export const createCustomMatch = async (tournamentId: string, input: CreateCusto
     isManual: true,
     manualOverrideTeams: true,
     scheduledAt: input.scheduledAt ? new Date(input.scheduledAt) : null,
+    scheduledEndAt: null,
     court: input.court?.trim() || null,
     teamAId: teamAId ? new mongoose.Types.ObjectId(teamAId) : null,
     teamBId: teamBId ? new mongoose.Types.ObjectId(teamBId) : null,
@@ -1496,9 +1629,17 @@ export const updateTeamRegistryEntry = async (
       mobileNumber: member.mobileNumber.trim(),
       gender: member.gender,
     }));
-    const invalid = members.some((member) => !member.name || !member.mobileNumber || !member.gender);
+    const invalid = members.some(
+      (member) =>
+        !member.name ||
+        !member.gender ||
+        (member.mobileNumber.length > 0 && !/^\+?[0-9]{8,15}$/.test(member.mobileNumber))
+    );
     if (invalid) {
-      return { error: "Each member requires name, phone number, and gender", status: 400 as const };
+      return {
+        error: "Each member requires name and gender. Mobile number is optional but must be valid when provided",
+        status: 400 as const,
+      };
     }
     entry.members = members as any;
   }

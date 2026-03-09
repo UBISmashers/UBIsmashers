@@ -7,6 +7,7 @@ import {
   declareTournamentWinner,
   deleteTournament,
   generateBracket,
+  generateMatchSchedule,
   getAdminTournamentById,
   getPublicTournamentById,
   getPublicTournamentPayload,
@@ -37,19 +38,15 @@ const tournamentSchema = z.object({
   registrationDeadline: z.string().or(z.date()).nullable().optional(),
 });
 
+const optionalMobileSchema = z
+  .string()
+  .trim()
+  .refine((value) => value === "" || /^\+?[0-9]{8,15}$/.test(value), {
+    message: "Enter a valid mobile number",
+  });
+
 const teamSchema = z.object({
-  name: z.string().optional(),
-  players: z.array(z.string().min(1)).min(1),
-  teamLeadName: z.string().optional(),
-  members: z
-    .array(
-      z.object({
-        name: z.string().min(1),
-        mobileNumber: z.string().regex(/^\+?[0-9]{8,15}$/),
-        gender: z.enum(["male", "female", "other"]),
-      })
-    )
-    .optional(),
+  name: z.string().min(1, "Team name is required"),
   entryFeePaid: z.number().min(0).optional(),
 });
 
@@ -86,17 +83,15 @@ const matchDetailsSchema = z.object({
   court: z.string().optional().nullable(),
 });
 
-const registrationMemberSchema = z.object({
-  name: z.string().min(1, "Member name is required"),
-  mobileNumber: z.string().regex(/^\+?[0-9]{8,15}$/, "Enter a valid mobile number"),
-  gender: z.enum(["male", "female", "other"]),
-  isAvailable: z.literal(true),
+const generateScheduleSchema = z.object({
+  courtCount: z.number().int().min(1).max(12),
+  startTime: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Start time must be in HH:mm format"),
+  matchDurationMinutes: z.number().int().min(1).max(240),
 });
 
 const registerTeamSchema = z.object({
   teamName: z.string().min(1, "Team name is required"),
-  teamLeadName: z.string().min(1, "Team lead name is required"),
-  members: z.array(registrationMemberSchema).min(1),
+  contactMobileNumber: optionalMobileSchema.optional(),
 });
 
 const reviewRegistrationSchema = z.object({
@@ -111,7 +106,7 @@ const updateTeamRegistrySchema = z.object({
     .array(
       z.object({
         name: z.string().min(1),
-        mobileNumber: z.string().regex(/^\+?[0-9]{8,15}$/),
+        mobileNumber: optionalMobileSchema,
         gender: z.enum(["male", "female", "other"]),
       })
     )
@@ -295,6 +290,21 @@ export const updateTournamentMatchDetails = async (req: Request, res: Response) 
       return res.status(400).json({ error: error.errors[0].message });
     }
     console.error("Update match details error:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+export const generateTournamentSchedule = async (req: Request, res: Response) => {
+  try {
+    const payload = generateScheduleSchema.parse(req.body);
+    const result = await generateMatchSchedule(req.params.id, payload);
+    if (isServiceError(result)) return res.status(result.status).json({ error: result.error });
+    return res.json(result.tournament);
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: error.errors[0].message });
+    }
+    console.error("Generate tournament schedule error:", error);
     return res.status(500).json({ error: "Internal server error" });
   }
 };

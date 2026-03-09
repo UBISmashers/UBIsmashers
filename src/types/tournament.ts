@@ -20,6 +20,7 @@ export interface TournamentMatch {
   isManual: boolean;
   manualOverrideTeams: boolean;
   scheduledAt: string | null;
+  scheduledEndAt: string | null;
   court: string | null;
   teamAId: string | null;
   teamBId: string | null;
@@ -43,6 +44,7 @@ export interface TournamentRegistration {
   _id: string;
   teamName: string;
   teamLeadName: string;
+  contactMobileNumber: string | null;
   members: TournamentRegistrationMember[];
   status: TournamentRegistrationStatus;
   reviewNote: string | null;
