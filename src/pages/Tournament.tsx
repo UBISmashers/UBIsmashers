@@ -12,6 +12,7 @@ import { toast } from "@/hooks/use-toast";
 import { TournamentBracket } from "@/components/tournament/TournamentBracket";
 import { TournamentPointsTable } from "@/components/tournament/TournamentPointsTable";
 import { createApiClient } from "@/lib/api";
+import { buildTournamentGroupView } from "@/lib/tournamentGroups";
 import { buildScheduleRows } from "@/lib/tournamentSchedule";
 import type { PublicTournamentPayload, Tournament } from "@/types/tournament";
 
@@ -124,6 +125,7 @@ export default function TournamentPage() {
               });
               const upcomingMatches = sortedMatches.filter((match) => !match.isCompleted);
               const pastMatches = sortedMatches.filter((match) => match.isCompleted);
+              const groupView = buildTournamentGroupView(tournament);
               const scheduleRows = buildScheduleRows(sortedMatches);
               const scheduleGroups = scheduleRows.reduce<Array<{ slotKey: string; slotLabel: string; rows: typeof scheduleRows }>>(
                 (acc, row) => {
@@ -221,7 +223,7 @@ export default function TournamentPage() {
                                 onChange={(e) => setTeamName(e.target.value)}
                                 placeholder={
                                   registrationTournament?.type === "doubles"
-                                    ? "Player1+Player2"
+                                    ? "Player1+Player2 / Player1/Player2"
                                     : "Player1"
                                 }
                               />
@@ -237,7 +239,7 @@ export default function TournamentPage() {
                             <p className="text-xs text-muted-foreground">
                               Use team name format{" "}
                               <span className="font-medium">
-                                {registrationTournament?.type === "doubles" ? "Player1+Player2" : "Player1"}
+                                {registrationTournament?.type === "doubles" ? "Player1+Player2 / Player1/Player2" : "Player1"}
                               </span>
                               .
                             </p>
@@ -250,6 +252,42 @@ export default function TournamentPage() {
                       )}
 
                       <TournamentPointsTable tournament={tournament} />
+                      {groupView.length > 0 && (
+                        <Card>
+                          <CardHeader>
+                            <CardTitle className="text-base">Group Allocation</CardTitle>
+                          </CardHeader>
+                          <CardContent>
+                            <div className="grid gap-3 md:grid-cols-2">
+                              {groupView.map((group) => (
+                                <div key={group.label} className="rounded-md border">
+                                  <div className="border-b bg-secondary/30 px-3 py-2 text-sm font-semibold">
+                                    {group.label}
+                                  </div>
+                                  <div className="overflow-x-auto">
+                                    <table className="min-w-full text-sm">
+                                      <thead>
+                                        <tr className="border-b text-left">
+                                          <th className="px-3 py-2">Team</th>
+                                          <th className="px-3 py-2">Players</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {group.teams.map((team) => (
+                                          <tr key={`${group.label}-${team._id}`} className="border-b last:border-0">
+                                            <td className="px-3 py-2 font-medium">{team.name}</td>
+                                            <td className="px-3 py-2 text-muted-foreground">{team.players.join(" / ")}</td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </CardContent>
+                        </Card>
+                      )}
                       {tournament.matches.length > 0 && <TournamentBracket tournament={tournament} />}
 
                       <Card>
@@ -421,3 +459,4 @@ export default function TournamentPage() {
     </div>
   );
 }
+

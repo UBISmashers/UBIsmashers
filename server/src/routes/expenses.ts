@@ -37,8 +37,8 @@ const reconcileShuttleStockUsage = async () => {
 
   const stockDrivenExpenses = await Expense.find({
     isInventory: { $ne: true },
+    isCourtAdvanceBooking: { $ne: true },
     category: 'court',
-    reduceFromStock: true,
     shuttlesUsed: { $gt: 0 },
   }).sort({ date: 1, createdAt: 1 });
 

@@ -14,6 +14,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { TournamentBracket } from "@/components/tournament/TournamentBracket";
 import { TournamentOverview } from "@/components/tournament/TournamentOverview";
 import { TournamentPointsTable } from "@/components/tournament/TournamentPointsTable";
+import { buildTournamentGroupView } from "@/lib/tournamentGroups";
 import { buildScheduleRows } from "@/lib/tournamentSchedule";
 import type { Tournament, TournamentMatchType } from "@/types/tournament";
 
@@ -443,6 +444,7 @@ export default function Tournaments() {
       rows: value.rows,
     }));
   }, [scheduleRows]);
+  const groupView = useMemo(() => buildTournamentGroupView(selectedTournament), [selectedTournament]);
   const registryByTeamName = useMemo(
     () =>
       new Map(
@@ -607,6 +609,42 @@ export default function Tournaments() {
                 <div className="space-y-5">
                   <TournamentOverview tournament={selectedTournament} />
                   <TournamentPointsTable tournament={selectedTournament} />
+                  {groupView.length > 0 && (
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-base">Group Allocation</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="grid gap-3 md:grid-cols-2">
+                          {groupView.map((group) => (
+                            <div key={group.label} className="rounded-md border">
+                              <div className="border-b bg-secondary/30 px-3 py-2 text-sm font-semibold">
+                                {group.label}
+                              </div>
+                              <div className="overflow-x-auto">
+                                <table className="min-w-full text-sm">
+                                  <thead>
+                                    <tr className="border-b text-left">
+                                      <th className="px-3 py-2">Team</th>
+                                      <th className="px-3 py-2">Players</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {group.teams.map((team) => (
+                                      <tr key={`${group.label}-${team._id}`} className="border-b last:border-0">
+                                        <td className="px-3 py-2 font-medium">{team.name}</td>
+                                        <td className="px-3 py-2 text-muted-foreground">{team.players.join(" / ")}</td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
 
                   <div className="flex flex-wrap gap-2">
                     <Button
@@ -780,7 +818,7 @@ export default function Tournaments() {
                     <CardContent className="space-y-3">
                       <div className="grid gap-2 sm:grid-cols-2">
                         <Input
-                          placeholder={selectedTournament.type === "doubles" ? "Player1+Player2" : "Player1"}
+                          placeholder={selectedTournament.type === "doubles" ? "Player1+Player2 / Player1/Player2" : "Player1"}
                           value={teamName}
                           onChange={(event) => setTeamName(event.target.value)}
                           disabled={!canAddTeams}
@@ -808,7 +846,7 @@ export default function Tournaments() {
                       <p className="text-xs text-muted-foreground">
                         Team name format:{" "}
                         <span className="font-medium">
-                          {selectedTournament.type === "doubles" ? "Player1+Player2" : "Player1"}
+                          {selectedTournament.type === "doubles" ? "Player1+Player2 / Player1/Player2" : "Player1"}
                         </span>
                       </p>
                       {!canAddTeams && (
@@ -1489,4 +1527,5 @@ export default function Tournaments() {
     </MainLayout>
   );
 }
+
 

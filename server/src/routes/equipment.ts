@@ -51,8 +51,8 @@ const reconcileShuttleStockUsage = async () => {
 
   const stockDrivenExpenses = await Expense.find({
     isInventory: { $ne: true },
+    isCourtAdvanceBooking: { $ne: true },
     category: 'court',
-    reduceFromStock: true,
     shuttlesUsed: { $gt: 0 },
   }).sort({ date: 1, createdAt: 1 });
 
@@ -141,6 +141,8 @@ const restoreAdvanceFromExpense = async (expense: any) => {
 // Get equipment purchases (inventory)
 router.get('/', async (_req: Request, res: Response) => {
   try {
+    await reconcileShuttleStockUsage();
+
     const equipment = await Expense.find({ isInventory: true })
       .populate('paidBy', 'name email')
       .populate('selectedMembers', 'name email')

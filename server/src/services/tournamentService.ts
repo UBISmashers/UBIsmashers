@@ -1304,6 +1304,65 @@ const getMatchTeamIds = (match: ITournamentMatch) => {
   return ids;
 };
 
+const hasBothTeams = (match: ITournamentMatch) => Boolean(match.teamAId) && Boolean(match.teamBId);
+
+const areAllMatchesCompleted = (matches: ITournamentMatch[]) =>
+  matches.length > 0 && matches.every((match) => match.isCompleted);
+
+const isGroupLeagueMatch = (match: ITournamentMatch) =>
+  match.matchType === "league" && /^Group\s/i.test(match.roundLabel || "");
+
+const isMatchReadyForScheduling = (tournament: ITournament, match: ITournamentMatch) => {
+  if (match.isCompleted) return false;
+  if (!hasBothTeams(match)) return false;
+
+  const matchType = match.matchType || "league";
+  if (matchType === "friendly" || matchType === "practice") return true;
+
+  const format = tournament.format || "knockout";
+
+  if (format === "group_knockout") {
+    if (matchType === "league") return true;
+
+    const groupLeagueMatches = tournament.matches.filter((item) => isGroupLeagueMatch(item) && !item.isManual);
+    if (matchType === "semifinal") {
+      return areAllMatchesCompleted(groupLeagueMatches);
+    }
+    if (matchType === "final") {
+      const semiFinals = tournament.matches.filter(
+        (item) => item.matchType === "semifinal" && !item.isManual
+      );
+      return areAllMatchesCompleted(semiFinals);
+    }
+    return true;
+  }
+
+  if (format === "round_robin") {
+    if (matchType === "league") return true;
+
+    const leagueMatches = tournament.matches.filter(
+      (item) => item.matchType === "league" && !item.isManual
+    );
+    if (matchType === "semifinal") {
+      return areAllMatchesCompleted(leagueMatches);
+    }
+    if (matchType === "final") {
+      const semiFinals = tournament.matches.filter(
+        (item) => item.matchType === "semifinal" && !item.isManual
+      );
+      return areAllMatchesCompleted(semiFinals);
+    }
+    return true;
+  }
+
+  if (match.roundNumber <= 1) return true;
+  const sourceA = getSourceMatch(tournament.matches, match.roundNumber, match.matchNumber, "A");
+  const sourceB = getSourceMatch(tournament.matches, match.roundNumber, match.matchNumber, "B");
+  const sourceACompleted = sourceA ? sourceA.isCompleted : true;
+  const sourceBCompleted = sourceB ? sourceB.isCompleted : true;
+  return sourceACompleted && sourceBCompleted;
+};
+
 const buildCourtName = (index: number) => {
   if (index < 26) return `Court ${String.fromCharCode(65 + index)}`;
   return `Court ${index + 1}`;
@@ -1333,44 +1392,53 @@ export const generateMatchSchedule = async (tournamentId: string, input: Generat
     if (a.roundNumber !== b.roundNumber) return a.roundNumber - b.roundNumber;
     return a.matchNumber - b.matchNumber;
   });
-  const queue = sorted.filter((match) => !match.isCompleted && Boolean(match.teamAId) && Boolean(match.teamBId));
-  const unschedulableMatches = sorted.filter(
-    (match) => !match.isCompleted && (!match.teamAId || !match.teamBId)
-  );
-  unschedulableMatches.forEach((match) => {
+  const pendingMatches = sorted.filter((match) => !match.isCompleted);
+  pendingMatches.forEach((match) => {
     match.scheduledAt = null;
     match.scheduledEndAt = null;
     match.court = null;
   });
+  const queue = sorted.filter((match) => isMatchReadyForScheduling(tournament, match));
 
   let slotIndex = 0;
-  let previousSlotTeams = new Set<string>();
+  const lastSlotByTeam = new Map<string, number>();
   const durationMs = input.matchDurationMinutes * 60 * 1000;
 
   while (queue.length > 0) {
     const slotMatches: ITournamentMatch[] = [];
-    const currentSlotTeams = new Set<string>();
+    const teamsInCurrentSlot = new Set<string>();
 
     for (let courtIndex = 0; courtIndex < courtNames.length && queue.length > 0; courtIndex += 1) {
-      const preferredIndex = queue.findIndex((match) => {
+      const strictIndex = queue.findIndex((match) => {
         const teams = getMatchTeamIds(match);
-        if (teams.some((teamId) => currentSlotTeams.has(teamId))) return false;
-        if (teams.some((teamId) => previousSlotTeams.has(teamId))) return false;
-        return true;
+        if (teams.some((teamId) => teamsInCurrentSlot.has(teamId))) return false;
+        return teams.every((teamId) => {
+          const lastSlot = lastSlotByTeam.get(teamId);
+          if (lastSlot === undefined) return true;
+          return slotIndex - lastSlot >= 2;
+        });
       });
+
       const relaxedIndex =
-        preferredIndex !== -1
-          ? preferredIndex
+        strictIndex !== -1
+          ? strictIndex
           : queue.findIndex((match) => {
               const teams = getMatchTeamIds(match);
-              return !teams.some((teamId) => currentSlotTeams.has(teamId));
+              return !teams.some((teamId) => teamsInCurrentSlot.has(teamId));
             });
-      const matchIndex = relaxedIndex !== -1 ? relaxedIndex : 0;
-      const [pickedMatch] = queue.splice(matchIndex, 1);
+
+      if (relaxedIndex === -1) continue;
+
+      const [pickedMatch] = queue.splice(relaxedIndex, 1);
       if (!pickedMatch) break;
 
       slotMatches.push(pickedMatch);
-      getMatchTeamIds(pickedMatch).forEach((teamId) => currentSlotTeams.add(teamId));
+      getMatchTeamIds(pickedMatch).forEach((teamId) => teamsInCurrentSlot.add(teamId));
+    }
+
+    if (slotMatches.length === 0) {
+      slotIndex += 1;
+      continue;
     }
 
     const slotStart = new Date(scheduleStart.getTime() + slotIndex * durationMs);
@@ -1382,7 +1450,9 @@ export const generateMatchSchedule = async (tournamentId: string, input: Generat
       match.court = courtNames[courtIndex] || buildCourtName(courtIndex);
     });
 
-    previousSlotTeams = currentSlotTeams;
+    slotMatches.forEach((match) => {
+      getMatchTeamIds(match).forEach((teamId) => lastSlotByTeam.set(teamId, slotIndex));
+    });
     slotIndex += 1;
   }
 
