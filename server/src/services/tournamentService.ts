@@ -1368,6 +1368,32 @@ const buildCourtName = (index: number) => {
   return `Court ${index + 1}`;
 };
 
+const TOURNAMENT_TIMEZONE_OFFSET_MINUTES = 480; // Asia/Singapore (UTC+08:00)
+
+const buildTournamentSlotStart = (baseDate: Date, startTime: string) => {
+  const [hourPart, minutePart] = startTime.split(":");
+  const hours = Number(hourPart);
+  const minutes = Number(minutePart);
+  if (
+    Number.isNaN(hours) ||
+    Number.isNaN(minutes) ||
+    hours < 0 ||
+    hours > 23 ||
+    minutes < 0 ||
+    minutes > 59
+  ) {
+    return null;
+  }
+
+  const year = baseDate.getUTCFullYear();
+  const month = baseDate.getUTCMonth();
+  const day = baseDate.getUTCDate();
+  const utcMillisForLocalTime =
+    Date.UTC(year, month, day, hours, minutes, 0, 0) -
+    TOURNAMENT_TIMEZONE_OFFSET_MINUTES * 60 * 1000;
+  return new Date(utcMillisForLocalTime);
+};
+
 export const generateMatchSchedule = async (tournamentId: string, input: GenerateScheduleInput) => {
   const tournament = await Tournament.findById(tournamentId);
   if (!tournament) return { error: "Tournament not found", status: 404 as const };
@@ -1376,12 +1402,9 @@ export const generateMatchSchedule = async (tournamentId: string, input: Generat
   }
 
   const baseDate = new Date(tournament.date);
-  const year = baseDate.getFullYear();
-  const month = String(baseDate.getMonth() + 1).padStart(2, "0");
-  const day = String(baseDate.getDate()).padStart(2, "0");
-  const scheduleStart = new Date(`${year}-${month}-${day}T${input.startTime}:00`);
+  const scheduleStart = buildTournamentSlotStart(baseDate, input.startTime);
 
-  if (Number.isNaN(scheduleStart.getTime())) {
+  if (!scheduleStart || Number.isNaN(scheduleStart.getTime())) {
     return { error: "Invalid schedule start time", status: 400 as const };
   }
 
