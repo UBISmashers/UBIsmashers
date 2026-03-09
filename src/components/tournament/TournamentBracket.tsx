@@ -16,6 +16,25 @@ const teamRowClass = (isWinner: boolean) =>
     isWinner ? "border-emerald-400 bg-emerald-50 font-semibold text-emerald-900" : "bg-background"
   }`;
 
+const getScheduledTime = (scheduledAt: TournamentMatch["scheduledAt"]) => {
+  if (!scheduledAt) return null;
+  const value = new Date(scheduledAt).getTime();
+  return Number.isNaN(value) ? null : value;
+};
+
+const compareMatchesBySchedule = (a: TournamentMatch, b: TournamentMatch) => {
+  const scheduledA = getScheduledTime(a.scheduledAt);
+  const scheduledB = getScheduledTime(b.scheduledAt);
+
+  if (scheduledA !== null && scheduledB !== null && scheduledA !== scheduledB) {
+    return scheduledA - scheduledB;
+  }
+  if (scheduledA !== null && scheduledB === null) return -1;
+  if (scheduledA === null && scheduledB !== null) return 1;
+  if (a.matchNumber !== b.matchNumber) return a.matchNumber - b.matchNumber;
+  return a.matchId.localeCompare(b.matchId);
+};
+
 export function TournamentBracket({ tournament, editable = false, onSubmitScore }: Props) {
   const [scoresByMatch, setScoresByMatch] = useState<Record<string, { scoreA: string; scoreB: string }>>({});
   const rounds = useMemo(() => {
@@ -29,7 +48,7 @@ export function TournamentBracket({ tournament, editable = false, onSubmitScore 
       .map(([roundNumber, matches]) => ({
         roundNumber,
         label: matches[0]?.roundLabel || `Round ${roundNumber}`,
-        matches: matches.sort((a, b) => a.matchNumber - b.matchNumber),
+        matches: matches.sort(compareMatchesBySchedule),
       }));
   }, [tournament.matches]);
 

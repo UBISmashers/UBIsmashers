@@ -17,7 +17,7 @@ export function Footer() {
               Ubismashers@gmail.com
             </a>
             <a
-              href="https://www.instagram.com/ubi_smashers?igsh=MWc1YXZxOGhzYWNrbA=="
+              href="https://www.instagram.com/ubi_smashers"
               target="_blank"
               rel="noreferrer"
               className="flex items-center gap-2 hover:text-emerald-300"
