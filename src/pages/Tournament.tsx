@@ -13,7 +13,7 @@ import { TournamentBracket } from "@/components/tournament/TournamentBracket";
 import { TournamentPointsTable } from "@/components/tournament/TournamentPointsTable";
 import { createApiClient } from "@/lib/api";
 import { buildTournamentGroupView } from "@/lib/tournamentGroups";
-import { buildScheduleRows } from "@/lib/tournamentSchedule";
+import { buildScheduleRows, formatScheduleDateTime } from "@/lib/tournamentSchedule";
 import type { PublicTournamentPayload, Tournament } from "@/types/tournament";
 
 const publicApi = createApiClient(() => null, () => {});
@@ -376,7 +376,7 @@ export default function TournamentPage() {
                                       {match.teamA?.name || "TBD"} vs {match.teamB?.name || "TBD"}
                                     </p>
                                     <p className="text-xs text-muted-foreground">
-                                      {match.scheduledAt ? new Date(match.scheduledAt).toLocaleString() : "Schedule TBD"}
+                                      {formatScheduleDateTime(match.scheduledAt)}
                                       {match.court ? ` • Court: ${match.court}` : ""}
                                     </p>
                                   </div>
@@ -409,7 +409,7 @@ export default function TournamentPage() {
                                       {match.teamB?.name || "TBD"}
                                     </p>
                                     <p className="text-xs text-muted-foreground">
-                                      {match.scheduledAt ? new Date(match.scheduledAt).toLocaleString() : "Schedule TBD"}
+                                      {formatScheduleDateTime(match.scheduledAt)}
                                       {match.court ? ` • Court: ${match.court}` : ""}
                                     </p>
                                   </div>

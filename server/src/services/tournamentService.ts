@@ -1368,8 +1368,6 @@ const buildCourtName = (index: number) => {
   return `Court ${index + 1}`;
 };
 
-const TOURNAMENT_TIMEZONE_OFFSET_MINUTES = 480; // Asia/Singapore (UTC+08:00)
-
 const buildTournamentSlotStart = (baseDate: Date, startTime: string) => {
   const [hourPart, minutePart] = startTime.split(":");
   const hours = Number(hourPart);
@@ -1388,10 +1386,7 @@ const buildTournamentSlotStart = (baseDate: Date, startTime: string) => {
   const year = baseDate.getUTCFullYear();
   const month = baseDate.getUTCMonth();
   const day = baseDate.getUTCDate();
-  const utcMillisForLocalTime =
-    Date.UTC(year, month, day, hours, minutes, 0, 0) -
-    TOURNAMENT_TIMEZONE_OFFSET_MINUTES * 60 * 1000;
-  return new Date(utcMillisForLocalTime);
+  return new Date(Date.UTC(year, month, day, hours, minutes, 0, 0));
 };
 
 export const generateMatchSchedule = async (tournamentId: string, input: GenerateScheduleInput) => {

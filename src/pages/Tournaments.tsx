@@ -15,7 +15,7 @@ import { TournamentBracket } from "@/components/tournament/TournamentBracket";
 import { TournamentOverview } from "@/components/tournament/TournamentOverview";
 import { TournamentPointsTable } from "@/components/tournament/TournamentPointsTable";
 import { buildTournamentGroupView } from "@/lib/tournamentGroups";
-import { buildScheduleRows } from "@/lib/tournamentSchedule";
+import { buildScheduleRows, formatScheduleDateTime } from "@/lib/tournamentSchedule";
 import type { Tournament, TournamentMatchType } from "@/types/tournament";
 
 const statusOptions = [
@@ -125,14 +125,14 @@ export default function Tournaments() {
   useEffect(() => {
     if (!selectedTournament) return;
     const toDatePart = (value: Date) => {
-      const y = value.getFullYear();
-      const m = String(value.getMonth() + 1).padStart(2, "0");
-      const d = String(value.getDate()).padStart(2, "0");
+      const y = value.getUTCFullYear();
+      const m = String(value.getUTCMonth() + 1).padStart(2, "0");
+      const d = String(value.getUTCDate()).padStart(2, "0");
       return `${y}-${m}-${d}`;
     };
     const toTimePart = (value: Date) => {
-      const h = String(value.getHours()).padStart(2, "0");
-      const m = String(value.getMinutes()).padStart(2, "0");
+      const h = String(value.getUTCHours()).padStart(2, "0");
+      const m = String(value.getUTCMinutes()).padStart(2, "0");
       return `${h}:${m}`;
     };
     const next: Record<string, { teamAId: string; teamBId: string; date: string; time: string; court: string }> = {};
@@ -349,7 +349,7 @@ export default function Tournaments() {
       api.updateTournamentMatchDetails(selectedTournament!._id, matchId, {
         teamAId: teamAId || null,
         teamBId: teamBId || null,
-        scheduledAt: date && time ? new Date(`${date}T${time}:00`).toISOString() : null,
+        scheduledAt: date && time ? `${date}T${time}:00.000Z` : null,
         court: court.trim() || null,
       }),
     onSuccess: async () => {
@@ -367,7 +367,7 @@ export default function Tournaments() {
         teamBId: customMatchForm.teamBId || null,
         scheduledAt:
           customMatchForm.date && customMatchForm.time
-            ? new Date(`${customMatchForm.date}T${customMatchForm.time}:00`).toISOString()
+            ? `${customMatchForm.date}T${customMatchForm.time}:00.000Z`
             : null,
         court: customMatchForm.court.trim() || null,
       }),
@@ -1345,7 +1345,7 @@ export default function Tournaments() {
                                 {match.teamA?.name || "TBD"} vs {match.teamB?.name || "TBD"}
                               </p>
                               <p className="text-xs text-muted-foreground">
-                                {match.scheduledAt ? new Date(match.scheduledAt).toLocaleString() : "Schedule TBD"}
+                                {formatScheduleDateTime(match.scheduledAt)}
                                 {match.court ? ` • Court: ${match.court}` : ""}
                               </p>
 

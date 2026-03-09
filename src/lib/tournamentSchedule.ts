@@ -19,11 +19,31 @@ const byCourtThenMatch = (a: ScheduleRow, b: ScheduleRow) => {
   return a.matchId.localeCompare(b.matchId);
 };
 
+const pad2 = (value: number) => String(value).padStart(2, "0");
+
+export const formatScheduleTime = (scheduledAt: string | null | undefined) => {
+  if (!scheduledAt) return "Unscheduled";
+  const value = new Date(scheduledAt);
+  if (Number.isNaN(value.getTime())) return "Unscheduled";
+  return `${pad2(value.getUTCHours())}:${pad2(value.getUTCMinutes())}`;
+};
+
+export const formatScheduleDateTime = (scheduledAt: string | null | undefined) => {
+  if (!scheduledAt) return "Schedule TBD";
+  const value = new Date(scheduledAt);
+  if (Number.isNaN(value.getTime())) return "Schedule TBD";
+  const y = value.getUTCFullYear();
+  const m = pad2(value.getUTCMonth() + 1);
+  const d = pad2(value.getUTCDate());
+  const t = `${pad2(value.getUTCHours())}:${pad2(value.getUTCMinutes())}`;
+  return `${y}-${m}-${d} ${t}`;
+};
+
 export const buildScheduleRows = (matches: TournamentMatch[]): ScheduleRow[] => {
   const rows = matches.map((match) => {
     const slotStart = match.scheduledAt ? new Date(match.scheduledAt) : null;
     const slotKey = slotStart ? slotStart.toISOString() : `unscheduled-${match.matchId}`;
-    const slotLabel = slotStart ? slotStart.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "Unscheduled";
+    const slotLabel = formatScheduleTime(match.scheduledAt);
 
     return {
       slotKey,
