@@ -90,48 +90,54 @@ export function TournamentBracket({ tournament, editable = false, onSubmitScore 
                       <div className="space-y-2">
                         <div className={teamRowClass(teamAIsWinner)}>
                           <span className="truncate pr-3">{teamAName}</span>
-                          <span>{match.scoreA ?? "-"}</span>
+                          {editableMatch && onSubmitScore ? (
+                            <Input
+                              type="number"
+                              min={0}
+                              className="h-7 w-20 text-right"
+                              value={localScore.scoreA}
+                              onChange={(event) =>
+                                setScoresByMatch((prev) => ({
+                                  ...prev,
+                                  [match.matchId]: {
+                                    ...localScore,
+                                    scoreA: event.target.value,
+                                  },
+                                }))
+                              }
+                              placeholder="A"
+                            />
+                          ) : (
+                            <span>{match.scoreA ?? "-"}</span>
+                          )}
                         </div>
                         <div className={teamRowClass(teamBIsWinner)}>
                           <span className="truncate pr-3">{teamBName}</span>
-                          <span>{match.scoreB ?? "-"}</span>
+                          {editableMatch && onSubmitScore ? (
+                            <Input
+                              type="number"
+                              min={0}
+                              className="h-7 w-20 text-right"
+                              value={localScore.scoreB}
+                              onChange={(event) =>
+                                setScoresByMatch((prev) => ({
+                                  ...prev,
+                                  [match.matchId]: {
+                                    ...localScore,
+                                    scoreB: event.target.value,
+                                  },
+                                }))
+                              }
+                              placeholder="B"
+                            />
+                          ) : (
+                            <span>{match.scoreB ?? "-"}</span>
+                          )}
                         </div>
                       </div>
 
                       {editableMatch && onSubmitScore && (
-                        <div className="mt-3 flex items-center gap-2">
-                          <Input
-                            type="number"
-                            min={0}
-                            className="h-8"
-                            value={localScore.scoreA}
-                            onChange={(event) =>
-                              setScoresByMatch((prev) => ({
-                                ...prev,
-                                [match.matchId]: {
-                                  ...localScore,
-                                  scoreA: event.target.value,
-                                },
-                              }))
-                            }
-                            placeholder="A"
-                          />
-                          <Input
-                            type="number"
-                            min={0}
-                            className="h-8"
-                            value={localScore.scoreB}
-                            onChange={(event) =>
-                              setScoresByMatch((prev) => ({
-                                ...prev,
-                                [match.matchId]: {
-                                  ...localScore,
-                                  scoreB: event.target.value,
-                                },
-                              }))
-                            }
-                            placeholder="B"
-                          />
+                        <div className="mt-3 flex justify-end">
                           <Button
                             size="sm"
                             className="h-8 px-3"

@@ -1,11 +1,19 @@
 import mongoose from "mongoose";
 import { AppSetting } from "../models/AppSetting.js";
-import { ITournament, ITournamentMatch, Tournament, TournamentFormat } from "../models/Tournament.js";
+import {
+  ITournament,
+  ITournamentMatch,
+  Tournament,
+  TournamentFormat,
+  TournamentIncomeType,
+} from "../models/Tournament.js";
 
 const TOURNAMENT_VISIBILITY_KEY = "tournament_visibility_enabled";
 
 const toId = (value: mongoose.Types.ObjectId | string | null | undefined) =>
   value ? value.toString() : null;
+
+const toNumber = (value: unknown) => Number(value || 0);
 
 const getRoundLabel = (roundNumber: number, totalRounds: number) => {
   if (totalRounds <= 0) return `Round ${roundNumber}`;
@@ -802,6 +810,49 @@ const reconcileTournamentState = (tournament: ITournament) => {
 const normalizeTeamSignature = (players: string[]) =>
   [...players].map((player) => player.trim().toLowerCase()).sort().join("|");
 
+const pushTournamentIncome = (
+  tournament: ITournament,
+  input: {
+    type: TournamentIncomeType;
+    title: string;
+    amount: number;
+    note?: string | null;
+    date?: string | Date;
+    teamRegistryId?: mongoose.Types.ObjectId | null;
+  }
+) => {
+  tournament.tournamentIncomes.push({
+    _id: new mongoose.Types.ObjectId(),
+    type: input.type,
+    title: input.title.trim(),
+    amount: Number(input.amount || 0),
+    note: input.note?.trim() || null,
+    date: input.date ? new Date(input.date) : new Date(),
+    teamRegistryId: input.teamRegistryId || null,
+  } as any);
+};
+
+const captureEntryFeeAdjustment = (
+  tournament: ITournament,
+  input: {
+    teamName: string;
+    previousAmount: number;
+    nextAmount: number;
+    teamRegistryId?: mongoose.Types.ObjectId | null;
+  }
+) => {
+  const delta = Number((input.nextAmount - input.previousAmount).toFixed(2));
+  if (delta === 0) return;
+
+  pushTournamentIncome(tournament, {
+    type: "entry_registration",
+    title: `${input.teamName.trim()} entry registration`,
+    amount: delta,
+    note: delta > 0 ? "Entry fee collected" : "Entry fee adjustment",
+    teamRegistryId: input.teamRegistryId || null,
+  });
+};
+
 const serializeTournament = (tournament: ITournament) => {
   const plain = tournament.toObject();
   const teamsById = new Map(plain.teams.map((team: any) => [team._id.toString(), team]));
@@ -809,6 +860,18 @@ const serializeTournament = (tournament: ITournament) => {
     plain.championTeamId && teamsById.has(plain.championTeamId.toString())
       ? teamsById.get(plain.championTeamId.toString())
       : null;
+  const entryRegistrationTotal = (plain.teamRegistry || []).reduce(
+    (sum: number, entry: any) => sum + toNumber(entry.entryFeePaid),
+    0
+  );
+  const donationTotal = (plain.tournamentIncomes || [])
+    .filter((income: any) => income.type === "donation")
+    .reduce((sum: number, income: any) => sum + toNumber(income.amount), 0);
+  const expensesTotal = (plain.tournamentExpenses || []).reduce(
+    (sum: number, expense: any) => sum + toNumber(expense.amount),
+    0
+  );
+  const incomingTotal = entryRegistrationTotal + donationTotal;
 
   return {
     ...plain,
@@ -824,6 +887,26 @@ const serializeTournament = (tournament: ITournament) => {
         gender: member.gender,
       })),
     })),
+    tournamentExpenses: (plain.tournamentExpenses || []).map((expense: any) => ({
+      ...expense,
+      amount: toNumber(expense.amount),
+      note: expense.note || null,
+      date: expense.date || null,
+    })),
+    tournamentIncomes: (plain.tournamentIncomes || []).map((income: any) => ({
+      ...income,
+      amount: toNumber(income.amount),
+      note: income.note || null,
+      date: income.date || null,
+      teamRegistryId: income.teamRegistryId ? income.teamRegistryId.toString() : null,
+    })),
+    financeSummary: {
+      totalExpenses: expensesTotal,
+      totalEntryRegistration: entryRegistrationTotal,
+      totalDonations: donationTotal,
+      totalIncoming: incomingTotal,
+      netBalance: incomingTotal - expensesTotal,
+    },
     matches: plain.matches.map((match: any) => ({
       ...match,
       matchType:
@@ -900,6 +983,8 @@ export const createTournament = async (input: CreateTournamentInput) => {
     teams: [],
     registrations: [],
     teamRegistry: [],
+    tournamentExpenses: [],
+    tournamentIncomes: [],
     matches: [],
     totalRounds: 0,
     championTeamId: null,
@@ -1004,6 +1089,8 @@ const upsertTeamRegistry = (
   );
 
   if (existing) {
+    const previousEntryFeePaid = toNumber(existing.entryFeePaid);
+    const nextEntryFeePaid = Math.max(0, payload.entryFeePaid || 0);
     existing.teamId = teamId;
     existing.teamName = payload.teamName.trim();
     existing.teamLeadName = payload.teamLeadName.trim();
@@ -1012,10 +1099,11 @@ const upsertTeamRegistry = (
       mobileNumber: member.mobileNumber.trim(),
       gender: member.gender,
     })) as any;
-    existing.entryFeePaid = Math.max(0, payload.entryFeePaid || 0);
-    return;
+    existing.entryFeePaid = nextEntryFeePaid;
+    return { entry: existing, previousEntryFeePaid, nextEntryFeePaid };
   }
 
+  const nextEntryFeePaid = Math.max(0, payload.entryFeePaid || 0);
   tournament.teamRegistry.push({
     _id: new mongoose.Types.ObjectId(),
     teamId,
@@ -1026,8 +1114,10 @@ const upsertTeamRegistry = (
       mobileNumber: member.mobileNumber.trim(),
       gender: member.gender,
     })) as any,
-    entryFeePaid: Math.max(0, payload.entryFeePaid || 0),
+    entryFeePaid: nextEntryFeePaid,
   } as any);
+  const created = tournament.teamRegistry[tournament.teamRegistry.length - 1];
+  return { entry: created, previousEntryFeePaid: 0, nextEntryFeePaid };
 };
 
 const tryAddTeamToTournament = (tournament: ITournament, input: AddTeamInput): TeamInsertResult => {
@@ -1104,11 +1194,17 @@ const tryAddTeamToTournament = (tournament: ITournament, input: AddTeamInput): T
   } as any);
 
   const team = tournament.teams[tournament.teams.length - 1];
-  upsertTeamRegistry(tournament, team._id, {
+  const registryResult = upsertTeamRegistry(tournament, team._id, {
     teamName,
     teamLeadName: (input.teamLeadName || normalizedPlayers[0] || teamName).trim(),
     members: registryMembers,
     entryFeePaid: Math.max(0, input.entryFeePaid || 0),
+  });
+  captureEntryFeeAdjustment(tournament, {
+    teamName,
+    previousAmount: registryResult.previousEntryFeePaid,
+    nextAmount: registryResult.nextEntryFeePaid,
+    teamRegistryId: registryResult.entry?._id || null,
   });
 
   return { ok: true };
@@ -1708,6 +1804,7 @@ export const updateTeamRegistryEntry = async (
   if (!tournament) return { error: "Tournament not found", status: 404 as const };
   const entry = (tournament.teamRegistry || []).find((item) => item._id.toString() === registryId);
   if (!entry) return { error: "Team registry entry not found", status: 404 as const };
+  const previousEntryFeePaid = toNumber(entry.entryFeePaid);
 
   if (input.teamName !== undefined) {
     const teamName = input.teamName.trim();
@@ -1743,6 +1840,122 @@ export const updateTeamRegistryEntry = async (
     if (input.entryFeePaid < 0) return { error: "Entry fee paid cannot be negative", status: 400 as const };
     entry.entryFeePaid = input.entryFeePaid;
   }
+  captureEntryFeeAdjustment(tournament, {
+    teamName: entry.teamName,
+    previousAmount: previousEntryFeePaid,
+    nextAmount: toNumber(entry.entryFeePaid),
+    teamRegistryId: entry._id,
+  });
+
+  await tournament.save();
+  return { tournament: serializeTournament(tournament) };
+};
+
+type AddTournamentExpenseInput = {
+  title: string;
+  amount: number;
+  note?: string;
+  date?: string | Date | null;
+};
+
+export const addTournamentExpense = async (tournamentId: string, input: AddTournamentExpenseInput) => {
+  const tournament = await Tournament.findById(tournamentId);
+  if (!tournament) return { error: "Tournament not found", status: 404 as const };
+
+  const title = input.title.trim();
+  if (!title) return { error: "Expense title is required", status: 400 as const };
+  if (!Number.isFinite(input.amount) || input.amount <= 0) {
+    return { error: "Expense amount must be greater than 0", status: 400 as const };
+  }
+
+  tournament.tournamentExpenses.push({
+    _id: new mongoose.Types.ObjectId(),
+    title,
+    amount: Number(input.amount),
+    note: input.note?.trim() || null,
+    date: input.date ? new Date(input.date) : new Date(),
+  } as any);
+
+  await tournament.save();
+  return { tournament: serializeTournament(tournament) };
+};
+
+export const updateTournamentExpense = async (
+  tournamentId: string,
+  expenseId: string,
+  input: AddTournamentExpenseInput
+) => {
+  const tournament = await Tournament.findById(tournamentId);
+  if (!tournament) return { error: "Tournament not found", status: 404 as const };
+  const expense = (tournament.tournamentExpenses || []).find((item) => item._id.toString() === expenseId);
+  if (!expense) return { error: "Tournament expense not found", status: 404 as const };
+
+  const title = input.title.trim();
+  if (!title) return { error: "Expense title is required", status: 400 as const };
+  if (!Number.isFinite(input.amount) || input.amount <= 0) {
+    return { error: "Expense amount must be greater than 0", status: 400 as const };
+  }
+
+  expense.title = title;
+  expense.amount = Number(input.amount);
+  expense.note = input.note?.trim() || null;
+  expense.date = input.date ? new Date(input.date) : expense.date;
+
+  await tournament.save();
+  return { tournament: serializeTournament(tournament) };
+};
+
+type AddTournamentIncomeInput = {
+  type: TournamentIncomeType;
+  title: string;
+  amount: number;
+  note?: string;
+  date?: string | Date | null;
+};
+
+export const addTournamentIncome = async (tournamentId: string, input: AddTournamentIncomeInput) => {
+  const tournament = await Tournament.findById(tournamentId);
+  if (!tournament) return { error: "Tournament not found", status: 404 as const };
+
+  const title = input.title.trim();
+  if (!title) return { error: "Incoming title is required", status: 400 as const };
+  if (!Number.isFinite(input.amount) || input.amount <= 0) {
+    return { error: "Incoming amount must be greater than 0", status: 400 as const };
+  }
+
+  pushTournamentIncome(tournament, {
+    type: input.type,
+    title,
+    amount: Number(input.amount),
+    note: input.note?.trim() || null,
+    date: input.date || undefined,
+  });
+
+  await tournament.save();
+  return { tournament: serializeTournament(tournament) };
+};
+
+export const updateTournamentIncome = async (
+  tournamentId: string,
+  incomeId: string,
+  input: AddTournamentIncomeInput
+) => {
+  const tournament = await Tournament.findById(tournamentId);
+  if (!tournament) return { error: "Tournament not found", status: 404 as const };
+  const income = (tournament.tournamentIncomes || []).find((item) => item._id.toString() === incomeId);
+  if (!income) return { error: "Tournament incoming entry not found", status: 404 as const };
+
+  const title = input.title.trim();
+  if (!title) return { error: "Incoming title is required", status: 400 as const };
+  if (!Number.isFinite(input.amount) || input.amount <= 0) {
+    return { error: "Incoming amount must be greater than 0", status: 400 as const };
+  }
+
+  income.type = input.type;
+  income.title = title;
+  income.amount = Number(input.amount);
+  income.note = input.note?.trim() || null;
+  income.date = input.date ? new Date(input.date) : income.date;
 
   await tournament.save();
   return { tournament: serializeTournament(tournament) };

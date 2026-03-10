@@ -1,6 +1,8 @@
 import { Request, Response } from "express";
 import { z } from "zod";
 import {
+  addTournamentExpense,
+  addTournamentIncome,
   addTeam,
   createTournament,
   createCustomMatch,
@@ -19,6 +21,8 @@ import {
   setTournamentVisibility,
   updateMatchDetails,
   updateTeamRegistryEntry,
+  updateTournamentExpense,
+  updateTournamentIncome,
   updatePlayoffTeams,
   updateMatchScore,
   updateTournament,
@@ -113,6 +117,21 @@ const updateTeamRegistrySchema = z.object({
     )
     .optional(),
   entryFeePaid: z.number().min(0).optional(),
+});
+
+const tournamentExpenseSchema = z.object({
+  title: z.string().min(1, "Expense title is required"),
+  amount: z.number().gt(0, "Expense amount must be greater than 0"),
+  note: z.string().optional(),
+  date: z.string().or(z.date()).nullable().optional(),
+});
+
+const tournamentIncomeSchema = z.object({
+  type: z.enum(["entry_registration", "donation"]),
+  title: z.string().min(1, "Incoming title is required"),
+  amount: z.number().gt(0, "Incoming amount must be greater than 0"),
+  note: z.string().optional(),
+  date: z.string().or(z.date()).nullable().optional(),
 });
 
 const isServiceError = (value: any): value is { error: string; status: number } =>
@@ -388,6 +407,66 @@ export const updateAdminTournamentTeamRegistry = async (req: Request, res: Respo
       return res.status(400).json({ error: error.errors[0].message });
     }
     console.error("Update team registry error:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+export const addAdminTournamentExpense = async (req: Request, res: Response) => {
+  try {
+    const payload = tournamentExpenseSchema.parse(req.body);
+    const result = await addTournamentExpense(req.params.id, payload);
+    if (isServiceError(result)) return res.status(result.status).json({ error: result.error });
+    return res.status(201).json(result.tournament);
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: error.errors[0].message });
+    }
+    console.error("Add tournament expense error:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+export const addAdminTournamentIncome = async (req: Request, res: Response) => {
+  try {
+    const payload = tournamentIncomeSchema.parse(req.body);
+    const result = await addTournamentIncome(req.params.id, payload);
+    if (isServiceError(result)) return res.status(result.status).json({ error: result.error });
+    return res.status(201).json(result.tournament);
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: error.errors[0].message });
+    }
+    console.error("Add tournament income error:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+export const updateAdminTournamentExpense = async (req: Request, res: Response) => {
+  try {
+    const payload = tournamentExpenseSchema.parse(req.body);
+    const result = await updateTournamentExpense(req.params.id, req.params.expenseId, payload);
+    if (isServiceError(result)) return res.status(result.status).json({ error: result.error });
+    return res.json(result.tournament);
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: error.errors[0].message });
+    }
+    console.error("Update tournament expense error:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+export const updateAdminTournamentIncome = async (req: Request, res: Response) => {
+  try {
+    const payload = tournamentIncomeSchema.parse(req.body);
+    const result = await updateTournamentIncome(req.params.id, req.params.incomeId, payload);
+    if (isServiceError(result)) return res.status(result.status).json({ error: result.error });
+    return res.json(result.tournament);
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: error.errors[0].message });
+    }
+    console.error("Update tournament income error:", error);
     return res.status(500).json({ error: "Internal server error" });
   }
 };

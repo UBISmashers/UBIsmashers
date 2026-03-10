@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronUp, Pencil, Plus, Trash2, X } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { TournamentBracket } from "@/components/tournament/TournamentBracket";
@@ -16,7 +18,7 @@ import { TournamentOverview } from "@/components/tournament/TournamentOverview";
 import { TournamentPointsTable } from "@/components/tournament/TournamentPointsTable";
 import { buildTournamentGroupView } from "@/lib/tournamentGroups";
 import { buildScheduleRows, formatScheduleDateTime } from "@/lib/tournamentSchedule";
-import type { Tournament, TournamentMatchType } from "@/types/tournament";
+import type { Tournament, TournamentIncomingType, TournamentMatchType } from "@/types/tournament";
 
 const statusOptions = [
   { label: "Upcoming", value: "upcoming" },
@@ -38,10 +40,20 @@ const customMatchTypeOptions: Array<{ label: string; value: TournamentMatchType 
   { label: "Practice", value: "practice" },
 ];
 
+const formatMoney = (value: number) => `Rs ${Number(value || 0).toFixed(2)}`;
+
+const formatShortDate = (value?: string | null) => {
+  if (!value) return "-";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "-";
+  return parsed.toLocaleDateString();
+};
+
 export default function Tournaments() {
   const { api } = useAuth();
   const queryClient = useQueryClient();
   const [selectedTournamentId, setSelectedTournamentId] = useState<string>("");
+  const [showCreateTournament, setShowCreateTournament] = useState(false);
   const [form, setForm] = useState({
     name: "",
     date: "",
@@ -71,7 +83,6 @@ export default function Tournaments() {
   const [teamName, setTeamName] = useState("");
   const [adminContactMobileNumber, setAdminContactMobileNumber] = useState("");
   const [entryFeePaid, setEntryFeePaid] = useState("");
-  const [playoffEditByMatch, setPlayoffEditByMatch] = useState<Record<string, { teamAId: string; teamBId: string }>>({});
   const [customMatchForm, setCustomMatchForm] = useState({
     matchType: "friendly" as TournamentMatchType,
     teamAId: "",
@@ -89,6 +100,22 @@ export default function Tournaments() {
     startTime: "18:00",
     matchDurationMinutes: 10,
   });
+  const [expenseForm, setExpenseForm] = useState({
+    title: "",
+    amount: "",
+    note: "",
+    date: "",
+  });
+  const [incomeForm, setIncomeForm] = useState({
+    type: "donation" as TournamentIncomingType,
+    title: "",
+    amount: "",
+    note: "",
+    date: "",
+  });
+  const [financeTab, setFinanceTab] = useState<"expenses" | "incoming">("expenses");
+  const [editingExpenseId, setEditingExpenseId] = useState("");
+  const [editingIncomeId, setEditingIncomeId] = useState("");
 
   const { data: tournaments = [] } = useQuery<Tournament[]>({
     queryKey: ["tournaments"],
@@ -148,21 +175,6 @@ export default function Tournaments() {
     });
     setScheduleDraftByMatch(next);
     setEditingMatchId("");
-  }, [selectedTournament]);
-
-  useEffect(() => {
-    if (!selectedTournament) return;
-    const editablePlayoffs = selectedTournament.matches.filter(
-      (match) => (match.matchType === "semifinal" || match.matchType === "final") && !match.isCompleted
-    );
-    const next: Record<string, { teamAId: string; teamBId: string }> = {};
-    editablePlayoffs.forEach((match) => {
-      next[match.matchId] = {
-        teamAId: match.teamAId || "",
-        teamBId: match.teamBId || "",
-      };
-    });
-    setPlayoffEditByMatch(next);
   }, [selectedTournament]);
 
   useEffect(() => {
@@ -317,19 +329,6 @@ export default function Tournaments() {
     onError: (error: Error) => toast({ title: "Failed", description: error.message, variant: "destructive" }),
   });
 
-  const updatePlayoffTeamsMutation = useMutation({
-    mutationFn: ({ matchId, teamAId, teamBId }: { matchId: string; teamAId: string; teamBId: string }) =>
-      api.updateTournamentPlayoffTeams(selectedTournament!._id, matchId, {
-        teamAId: teamAId || null,
-        teamBId: teamBId || null,
-      }),
-    onSuccess: async () => {
-      await refresh();
-      toast({ title: "Playoff teams updated" });
-    },
-    onError: (error: Error) => toast({ title: "Failed", description: error.message, variant: "destructive" }),
-  });
-
   const updateMatchDetailsMutation = useMutation({
     mutationFn: ({
       matchId,
@@ -415,11 +414,76 @@ export default function Tournaments() {
     onError: (error: Error) => toast({ title: "Failed", description: error.message, variant: "destructive" }),
   });
 
+  const addTournamentExpenseMutation = useMutation({
+    mutationFn: () =>
+      api.addTournamentExpense(selectedTournament!._id, {
+        title: expenseForm.title.trim(),
+        amount: Number(expenseForm.amount),
+        note: expenseForm.note.trim() || undefined,
+        date: expenseForm.date || null,
+      }),
+    onSuccess: async () => {
+      setExpenseForm({ title: "", amount: "", note: "", date: "" });
+      await refresh();
+      toast({ title: "Expense added" });
+    },
+    onError: (error: Error) => toast({ title: "Failed", description: error.message, variant: "destructive" }),
+  });
+
+  const addTournamentIncomeMutation = useMutation({
+    mutationFn: () =>
+      api.addTournamentIncome(selectedTournament!._id, {
+        type: incomeForm.type,
+        title: incomeForm.title.trim(),
+        amount: Number(incomeForm.amount),
+        note: incomeForm.note.trim() || undefined,
+        date: incomeForm.date || null,
+      }),
+    onSuccess: async () => {
+      setIncomeForm({ type: "donation", title: "", amount: "", note: "", date: "" });
+      await refresh();
+      toast({ title: "Incoming entry added" });
+    },
+    onError: (error: Error) => toast({ title: "Failed", description: error.message, variant: "destructive" }),
+  });
+
+  const updateTournamentExpenseMutation = useMutation({
+    mutationFn: () =>
+      api.updateTournamentExpense(selectedTournament!._id, editingExpenseId, {
+        title: expenseForm.title.trim(),
+        amount: Number(expenseForm.amount),
+        note: expenseForm.note.trim() || undefined,
+        date: expenseForm.date || null,
+      }),
+    onSuccess: async () => {
+      setEditingExpenseId("");
+      setExpenseForm({ title: "", amount: "", note: "", date: "" });
+      await refresh();
+      toast({ title: "Expense updated" });
+    },
+    onError: (error: Error) => toast({ title: "Failed", description: error.message, variant: "destructive" }),
+  });
+
+  const updateTournamentIncomeMutation = useMutation({
+    mutationFn: () =>
+      api.updateTournamentIncome(selectedTournament!._id, editingIncomeId, {
+        type: incomeForm.type,
+        title: incomeForm.title.trim(),
+        amount: Number(incomeForm.amount),
+        note: incomeForm.note.trim() || undefined,
+        date: incomeForm.date || null,
+      }),
+    onSuccess: async () => {
+      setEditingIncomeId("");
+      setIncomeForm({ type: "donation", title: "", amount: "", note: "", date: "" });
+      await refresh();
+      toast({ title: "Incoming updated" });
+    },
+    onError: (error: Error) => toast({ title: "Failed", description: error.message, variant: "destructive" }),
+  });
+
   const canAddTeams = Boolean(selectedTournament && selectedTournament.matches.length === 0);
   const canSubmitTeam = canAddTeams && Boolean(teamName.trim());
-  const playoffMatches = (selectedTournament?.matches || []).filter(
-    (match) => match.matchType === "semifinal" || match.matchType === "final"
-  );
   const scheduleMatches = [...(selectedTournament?.matches || [])].sort((a, b) => {
     const aTs = a.scheduledAt ? new Date(a.scheduledAt).getTime() : Number.MAX_SAFE_INTEGER;
     const bTs = b.scheduledAt ? new Date(b.scheduledAt).getTime() : Number.MAX_SAFE_INTEGER;
@@ -452,6 +516,40 @@ export default function Tournaments() {
       ),
     [selectedTournament?.teamRegistry]
   );
+  const financeSummary = selectedTournament?.financeSummary || {
+    totalExpenses: (selectedTournament?.tournamentExpenses || []).reduce((sum, item) => sum + Number(item.amount || 0), 0),
+    totalEntryRegistration: (selectedTournament?.teamRegistry || []).reduce((sum, item) => sum + Number(item.entryFeePaid || 0), 0),
+    totalDonations: (selectedTournament?.tournamentIncomes || [])
+      .filter((item) => item.type === "donation")
+      .reduce((sum, item) => sum + Number(item.amount || 0), 0),
+    totalIncoming: 0,
+    netBalance: 0,
+  };
+  if (!selectedTournament?.financeSummary) {
+    financeSummary.totalIncoming = financeSummary.totalEntryRegistration + financeSummary.totalDonations;
+    financeSummary.netBalance = financeSummary.totalIncoming - financeSummary.totalExpenses;
+  }
+  const startEditExpense = (expense: Tournament["tournamentExpenses"][number]) => {
+    setFinanceTab("expenses");
+    setEditingExpenseId(expense._id);
+    setExpenseForm({
+      title: expense.title || "",
+      amount: Number(expense.amount || 0).toString(),
+      note: expense.note || "",
+      date: expense.date ? expense.date.slice(0, 10) : "",
+    });
+  };
+  const startEditIncome = (income: Tournament["tournamentIncomes"][number]) => {
+    setFinanceTab("incoming");
+    setEditingIncomeId(income._id);
+    setIncomeForm({
+      type: income.type,
+      title: income.title || "",
+      amount: Number(income.amount || 0).toString(),
+      note: income.note || "",
+      date: income.date ? income.date.slice(0, 10) : "",
+    });
+  };
 
   return (
     <MainLayout>
@@ -461,16 +559,23 @@ export default function Tournaments() {
             <h1 className="text-3xl font-bold">Tournaments</h1>
             <p className="text-sm text-muted-foreground">Manage tournament setup, bracket progress, and winner tracking.</p>
           </div>
-          <div className="flex items-center gap-3 rounded-lg border bg-card px-4 py-2">
-            <span className="text-sm font-medium">Show tournament to members</span>
-            <Switch
-              checked={Boolean(config?.enabled)}
-              onCheckedChange={(checked) => updateConfigMutation.mutate(checked)}
-            />
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="default" onClick={() => setShowCreateTournament((prev) => !prev)}>
+              {showCreateTournament ? <ChevronUp className="mr-2 h-4 w-4" /> : <ChevronDown className="mr-2 h-4 w-4" />}
+              {showCreateTournament ? "Close Create Tournament" : "Create Tournament"}
+            </Button>
+            <div className="flex items-center gap-3 rounded-lg border bg-card px-4 py-2">
+              <span className="text-sm font-medium">Show tournament to members</span>
+              <Switch
+                checked={Boolean(config?.enabled)}
+                onCheckedChange={(checked) => updateConfigMutation.mutate(checked)}
+              />
+            </div>
           </div>
         </div>
 
-        <div className="grid gap-6 lg:grid-cols-3">
+        <div className={`grid gap-6 ${showCreateTournament ? "lg:grid-cols-3" : "lg:grid-cols-1"}`}>
+          {showCreateTournament && (
           <Card className="lg:col-span-1">
             <CardHeader>
               <CardTitle>Create Tournament</CardTitle>
@@ -585,8 +690,9 @@ export default function Tournaments() {
               </Button>
             </CardContent>
           </Card>
+          )}
 
-          <Card className="lg:col-span-2">
+          <Card className={showCreateTournament ? "lg:col-span-2" : "lg:col-span-1"}>
             <CardHeader className="space-y-3">
               <CardTitle>Manage Tournament</CardTitle>
               <Select value={selectedTournament?._id || ""} onValueChange={setSelectedTournamentId}>
@@ -1039,85 +1145,238 @@ export default function Tournaments() {
                     </CardContent>
                   </Card>
 
-                  {playoffMatches.length > 0 && (
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="text-base">Playoff Team Overrides (Admin)</CardTitle>
-                      </CardHeader>
-                      <CardContent className="space-y-3">
-                        {playoffMatches.map((match) => {
-                          const draft = playoffEditByMatch[match.matchId] || { teamAId: "", teamBId: "" };
-                          return (
-                            <div key={match.matchId} className="rounded-md border p-3">
-                              <p className="text-sm font-medium">{match.roundLabel}</p>
-                              <div className="mt-2 grid gap-2 sm:grid-cols-3">
-                                <Select
-                                  value={draft.teamAId || "__none__"}
-                                  onValueChange={(value) =>
-                                    setPlayoffEditByMatch((prev) => ({
-                                      ...prev,
-                                      [match.matchId]: { ...draft, teamAId: value === "__none__" ? "" : value },
-                                    }))
-                                  }
-                                  disabled={match.isCompleted}
-                                >
-                                  <SelectTrigger>
-                                    <SelectValue placeholder="Team A" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="__none__">TBD</SelectItem>
-                                    {selectedTournament.teams.map((team) => (
-                                      <SelectItem key={`a-${match.matchId}-${team._id}`} value={team._id}>
-                                        {team.name}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                                <Select
-                                  value={draft.teamBId || "__none__"}
-                                  onValueChange={(value) =>
-                                    setPlayoffEditByMatch((prev) => ({
-                                      ...prev,
-                                      [match.matchId]: { ...draft, teamBId: value === "__none__" ? "" : value },
-                                    }))
-                                  }
-                                  disabled={match.isCompleted}
-                                >
-                                  <SelectTrigger>
-                                    <SelectValue placeholder="Team B" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="__none__">TBD</SelectItem>
-                                    {selectedTournament.teams.map((team) => (
-                                      <SelectItem key={`b-${match.matchId}-${team._id}`} value={team._id}>
-                                        {team.name}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-base">Tournament Finance</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <Tabs value={financeTab} onValueChange={(value) => setFinanceTab(value as "expenses" | "incoming")}>
+                        <TabsList className="grid w-full grid-cols-2">
+                          <TabsTrigger value="expenses">Expenses</TabsTrigger>
+                          <TabsTrigger value="incoming">Incoming</TabsTrigger>
+                        </TabsList>
+
+                        <TabsContent value="expenses" className="mt-4 space-y-3">
+                          <div className="rounded-md border bg-secondary/20 p-3">
+                            <p className="text-xs text-muted-foreground">Total Expenses</p>
+                            <p className="text-lg font-semibold">{formatMoney(financeSummary.totalExpenses)}</p>
+                            <p className="text-xs text-muted-foreground">Net Balance: {formatMoney(financeSummary.netBalance)}</p>
+                          </div>
+
+                          <p className="text-sm font-medium">Expense History</p>
+                          {(selectedTournament.tournamentExpenses || []).length === 0 ? (
+                            <p className="text-xs text-muted-foreground">No tournament expenses yet.</p>
+                          ) : (
+                            <div className="space-y-2">
+                              {selectedTournament.tournamentExpenses.map((expense) => (
+                                <div key={expense._id} className="rounded-md border px-2 py-2 text-xs">
+                                  <div className="flex items-center justify-between gap-2">
+                                    <p className="font-medium">{expense.title}</p>
+                                    <div className="flex items-center gap-2">
+                                      <p>{formatMoney(expense.amount)}</p>
+                                      <Button size="sm" variant="outline" onClick={() => startEditExpense(expense)}>
+                                        <Pencil className="mr-1 h-3.5 w-3.5" />
+                                        Edit
+                                      </Button>
+                                    </div>
+                                  </div>
+                                  <p className="text-muted-foreground">{formatShortDate(expense.date)}</p>
+                                  {expense.note && <p className="text-muted-foreground">{expense.note}</p>}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          <div className="space-y-4 rounded-lg border p-3">
+                            <p className="text-sm font-medium">
+                              {editingExpenseId ? "Edit Tournament Expense" : "Add Tournament Expense"}
+                            </p>
+                            <div className="space-y-2">
+                              <Label>Date</Label>
+                              <Input
+                                type="date"
+                                value={expenseForm.date}
+                                onChange={(event) => setExpenseForm((prev) => ({ ...prev, date: event.target.value }))}
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Title</Label>
+                              <Input
+                                placeholder="Expense title"
+                                value={expenseForm.title}
+                                onChange={(event) => setExpenseForm((prev) => ({ ...prev, title: event.target.value }))}
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Amount</Label>
+                              <Input
+                                type="number"
+                                min={0}
+                                step="0.01"
+                                placeholder="0.00"
+                                value={expenseForm.amount}
+                                onChange={(event) => setExpenseForm((prev) => ({ ...prev, amount: event.target.value }))}
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Description</Label>
+                              <Textarea
+                                placeholder="Describe the expense..."
+                                value={expenseForm.note}
+                                onChange={(event) => setExpenseForm((prev) => ({ ...prev, note: event.target.value }))}
+                              />
+                            </div>
+                            <div className="flex gap-2">
+                              <Button
+                                onClick={() =>
+                                  editingExpenseId
+                                    ? updateTournamentExpenseMutation.mutate()
+                                    : addTournamentExpenseMutation.mutate()
+                                }
+                                disabled={!expenseForm.title.trim() || !Number(expenseForm.amount)}
+                              >
+                                {editingExpenseId ? "Update Expense" : "Add Expense"}
+                              </Button>
+                              {editingExpenseId && (
                                 <Button
                                   variant="outline"
-                                  onClick={() =>
-                                    updatePlayoffTeamsMutation.mutate({
-                                      matchId: match.matchId,
-                                      teamAId: draft.teamAId,
-                                      teamBId: draft.teamBId,
-                                    })
-                                  }
-                                  disabled={match.isCompleted}
+                                  onClick={() => {
+                                    setEditingExpenseId("");
+                                    setExpenseForm({ title: "", amount: "", note: "", date: "" });
+                                  }}
                                 >
-                                  Save
+                                  <X className="mr-1 h-4 w-4" />
+                                  Cancel
                                 </Button>
-                              </div>
-                              {match.isCompleted && (
-                                <p className="mt-2 text-xs text-muted-foreground">Completed matches cannot be edited.</p>
                               )}
                             </div>
-                          );
-                        })}
-                      </CardContent>
-                    </Card>
-                  )}
+                          </div>
+                        </TabsContent>
+
+                        <TabsContent value="incoming" className="mt-4 space-y-3">
+                          <div className="rounded-md border bg-secondary/20 p-3">
+                            <p className="text-xs text-muted-foreground">Total Incoming</p>
+                            <p className="text-lg font-semibold">{formatMoney(financeSummary.totalIncoming)}</p>
+                            <p className="text-xs text-muted-foreground">
+                              Entry Registration: {formatMoney(financeSummary.totalEntryRegistration)}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              Donations: {formatMoney(financeSummary.totalDonations)}
+                            </p>
+                          </div>
+
+                          <p className="text-sm font-medium">Incoming History</p>
+                          {(selectedTournament.tournamentIncomes || []).length === 0 ? (
+                            <p className="text-xs text-muted-foreground">No incoming entries yet.</p>
+                          ) : (
+                            <div className="space-y-2">
+                              {selectedTournament.tournamentIncomes.map((income) => (
+                                <div key={income._id} className="rounded-md border px-2 py-2 text-xs">
+                                  <div className="flex items-center justify-between gap-2">
+                                    <p className="font-medium">{income.title}</p>
+                                    <div className="flex items-center gap-2">
+                                      <p>{formatMoney(income.amount)}</p>
+                                      <Button size="sm" variant="outline" onClick={() => startEditIncome(income)}>
+                                        <Pencil className="mr-1 h-3.5 w-3.5" />
+                                        Edit
+                                      </Button>
+                                    </div>
+                                  </div>
+                                  <p className="text-muted-foreground">{formatShortDate(income.date)}</p>
+                                  <Badge variant="outline" className="mt-1 text-[10px]">
+                                    {income.type === "entry_registration" ? "Entry Registration" : "Donation"}
+                                  </Badge>
+                                  {income.note && <p className="mt-1 text-muted-foreground">{income.note}</p>}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          <div className="space-y-4 rounded-lg border p-3">
+                            <p className="text-sm font-medium">
+                              {editingIncomeId ? "Edit Incoming Amount" : "Add Incoming Amount"}
+                            </p>
+                            <div className="space-y-2">
+                              <Label>Type</Label>
+                              <Select
+                                value={incomeForm.type}
+                                onValueChange={(value: TournamentIncomingType) =>
+                                  setIncomeForm((prev) => ({ ...prev, type: value }))
+                                }
+                              >
+                                <SelectTrigger>
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="donation">Donation</SelectItem>
+                                  <SelectItem value="entry_registration">Entry Registration</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Date</Label>
+                              <Input
+                                type="date"
+                                value={incomeForm.date}
+                                onChange={(event) => setIncomeForm((prev) => ({ ...prev, date: event.target.value }))}
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Title</Label>
+                              <Input
+                                placeholder="Incoming title"
+                                value={incomeForm.title}
+                                onChange={(event) => setIncomeForm((prev) => ({ ...prev, title: event.target.value }))}
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Amount</Label>
+                              <Input
+                                type="number"
+                                min={0}
+                                step="0.01"
+                                placeholder="0.00"
+                                value={incomeForm.amount}
+                                onChange={(event) => setIncomeForm((prev) => ({ ...prev, amount: event.target.value }))}
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Description</Label>
+                              <Textarea
+                                placeholder="Describe the incoming amount..."
+                                value={incomeForm.note}
+                                onChange={(event) => setIncomeForm((prev) => ({ ...prev, note: event.target.value }))}
+                              />
+                            </div>
+                            <div className="flex gap-2">
+                              <Button
+                                onClick={() =>
+                                  editingIncomeId
+                                    ? updateTournamentIncomeMutation.mutate()
+                                    : addTournamentIncomeMutation.mutate()
+                                }
+                                disabled={!incomeForm.title.trim() || !Number(incomeForm.amount)}
+                              >
+                                {editingIncomeId ? "Update Incoming" : "Add Incoming"}
+                              </Button>
+                              {editingIncomeId && (
+                                <Button
+                                  variant="outline"
+                                  onClick={() => {
+                                    setEditingIncomeId("");
+                                    setIncomeForm({ type: "donation", title: "", amount: "", note: "", date: "" });
+                                  }}
+                                >
+                                  <X className="mr-1 h-4 w-4" />
+                                  Cancel
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+                        </TabsContent>
+                      </Tabs>
+                    </CardContent>
+                  </Card>
 
                   <Card>
                     <CardHeader>

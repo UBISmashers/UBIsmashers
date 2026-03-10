@@ -1,4 +1,4 @@
-import type { PublicTournamentPayload, Tournament } from "@/types/tournament";
+import type { PublicTournamentPayload, Tournament, TournamentIncomingType } from "@/types/tournament";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 
@@ -477,6 +477,70 @@ class ApiClient {
     }>
   ) {
     return this.request<Tournament>(`/tournaments/${id}/team-registry/${registryId}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async addTournamentExpense(
+    id: string,
+    data: {
+      title: string;
+      amount: number;
+      note?: string;
+      date?: string | null;
+    }
+  ) {
+    return this.request<Tournament>(`/tournaments/${id}/finance/expenses`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateTournamentExpense(
+    id: string,
+    expenseId: string,
+    data: {
+      title: string;
+      amount: number;
+      note?: string;
+      date?: string | null;
+    }
+  ) {
+    return this.request<Tournament>(`/tournaments/${id}/finance/expenses/${expenseId}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async addTournamentIncome(
+    id: string,
+    data: {
+      type: TournamentIncomingType;
+      title: string;
+      amount: number;
+      note?: string;
+      date?: string | null;
+    }
+  ) {
+    return this.request<Tournament>(`/tournaments/${id}/finance/incomes`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateTournamentIncome(
+    id: string,
+    incomeId: string,
+    data: {
+      type: TournamentIncomingType;
+      title: string;
+      amount: number;
+      note?: string;
+      date?: string | null;
+    }
+  ) {
+    return this.request<Tournament>(`/tournaments/${id}/finance/incomes/${incomeId}`, {
       method: "PATCH",
       body: JSON.stringify(data),
     });

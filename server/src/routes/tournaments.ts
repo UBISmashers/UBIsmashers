@@ -1,6 +1,8 @@
 import express from "express";
 import { authenticate, authorize } from "../middleware/auth.js";
 import {
+  addAdminTournamentExpense,
+  addAdminTournamentIncome,
   addTournamentTeam,
   createTournamentCustomMatch,
   createAdminTournament,
@@ -16,6 +18,8 @@ import {
   updateAdminTournament,
   updateTournamentConfig,
   updateAdminTournamentTeamRegistry,
+  updateAdminTournamentExpense,
+  updateAdminTournamentIncome,
   updateTournamentMatchDetails,
   updateTournamentPlayoffTeams,
   updateTournamentMatchScore,
@@ -36,6 +40,10 @@ router.delete("/:id", deleteAdminTournament);
 router.post("/:id/teams", addTournamentTeam);
 router.delete("/:id/teams/:teamId", removeTournamentTeam);
 router.patch("/:id/team-registry/:registryId", updateAdminTournamentTeamRegistry);
+router.post("/:id/finance/expenses", addAdminTournamentExpense);
+router.post("/:id/finance/incomes", addAdminTournamentIncome);
+router.patch("/:id/finance/expenses/:expenseId", updateAdminTournamentExpense);
+router.patch("/:id/finance/incomes/:incomeId", updateAdminTournamentIncome);
 router.patch("/:id/registrations/:registrationId/review", reviewAdminTournamentRegistration);
 router.post("/:id/generate-bracket", generateTournamentBracket);
 router.post("/:id/generate-schedule", generateTournamentSchedule);

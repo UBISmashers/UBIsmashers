@@ -69,6 +69,38 @@ export interface TournamentTeamRegistryEntry {
   updatedAt: string;
 }
 
+export type TournamentIncomingType = "entry_registration" | "donation";
+
+export interface TournamentExpenseEntry {
+  _id: string;
+  title: string;
+  amount: number;
+  note: string | null;
+  date: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TournamentIncomingEntry {
+  _id: string;
+  type: TournamentIncomingType;
+  title: string;
+  amount: number;
+  note: string | null;
+  date: string;
+  teamRegistryId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TournamentFinanceSummary {
+  totalExpenses: number;
+  totalEntryRegistration: number;
+  totalDonations: number;
+  totalIncoming: number;
+  netBalance: number;
+}
+
 export interface Tournament {
   _id: string;
   name: string;
@@ -85,6 +117,9 @@ export interface Tournament {
   teams: TournamentTeam[];
   registrations: TournamentRegistration[];
   teamRegistry: TournamentTeamRegistryEntry[];
+  tournamentExpenses: TournamentExpenseEntry[];
+  tournamentIncomes: TournamentIncomingEntry[];
+  financeSummary?: TournamentFinanceSummary;
   matches: TournamentMatch[];
   totalRounds: number;
   championTeamId: string | null;

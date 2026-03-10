@@ -49,6 +49,30 @@ export interface ITournamentTeamRegistry {
   updatedAt: Date;
 }
 
+export type TournamentIncomeType = "entry_registration" | "donation";
+
+export interface ITournamentExpenseEntry {
+  _id: mongoose.Types.ObjectId;
+  title: string;
+  amount: number;
+  note: string | null;
+  date: Date;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface ITournamentIncomeEntry {
+  _id: mongoose.Types.ObjectId;
+  type: TournamentIncomeType;
+  title: string;
+  amount: number;
+  note: string | null;
+  date: Date;
+  teamRegistryId: mongoose.Types.ObjectId | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export interface ITournamentMatch {
   matchId: string;
   roundNumber: number;
@@ -83,6 +107,8 @@ export interface ITournament extends Document {
   teams: ITournamentTeam[];
   registrations: ITournamentRegistration[];
   teamRegistry: ITournamentTeamRegistry[];
+  tournamentExpenses: ITournamentExpenseEntry[];
+  tournamentIncomes: ITournamentIncomeEntry[];
   matches: ITournamentMatch[];
   totalRounds: number;
   championTeamId: mongoose.Types.ObjectId | null;
@@ -146,6 +172,28 @@ const teamRegistrySchema = new Schema<ITournamentTeamRegistry>(
     teamLeadName: { type: String, required: true, trim: true },
     members: { type: [registryMemberSchema], required: true, default: [] },
     entryFeePaid: { type: Number, required: true, min: 0, default: 0 },
+  },
+  { _id: true, timestamps: true }
+);
+
+const tournamentExpenseEntrySchema = new Schema<ITournamentExpenseEntry>(
+  {
+    title: { type: String, required: true, trim: true },
+    amount: { type: Number, required: true, min: 0 },
+    note: { type: String, trim: true, default: null },
+    date: { type: Date, required: true },
+  },
+  { _id: true, timestamps: true }
+);
+
+const tournamentIncomeEntrySchema = new Schema<ITournamentIncomeEntry>(
+  {
+    type: { type: String, enum: ["entry_registration", "donation"], required: true },
+    title: { type: String, required: true, trim: true },
+    amount: { type: Number, required: true },
+    note: { type: String, trim: true, default: null },
+    date: { type: Date, required: true },
+    teamRegistryId: { type: Schema.Types.ObjectId, default: null },
   },
   { _id: true, timestamps: true }
 );
@@ -239,6 +287,14 @@ const tournamentSchema = new Schema<ITournament>(
     },
     teamRegistry: {
       type: [teamRegistrySchema],
+      default: [],
+    },
+    tournamentExpenses: {
+      type: [tournamentExpenseEntrySchema],
+      default: [],
+    },
+    tournamentIncomes: {
+      type: [tournamentIncomeEntrySchema],
       default: [],
     },
     matches: {
