@@ -1,6 +1,6 @@
 import { lazy, Suspense, useState } from "react";
 import { Link } from "react-router-dom";
-import { ClipboardList, ShieldCheck, Users, Wallet, Trophy } from "lucide-react";
+import { ClipboardList, Image, ShieldCheck, Users, Wallet, Trophy } from "lucide-react";
 
 const HeroLoginDialog = lazy(() => import("@/components/home/HeroLoginDialog"));
 
@@ -53,13 +53,22 @@ export default function HeroSection() {
               <ClipboardList className="h-4 w-4" />
               Club Rules
             </a>
+            <a
+              href="https://drive.google.com/drive/folders/17V78oLVfDQLuhVvo4y4D7IUt-GVJr95p"
+              target="_blank"
+              rel="noreferrer"
+              className={glassButtonClass}
+            >
+              <Image className="h-4 w-4" />
+              Team Gallery
+            </a>
+          </div>
+
+          <div className="mt-3 grid grid-cols-1 gap-3 sm:mt-4 sm:grid-cols-2 sm:gap-4">
             <a href="#team" className={glassButtonClass}>
               <Users className="h-4 w-4" />
               Meet the Team
             </a>
-          </div>
-
-          <div className="mt-3 sm:mt-4">
             <Link to="/signup" className={glassButtonClass}>
               <Trophy className="h-4 w-4" />
               Join UBI Smashers
