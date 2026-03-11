@@ -65,6 +65,31 @@ export const getPeriodStartDate = (period: string): Date | null => {
   return getPeriodDateRange(period)?.start || null;
 };
 
+export const getCurrentMonthDateRange = (
+  now: Date = new Date()
+): { start: Date; end: Date } => {
+  const start = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+  const end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+  return { start, end };
+};
+
+const isDateWithinRange = (
+  value: string | Date | undefined,
+  range: { start: Date; end: Date }
+) => {
+  if (!value) return false;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return false;
+  return date >= range.start && date <= range.end;
+};
+
+const isDateBefore = (value: string | Date | undefined, boundary: Date) => {
+  if (!value) return false;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return false;
+  return date < boundary;
+};
+
 router.get('/bills', async (req: Request, res: Response) => {
   try {
     const requestedPeriod = String(req.query.period || 'all');
@@ -97,10 +122,18 @@ router.get('/bills', async (req: Request, res: Response) => {
       .populate('selectedMembers', '_id')
       .sort({ date: -1, createdAt: -1 });
 
-    const filteredExpenseIds = expenses.map((expense) => expense._id);
+    const allExpenses = await Expense.find()
+      .select(
+        '_id description amount date category isInventory itemName perMemberShare paidBy selectedMembers'
+      )
+      .populate('paidBy', '_id')
+      .populate('selectedMembers', '_id')
+      .sort({ date: -1, createdAt: -1 });
+
+    const allExpenseIds = allExpenses.map((expense) => expense._id);
     const shares =
-      filteredExpenseIds.length > 0
-        ? await ExpenseShare.find({ expenseId: { $in: filteredExpenseIds } }).select(
+      allExpenseIds.length > 0
+        ? await ExpenseShare.find({ expenseId: { $in: allExpenseIds } }).select(
             'expenseId memberId paidStatus'
           )
         : [];
@@ -117,19 +150,26 @@ router.get('/bills', async (req: Request, res: Response) => {
       byMemberId.set(member._id.toString(), {
         totalShare: 0,
         totalPaid: 0,
+        pastPending: 0,
+        currentMonthExpenses: 0,
         paidCount: 0,
         unpaidCount: 0,
         breakdown: [],
       });
     });
 
-    expenses.forEach((expense: any) => {
+    const currentMonthRange = getCurrentMonthDateRange();
+
+    allExpenses.forEach((expense: any) => {
       const selected = (expense.selectedMembers || []) as any[];
       if (selected.length === 0) return;
 
       const expenseId = expense._id?.toString?.();
       const payerId = (expense.paidBy as any)?._id?.toString?.() || (expense.paidBy as any)?.toString?.();
       const shareAmount = Number(expense.perMemberShare || 0);
+      const isInSelectedPeriod = !periodDateRange || isDateWithinRange(expense.date, periodDateRange);
+      const isInCurrentMonth = isDateWithinRange(expense.date, currentMonthRange);
+      const isBeforeCurrentMonth = isDateBefore(expense.date, currentMonthRange.start);
 
       selected.forEach((memberRef: any) => {
         const memberId = (memberRef?._id || memberRef)?.toString?.();
@@ -139,6 +179,8 @@ router.get('/bills', async (req: Request, res: Response) => {
           byMemberId.set(memberId, {
             totalShare: 0,
             totalPaid: 0,
+            pastPending: 0,
+            currentMonthExpenses: 0,
             paidCount: 0,
             unpaidCount: 0,
             breakdown: [],
@@ -151,25 +193,35 @@ router.get('/bills', async (req: Request, res: Response) => {
             ? true
             : Boolean(shareStatusByExpenseAndMember.get(`${expenseId}:${memberId}`));
 
-        agg.totalShare += shareAmount;
-        if (paidStatus) {
-          agg.totalPaid += shareAmount;
-          agg.paidCount += 1;
-        } else {
-          agg.unpaidCount += 1;
+        if (isInSelectedPeriod) {
+          agg.totalShare += shareAmount;
+          if (paidStatus) {
+            agg.totalPaid += shareAmount;
+            agg.paidCount += 1;
+          } else {
+            agg.unpaidCount += 1;
+          }
+
+          agg.breakdown.push({
+            expenseId: expense._id,
+            description: expense.description || 'Expense',
+            category: expense.category || 'other',
+            isInventory: !!expense.isInventory,
+            itemName: expense.itemName,
+            date: expense.date,
+            totalAmount: Number(expense.amount || 0),
+            shareAmount,
+            paidStatus,
+          });
         }
 
-        agg.breakdown.push({
-          expenseId: expense._id,
-          description: expense.description || 'Expense',
-          category: expense.category || 'other',
-          isInventory: !!expense.isInventory,
-          itemName: expense.itemName,
-          date: expense.date,
-          totalAmount: Number(expense.amount || 0),
-          shareAmount,
-          paidStatus,
-        });
+        if (isInCurrentMonth) {
+          agg.currentMonthExpenses += shareAmount;
+        }
+
+        if (!paidStatus && isBeforeCurrentMonth) {
+          agg.pastPending += shareAmount;
+        }
       });
     });
 
@@ -231,6 +283,8 @@ router.get('/bills', async (req: Request, res: Response) => {
         name: member.name,
         status: member.status,
         totalExpenseShare: totalShare,
+        pastPending: Number((agg?.pastPending || 0).toFixed(2)),
+        currentMonthExpenses: Number((agg?.currentMonthExpenses || 0).toFixed(2)),
         amountPaid: totalPaid,
         outstandingBalance,
         advanceTotalPaid: Number(advance.totalPaid.toFixed(2)),

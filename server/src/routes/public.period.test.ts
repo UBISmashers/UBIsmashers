@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { getPeriodDateRange, getPeriodStartDate, PERIOD_VALUES } from "./public.js";
+import {
+  getCurrentMonthDateRange,
+  getPeriodDateRange,
+  getPeriodStartDate,
+  PERIOD_VALUES,
+} from "./public.js";
 
 describe("Public period helpers", () => {
   it("includes supported period values", () => {
@@ -51,5 +56,19 @@ describe("Public period helpers", () => {
     expect(range.end.getFullYear()).toBe(2026);
     expect(range.end.getMonth()).toBe(1);
     expect(range.end.getDate()).toBe(28);
+  });
+
+  it("returns the current calendar month range", () => {
+    const referenceDate = new Date("2026-03-11T10:15:00.000Z");
+    const range = getCurrentMonthDateRange(referenceDate);
+
+    expect(range.start.getFullYear()).toBe(2026);
+    expect(range.start.getMonth()).toBe(2);
+    expect(range.start.getDate()).toBe(1);
+    expect(range.start.getHours()).toBe(0);
+    expect(range.end.getFullYear()).toBe(2026);
+    expect(range.end.getMonth()).toBe(2);
+    expect(range.end.getDate()).toBe(31);
+    expect(range.end.getHours()).toBe(23);
   });
 });

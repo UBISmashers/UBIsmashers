@@ -4,7 +4,7 @@ import { createApiClient } from "@/lib/api";
 
 const publicApi = createApiClient(() => null, () => {});
 
-export function CTASection() {
+export default function CTASection() {
   const { data } = useQuery({
     queryKey: ["publicTournamentConfig"],
     queryFn: () => publicApi.getPublicTournamentConfig(),

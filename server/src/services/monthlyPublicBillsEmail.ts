@@ -4,6 +4,8 @@ type PublicBillsData = {
   members?: Array<{
     name?: string;
     totalExpenseShare?: number;
+    pastPending?: number;
+    currentMonthExpenses?: number;
     amountPaid?: number;
     outstandingBalance?: number;
     advanceTotalPaid?: number;
@@ -72,6 +74,8 @@ const buildPublicBillsCsv = (data: PublicBillsData) => {
       headers: [
         'Member',
         'Total Expense Share',
+        'Past Pending',
+        'Current Month Expenses',
         'Amount Paid',
         'Outstanding Balance',
         'Advance Status',
@@ -79,6 +83,8 @@ const buildPublicBillsCsv = (data: PublicBillsData) => {
       rows: members.map((member) => [
         member.name || 'Unknown',
         Number(member.totalExpenseShare || 0).toFixed(2),
+        Number(member.pastPending || 0).toFixed(2),
+        Number(member.currentMonthExpenses || 0).toFixed(2),
         Number(member.amountPaid || 0).toFixed(2),
         Number(member.outstandingBalance || 0).toFixed(2),
         Number(member.advanceTotalPaid || 0) > 0 ? 'Paid' : 'Unpaid',

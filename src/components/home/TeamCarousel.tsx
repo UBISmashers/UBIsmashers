@@ -10,7 +10,7 @@ function getItemsPerView(width: number): number {
   return 1;
 }
 
-export function TeamCarousel() {
+export default function TeamCarousel() {
   const [itemsPerView, setItemsPerView] = useState(() =>
     typeof window === "undefined" ? 1 : getItemsPerView(window.innerWidth),
   );
@@ -83,8 +83,11 @@ export function TeamCarousel() {
                       <img
                         src={image}
                         alt="UBISmashers team"
+                        width="1200"
+                        height="900"
                         loading="lazy"
                         decoding="async"
+                        sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
                         className="h-72 w-full bg-slate-50 object-contain transition-transform duration-500 group-hover:scale-[1.02] sm:h-80"
                       />
                     </button>
@@ -130,6 +133,10 @@ export function TeamCarousel() {
               <img
                 src={selectedImage}
                 alt="UBISmashers team preview"
+                width="1200"
+                height="900"
+                loading="lazy"
+                decoding="async"
                 className="max-h-[80vh] w-full object-contain"
               />
             </div>
@@ -139,4 +146,3 @@ export function TeamCarousel() {
     </section>
   );
 }
-

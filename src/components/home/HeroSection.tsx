@@ -1,54 +1,18 @@
-import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { ClipboardList, ShieldCheck, Users, Wallet, Trophy, Loader2 } from "lucide-react";
-import { useAuth } from "@/contexts/AuthContext";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import { toast } from "sonner";
+import { lazy, Suspense, useState } from "react";
+import { Link } from "react-router-dom";
+import { ClipboardList, ShieldCheck, Users, Wallet, Trophy } from "lucide-react";
 
-export function HeroSection() {
-  const { login } = useAuth();
-  const navigate = useNavigate();
+const HeroLoginDialog = lazy(() => import("@/components/home/HeroLoginDialog"));
+
+export default function HeroSection() {
   const [isLoginOpen, setIsLoginOpen] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
 
   const glassButtonClass =
     "inline-flex w-full items-center justify-center gap-2 rounded-full border border-white/25 bg-[#0F3D2E] px-5 py-3 text-sm font-semibold text-[#FFFFFF] shadow-lg transition-all duration-300 hover:scale-[1.03] hover:bg-[#14532D] hover:shadow-[0_0_30px_rgba(20,83,45,0.35)]";
 
-  const handleLoginSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      setIsLoading(true);
-      await login(email, password);
-      toast.success("Login successful");
-      setIsLoginOpen(false);
-      setEmail("");
-      setPassword("");
-      navigate("/dashboard");
-    } catch (error: any) {
-      toast.error("Login failed", {
-        description: error.message || "Invalid email or password",
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   return (
     <section
-      className="relative min-h-screen bg-cover bg-center bg-no-repeat px-4 sm:px-6 lg:px-8"
-      style={{ backgroundImage: "url('/background.png')" }}
+      className="relative min-h-screen px-4 sm:px-6 lg:px-8"
     >
       <div className="absolute inset-0 bg-black/15" />
 
@@ -59,6 +23,9 @@ export function HeroSection() {
               <img
                 src="/icon.jpeg"
                 alt="UBI Smashers team symbol"
+                width="96"
+                height="96"
+                fetchPriority="high"
                 className="h-20 w-20 rounded-xl object-cover sm:h-24 sm:w-24"
               />
             </div>
@@ -71,56 +38,10 @@ export function HeroSection() {
 
         <div className="mt-10 w-full max-w-3xl sm:mt-12">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
-            <Dialog open={isLoginOpen} onOpenChange={setIsLoginOpen}>
-              <DialogTrigger asChild>
-                <button type="button" className={glassButtonClass}>
-                  <ShieldCheck className="h-4 w-4" />
-                  Admin Login
-                </button>
-              </DialogTrigger>
-              <DialogContent className="max-w-md">
-                <DialogHeader>
-                  <DialogTitle>Admin Login</DialogTitle>
-                  <DialogDescription>Sign in to manage UBI Smashers.</DialogDescription>
-                </DialogHeader>
-                <form onSubmit={handleLoginSubmit} className="space-y-4">
-                  <div className="space-y-2 text-left">
-                    <Label htmlFor="admin-email">Email</Label>
-                    <Input
-                      id="admin-email"
-                      type="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="name@example.com"
-                      required
-                      disabled={isLoading}
-                    />
-                  </div>
-                  <div className="space-y-2 text-left">
-                    <Label htmlFor="admin-password">Password</Label>
-                    <Input
-                      id="admin-password"
-                      type="password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder="Enter your password"
-                      required
-                      disabled={isLoading}
-                    />
-                  </div>
-                  <Button type="submit" className="w-full" disabled={isLoading}>
-                    {isLoading ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Signing in...
-                      </>
-                    ) : (
-                      "Sign In"
-                    )}
-                  </Button>
-                </form>
-              </DialogContent>
-            </Dialog>
+            <button type="button" className={glassButtonClass} onClick={() => setIsLoginOpen(true)}>
+              <ShieldCheck className="h-4 w-4" />
+              Admin Login
+            </button>
             <Link to="/member-bills" className={glassButtonClass}>
               <Wallet className="h-4 w-4" />
               View Member Bills
@@ -147,6 +68,11 @@ export function HeroSection() {
 
         </div>
       </div>
+      {isLoginOpen ? (
+        <Suspense fallback={null}>
+          <HeroLoginDialog open={isLoginOpen} onOpenChange={setIsLoginOpen} />
+        </Suspense>
+      ) : null}
     </section>
   );
 }

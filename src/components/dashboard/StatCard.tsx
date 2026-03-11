@@ -11,7 +11,7 @@ interface StatCardProps {
     value: number;
     positive: boolean;
   };
-  variant?: "default" | "primary" | "accent";
+  variant?: "default" | "primary" | "accent" | "destructive";
 }
 
 export function StatCard({
@@ -27,7 +27,8 @@ export function StatCard({
       className={cn(
         "relative overflow-hidden",
         variant === "primary" && "gradient-primary text-primary-foreground border-0",
-        variant === "accent" && "gradient-accent text-accent-foreground border-0"
+        variant === "accent" && "gradient-accent text-accent-foreground border-0",
+        variant === "destructive" && "border-0 bg-destructive text-destructive-foreground"
       )}
     >
       <CardHeader className="flex flex-row items-center justify-between pb-2">

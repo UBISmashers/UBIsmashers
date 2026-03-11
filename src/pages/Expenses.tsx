@@ -857,6 +857,8 @@ export default function Expenses() {
       const memberRows = members.map((memberItem: any) => [
         memberItem.name || "Unknown",
         Number(memberItem.totalExpenseShare || 0).toFixed(2),
+        Number(memberItem.pastPending || 0).toFixed(2),
+        Number(memberItem.currentMonthExpenses || 0).toFixed(2),
         Number(memberItem.amountPaid || 0).toFixed(2),
         Number(memberItem.outstandingBalance || 0).toFixed(2),
         Number(memberItem.advanceTotalPaid || 0) > 0 ? "Paid" : "Unpaid",
@@ -917,6 +919,8 @@ export default function Expenses() {
           headers: [
             "Member",
             "Total Expense Share",
+            "Past Pending",
+            "Current Month Expenses",
             "Amount Paid",
             "Outstanding Balance",
             "Advance Status",

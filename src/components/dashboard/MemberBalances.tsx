@@ -20,6 +20,7 @@ export function MemberBalances() {
     .map((member: any) => ({
       id: member._id || member.id,
       name: member.name,
+      avatar: member.avatar || "",
       balance: member.balance || 0,
       status: member.balance < 0 ? "owes" : member.balance > 0 ? "owed" : "settled",
     }));

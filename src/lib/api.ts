@@ -86,6 +86,8 @@ class ApiClient {
         name: string;
         status: "active" | "inactive";
         totalExpenseShare: number;
+        pastPending: number;
+        currentMonthExpenses: number;
         amountPaid: number;
         outstandingBalance: number;
         advanceTotalPaid: number;
@@ -94,6 +96,15 @@ class ApiClient {
         advanceStatus: "available" | "partially_used" | "fully_used" | "no_advance";
         paidExpenses: number;
         unpaidExpenses: number;
+        breakdown?: Array<{
+          date?: string;
+          description?: string;
+          category?: string;
+          isInventory?: boolean;
+          itemName?: string;
+          shareAmount: number;
+          paidStatus: boolean;
+        }>;
       }>;
       joiningFees: Array<{
         _id: string;

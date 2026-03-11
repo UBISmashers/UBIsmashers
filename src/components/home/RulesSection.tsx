@@ -8,7 +8,7 @@ const rules = [
   "At the end of every month, expenses must be paid.",
 ];
 
-export function RulesSection() {
+export default function RulesSection() {
   return (
     <section id="rules" className="px-4 py-16 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-6xl">

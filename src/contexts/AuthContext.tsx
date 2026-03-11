@@ -4,13 +4,21 @@ import { createApiClient } from "@/lib/api";
 interface User {
   id: string;
   email: string;
-  role: "admin";
+  role: "admin" | "member";
   memberId?: string;
+}
+
+interface MemberProfile {
+  _id?: string;
+  id?: string;
+  name: string;
+  email?: string;
+  role?: "admin" | "member";
 }
 
 interface AuthContextType {
   user: User | null;
-  member: null;
+  member: MemberProfile | null;
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;

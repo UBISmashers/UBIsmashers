@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import { Phone, Mail, Instagram } from "lucide-react";
 
-export function Footer() {
+export default function Footer() {
   return (
     <footer className="border-t border-emerald-100 bg-slate-950 px-4 py-8 text-slate-200 sm:px-6 lg:px-8">
       <div className="mx-auto flex max-w-6xl flex-col gap-6">

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { createApiClient } from "@/lib/api";
@@ -84,7 +84,7 @@ export default function PublicBills() {
   return (
     <div
       className="min-h-screen p-4 md:p-8 bg-cover bg-center bg-no-repeat"
-      style={{ backgroundImage: "url('/background.png')" }}
+      style={{ backgroundImage: "url('/background.webp')" }}
     >
       <div className="mx-auto max-w-6xl space-y-6">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -154,6 +154,8 @@ export default function PublicBills() {
                   <TableRow>
                     <TableHead>Member</TableHead>
                     <TableHead>Total Expense Share</TableHead>
+                    <TableHead>Past Pending</TableHead>
+                    <TableHead>Current Month Expenses</TableHead>
                     <TableHead>Amount Paid</TableHead>
                     <TableHead>Outstanding Balance</TableHead>
                     <TableHead>Advance Status</TableHead>
@@ -163,8 +165,8 @@ export default function PublicBills() {
                   {(data?.members || []).map((member) => {
                     const isExpanded = expandedMemberId === member.memberId;
                     return (
-                      <>
-                        <TableRow key={member.memberId}>
+                      <Fragment key={member.memberId}>
+                        <TableRow>
                           <TableCell className="font-medium">
                             <Button
                               variant="ghost"
@@ -182,6 +184,10 @@ export default function PublicBills() {
                             </Button>
                           </TableCell>
                           <TableCell>${member.totalExpenseShare.toFixed(2)}</TableCell>
+                          <TableCell className={member.pastPending > 0 ? "text-destructive" : "text-muted-foreground"}>
+                            ${member.pastPending.toFixed(2)}
+                          </TableCell>
+                          <TableCell>${member.currentMonthExpenses.toFixed(2)}</TableCell>
                           <TableCell className="text-success">${member.amountPaid.toFixed(2)}</TableCell>
                           <TableCell className={member.outstandingBalance > 0 ? "text-destructive" : "text-muted-foreground"}>
                             ${member.outstandingBalance.toFixed(2)}
@@ -200,7 +206,7 @@ export default function PublicBills() {
                         </TableRow>
                         {isExpanded && (
                           <TableRow>
-                            <TableCell colSpan={5} className="bg-secondary/30">
+                            <TableCell colSpan={7} className="bg-secondary/30">
                               {member.breakdown?.length ? (
                                 <div className="p-2">
                                   <div className="text-sm font-medium mb-2">Expense Breakdown</div>
@@ -247,7 +253,7 @@ export default function PublicBills() {
                             </TableCell>
                           </TableRow>
                         )}
-                      </>
+                      </Fragment>
                     );
                   })}
                 </TableBody>
