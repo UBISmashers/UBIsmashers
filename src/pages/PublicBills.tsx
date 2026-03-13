@@ -153,12 +153,10 @@ export default function PublicBills() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Member</TableHead>
-                    <TableHead>Total Expense Share</TableHead>
+                    <TableHead>Advance Status</TableHead>
                     <TableHead>Past Pending</TableHead>
                     <TableHead>Current Month Expenses</TableHead>
-                    <TableHead>Amount Paid</TableHead>
                     <TableHead>Outstanding Balance</TableHead>
-                    <TableHead>Advance Status</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -183,15 +181,6 @@ export default function PublicBills() {
                               )}
                             </Button>
                           </TableCell>
-                          <TableCell>${member.totalExpenseShare.toFixed(2)}</TableCell>
-                          <TableCell className={member.pastPending > 0 ? "text-destructive" : "text-muted-foreground"}>
-                            ${member.pastPending.toFixed(2)}
-                          </TableCell>
-                          <TableCell>${member.currentMonthExpenses.toFixed(2)}</TableCell>
-                          <TableCell className="text-success">${member.amountPaid.toFixed(2)}</TableCell>
-                          <TableCell className={member.outstandingBalance > 0 ? "text-destructive" : "text-muted-foreground"}>
-                            ${member.outstandingBalance.toFixed(2)}
-                          </TableCell>
                           <TableCell>
                             <span
                               className={
@@ -203,10 +192,17 @@ export default function PublicBills() {
                               {Number(member.advanceTotalPaid || 0) > 0 ? "Paid" : "Unpaid"}
                             </span>
                           </TableCell>
+                          <TableCell className={member.pastPending > 0 ? "text-destructive" : "text-muted-foreground"}>
+                            ${member.pastPending.toFixed(2)}
+                          </TableCell>
+                          <TableCell>${member.currentMonthExpenses.toFixed(2)}</TableCell>
+                          <TableCell className={member.outstandingBalance > 0 ? "text-destructive" : "text-muted-foreground"}>
+                            ${member.outstandingBalance.toFixed(2)}
+                          </TableCell>
                         </TableRow>
                         {isExpanded && (
                           <TableRow>
-                            <TableCell colSpan={7} className="bg-secondary/30">
+                            <TableCell colSpan={5} className="bg-secondary/30">
                               {member.breakdown?.length ? (
                                 <div className="p-2">
                                   <div className="text-sm font-medium mb-2">Expense Breakdown</div>

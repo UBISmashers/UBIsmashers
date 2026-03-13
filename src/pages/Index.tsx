@@ -48,6 +48,8 @@ interface ExpenseLite {
   amount: number;
   date: string;
   category?: string;
+  isInventory?: boolean;
+  isCourtAdvanceBooking?: boolean;
 }
 
 interface BookingLite {
@@ -55,8 +57,15 @@ interface BookingLite {
 }
 
 interface EquipmentPurchaseLite {
+  date?: string;
+  amount?: number;
   quantityPurchased?: number;
   quantityUsed?: number;
+}
+
+interface CourtAdvanceBookingLite {
+  date?: string;
+  amount?: number;
 }
 
 interface AttendanceLite {
@@ -98,12 +107,6 @@ const Index = () => {
     queryFn: () => api.getMembers(),
   });
 
-  // Fetch expenses
-  const { data: expenses = [] } = useQuery<ExpenseLite[]>({
-    queryKey: ["expenses"],
-    queryFn: () => api.getExpenses(),
-  });
-
   // Fetch bookings
   const { data: bookings = [] } = useQuery<BookingLite[]>({
     queryKey: ["bookings"],
@@ -127,6 +130,11 @@ const Index = () => {
     queryFn: () => api.getEquipmentPurchases(),
   });
 
+  const { data: courtAdvanceBookings = [] } = useQuery<CourtAdvanceBookingLite[]>({
+    queryKey: ["court-advance-bookings"],
+    queryFn: () => api.getCourtAdvanceBookings(),
+  });
+
   // Fetch member's own attendance history (for members only)
   const memberId = member?._id || member?.id;
   const { data: memberAttendance = [] } = useQuery<AttendanceLite[]>({
@@ -145,13 +153,34 @@ const Index = () => {
   // Calculate stats
   const activeMembers = members.filter((m) => m.status === "active").length;
   const totalMembers = members.length;
-  const monthlyExpenses = expenses
-    .filter((e) => {
-      const expenseDate = new Date(e.date);
+  const monthlyCourtBookingCost = courtAdvanceBookings
+    .filter((booking) => {
+      const expenseDate = new Date(booking.date || "");
       const now = new Date();
-      return expenseDate.getMonth() === now.getMonth() && expenseDate.getFullYear() === now.getFullYear();
+      return (
+        !Number.isNaN(expenseDate.getTime()) &&
+        expenseDate.getMonth() === now.getMonth() &&
+        expenseDate.getFullYear() === now.getFullYear()
+      );
     })
-    .reduce((sum, e) => sum + Number(e.amount || 0), 0);
+    .reduce((sum, booking) => sum + Number(booking.amount || 0), 0);
+
+  const monthlyShuttlePurchaseCost = equipmentPurchases
+    .filter((purchase) => {
+      const purchaseDate = new Date(purchase.date || "");
+      const now = new Date();
+      return (
+        !Number.isNaN(purchaseDate.getTime()) &&
+        purchaseDate.getMonth() === now.getMonth() &&
+        purchaseDate.getFullYear() === now.getFullYear()
+      );
+    })
+    .reduce((sum, purchase) => sum + Number(purchase.amount || 0), 0);
+
+  const monthlyExpenses = monthlyCourtBookingCost + monthlyShuttlePurchaseCost;
+  const remainingAdvanceAmount =
+    Number(publicBillsSummary?.summary?.totalAdvancePaid || 0) -
+    (monthlyExpenses + Number(publicBillsSummary?.summary?.totalOutstanding || 0));
   
   const thisMonthBookings = bookings.filter((b) => {
     const bookingDate = new Date(b.date);
@@ -363,7 +392,7 @@ const Index = () => {
           <StatCard
             title="Monthly Expenses"
             value={`$${monthlyExpenses.toFixed(2)}`}
-            description="Court fees, equipment, refreshments"
+            description="Court booking cost and shuttle stock cost"
             icon={DollarSign}
           />
           <StatCard
@@ -414,7 +443,7 @@ const Index = () => {
           />
           <StatCard
             title="Remaining Advance Amount"
-            value={`$${(publicBillsSummary?.summary?.totalAdvanceRemaining || 0).toFixed(2)}`}
+            value={`$${remainingAdvanceAmount.toFixed(2)}`}
             description="Available advance balance"
             icon={BadgeDollarSign}
             variant="accent"
