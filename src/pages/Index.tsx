@@ -99,7 +99,7 @@ const Index = () => {
   const { api, user, member } = useAuth();
   const navigate = useNavigate();
   const todayString = format(new Date(), "yyyy-MM-dd");
-  const [period, setPeriod] = useState<PeriodFilter>("all");
+  const [period, setPeriod] = useState<PeriodFilter>("this_month");
   const [customStartDate, setCustomStartDate] = useState(todayString);
   const [customEndDate, setCustomEndDate] = useState(todayString);
 
@@ -180,9 +180,15 @@ const Index = () => {
     .reduce((sum, purchase) => sum + Number(purchase.amount || 0), 0);
 
   const monthlyExpenses = monthlyCourtBookingCost + monthlyShuttlePurchaseCost;
+  const totalSessionExpense = ((publicBillsSummary?.sessionHistory as Array<{ amount?: number }> | undefined) || [])
+    .reduce((sum, item) => sum + Number(item.amount || 0), 0);
+  const totalEquipmentExpense =
+    (((publicBillsSummary?.equipment as Array<{ amount?: number }> | undefined) || [])
+      .reduce((sum, item) => sum + Number(item.amount || 0), 0)) +
+    (((publicBillsSummary?.courtAdvanceBookings as Array<{ amount?: number }> | undefined) || [])
+      .reduce((sum, item) => sum + Number(item.amount || 0), 0));
   const remainingAdvanceAmount =
-    Number(publicBillsSummary?.summary?.totalAdvancePaid || 0) -
-    (monthlyExpenses + Number(publicBillsSummary?.summary?.totalOutstanding || 0));
+    Number(publicBillsSummary?.summary?.totalAdvancePaid || 0) - monthlyExpenses;
   
   const thisMonthCourtAdvanceBookings = courtAdvanceBookings.filter((b) => {
     const bookingDate = new Date(b.courtBookedDate || b.date || "");
@@ -420,41 +426,49 @@ const Index = () => {
             <h2 className="text-base font-semibold">Billing Overview</h2>
             <span className="text-xs text-muted-foreground">{periodLabel[period]}</span>
           </div>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-          <StatCard
-            title="Total Expense"
-            value={`$${(publicBillsSummary?.summary?.totalShare || 0).toFixed(2)}`}
-            description={`${periodLabel[period]} shared expenses`}
-            icon={DollarSign}
-          />
-          <StatCard
-            title="Total Paid"
-            value={`$${(publicBillsSummary?.summary?.totalPaid || 0).toFixed(2)}`}
-            description={`${periodLabel[period]} payments received`}
-            icon={CheckCircle2}
-            variant="accent"
-          />
-          <StatCard
-            title="Outstanding"
-            value={`$${(publicBillsSummary?.summary?.totalOutstanding || 0).toFixed(2)}`}
-            description={`${periodLabel[period]} unpaid balance`}
-            icon={XCircle}
-            variant="destructive"
-          />
-          <StatCard
-            title="Advance Paid"
-            value={`$${(publicBillsSummary?.summary?.totalAdvancePaid || 0).toFixed(2)}`}
-            description={`${periodLabel[period]} advances collected`}
-            icon={BadgeDollarSign}
-          />
-          <StatCard
-            title="Remaining Advance Amount"
-            value={`$${remainingAdvanceAmount.toFixed(2)}`}
-            description="Available advance balance"
-            icon={BadgeDollarSign}
-            variant="accent"
-          />
-        </div>
+          <div className="grid gap-4 md:grid-cols-3">
+            <StatCard
+              title="Advance Paid"
+              value={`$${(publicBillsSummary?.summary?.totalAdvancePaid || 0).toFixed(2)}`}
+              description={`${periodLabel[period]} advances collected`}
+              icon={BadgeDollarSign}
+            />
+            <StatCard
+              title="Total Equipment Expense"
+              value={`$${totalEquipmentExpense.toFixed(2)}`}
+              description={`${periodLabel[period]} equipment and advance bookings`}
+              icon={ReceiptText}
+            />
+            <StatCard
+              title="Remaining Advance Amount"
+              value={`$${remainingAdvanceAmount.toFixed(2)}`}
+              description="Total advance minus this month equipment expense"
+              icon={BadgeDollarSign}
+              variant="accent"
+            />
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <StatCard
+              title="Total Session Expense"
+              value={`$${totalSessionExpense.toFixed(2)}`}
+              description={`${periodLabel[period]} session expenses`}
+              icon={DollarSign}
+            />
+            <StatCard
+              title="Total Paid"
+              value={`$${(publicBillsSummary?.summary?.totalPaid || 0).toFixed(2)}`}
+              description={`${periodLabel[period]} payments received`}
+              icon={CheckCircle2}
+              variant="accent"
+            />
+            <StatCard
+              title="Outstanding"
+              value={`$${(publicBillsSummary?.summary?.totalOutstanding || 0).toFixed(2)}`}
+              description={`${periodLabel[period]} unpaid balance`}
+              icon={XCircle}
+              variant="destructive"
+            />
+          </div>
         </div>
 
         <UpcomingBookings />

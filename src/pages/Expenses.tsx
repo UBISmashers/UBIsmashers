@@ -103,7 +103,7 @@ export default function Expenses() {
   const todayString = format(new Date(), "yyyy-MM-dd");
   const [filterPeriod, setFilterPeriod] = useState<
     "all" | "custom" | "this_month" | "last_week" | "last_month" | "last_6_months" | "last_year"
-  >("all");
+  >("this_month");
   const [customStartDate, setCustomStartDate] = useState(todayString);
   const [customEndDate, setCustomEndDate] = useState(todayString);
   const [memberSearch, setMemberSearch] = useState("");
