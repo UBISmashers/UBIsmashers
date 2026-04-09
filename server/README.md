@@ -47,18 +47,28 @@ MONTHLY_REPORT_FROM=sender@example.com
 MONTHLY_REPORT_TIMEZONE=Asia/Kolkata
 MONTHLY_REPORT_BASE_URL=https://your-api-domain.com
 
-# Use either SMTP_* or MAIL_* or Gmail fallback vars
+# Option 1: SMTP / Gmail
 SMTP_HOST=smtp.gmail.com
-SMTP_PORT=587
-SMTP_SECURE=false
+SMTP_PORT=465
+SMTP_SECURE=true
 SMTP_USER=sender@example.com
 SMTP_PASS=your-app-password
 
-# or
+# or Gmail shorthand
 MAIL_SERVICE=gmail
 MAIL_USER=sender@example.com
 MAIL_PASS=your-app-password
+
+# Option 2: Resend HTTP API (recommended for Render production)
+RESEND_API_KEY=re_xxxxxxxxx
+RESEND_FROM=sender@yourdomain.com
 ```
+
+Notes:
+- For Gmail, use an App Password, not your regular Gmail password.
+- If you set `MAIL_SERVICE=gmail` without explicit `SMTP_*`, the server now defaults to `smtp.gmail.com:465` with `secure=true`.
+- For Render production, `RESEND_API_KEY` is recommended because it avoids SMTP connection timeouts entirely.
+- You can test whether the backend can verify its mail setup with `GET /api/reports/monthly-public-bills/status`.
 
 **Important**: Change the JWT secrets to strong, random strings in production!
 

@@ -44,6 +44,7 @@ type PublicBillsData = {
 };
 
 type MailConfig = {
+  provider: 'smtp' | 'resend';
   host?: string;
   port: number;
   secure: boolean;
@@ -51,6 +52,7 @@ type MailConfig = {
   pass?: string;
   from?: string;
   service?: string;
+  resendApiKey?: string;
 };
 
 type SendMonthlyReportOptions = {
@@ -215,25 +217,56 @@ const getDatePartsInTimeZone = (timeZone: string) => {
 };
 
 const getMailConfig = (): MailConfig => {
+  const resendApiKey = process.env.RESEND_API_KEY;
+  if (resendApiKey) {
+    return {
+      provider: 'resend',
+      port: 443,
+      secure: true,
+      from: process.env.MONTHLY_REPORT_FROM || process.env.RESEND_FROM,
+      resendApiKey,
+    };
+  }
+
   const smtpHost = process.env.SMTP_HOST;
-  const smtpPort = Number(process.env.SMTP_PORT || 587);
   const smtpUser = process.env.SMTP_USER || process.env.MAIL_USER || process.env.GMAIL_USER;
   const smtpPass = process.env.SMTP_PASS || process.env.MAIL_PASS || process.env.GMAIL_APP_PASSWORD;
-  const secure = String(process.env.SMTP_SECURE || process.env.MAIL_SECURE || 'false') === 'true';
-  const service = process.env.SMTP_SERVICE || process.env.MAIL_SERVICE || (!smtpHost && smtpUser && smtpPass ? 'gmail' : undefined);
+  const service = (process.env.SMTP_SERVICE || process.env.MAIL_SERVICE || (!smtpHost && smtpUser && smtpPass ? 'gmail' : undefined))
+    ?.toLowerCase();
+  const explicitPort = process.env.SMTP_PORT;
+  const explicitSecure = process.env.SMTP_SECURE || process.env.MAIL_SECURE;
+  const isGmailService = service === 'gmail';
+  const port = Number(explicitPort || (isGmailService ? 465 : 587));
+  const secure = explicitSecure
+    ? String(explicitSecure) === 'true'
+    : isGmailService
+      ? true
+      : port === 465;
 
   return {
-    host: smtpHost,
-    port: smtpPort,
+    provider: 'smtp',
+    host: smtpHost || (isGmailService ? 'smtp.gmail.com' : undefined),
+    port,
     secure,
     user: smtpUser,
     pass: smtpPass,
     from: process.env.MONTHLY_REPORT_FROM || process.env.MAIL_FROM || smtpUser,
     service,
+    resendApiKey,
   };
 };
 
 const assertMailConfig = (config: MailConfig) => {
+  if (config.provider === 'resend') {
+    if (!config.resendApiKey) {
+      throw new Error('Missing RESEND_API_KEY for Resend delivery.');
+    }
+    if (!config.from) {
+      throw new Error('Missing MONTHLY_REPORT_FROM or RESEND_FROM for Resend delivery.');
+    }
+    return;
+  }
+
   if (!config.user || !config.pass) {
     throw new Error(
       'Missing mail credentials. Configure SMTP_USER/SMTP_PASS or MAIL_USER/MAIL_PASS or GMAIL_USER/GMAIL_APP_PASSWORD.'
@@ -249,6 +282,14 @@ const createTransport = async () => {
   const config = getMailConfig();
   assertMailConfig(config);
 
+  if (config.provider !== 'smtp') {
+    return {
+      config,
+      transporter: null,
+      from: config.from!,
+    };
+  }
+
   const mailModule = await import('nodemailer');
   const nodemailer = mailModule.default;
   const transporter = nodemailer.createTransport({
@@ -260,14 +301,80 @@ const createTransport = async () => {
       user: config.user,
       pass: config.pass,
     },
+    connectionTimeout: Number(process.env.SMTP_CONNECTION_TIMEOUT || 15000),
+    greetingTimeout: Number(process.env.SMTP_GREETING_TIMEOUT || 15000),
+    socketTimeout: Number(process.env.SMTP_SOCKET_TIMEOUT || 20000),
   });
 
   await transporter.verify();
 
   return {
+    config,
     transporter,
     from: config.from || config.user!,
   };
+};
+
+const buildTimeoutHint = (config: MailConfig) => {
+  if (config.provider === 'resend') {
+    return 'Mail API request timed out. Recheck RESEND_API_KEY, Render outbound HTTPS access, and MONTHLY_REPORT_FROM.';
+  }
+
+  if ((config.service || '').toLowerCase() === 'gmail' || config.host === 'smtp.gmail.com') {
+    return `SMTP connection timed out while reaching Gmail (${config.host}:${config.port}). On Render, prefer port 465 with secure=true, or switch to RESEND_API_KEY to avoid SMTP timeouts entirely.`;
+  }
+
+  return `SMTP connection timed out while reaching ${config.host || config.service || 'the configured provider'} (${config.port}). Check the host, port, secure flag, and whether your provider allows outbound connections from Render.`;
+};
+
+const normalizeMailError = (error: unknown, config: MailConfig) => {
+  if (error instanceof Error && 'code' in error && (error as { code?: string }).code === 'ETIMEDOUT') {
+    return new Error(buildTimeoutHint(config));
+  }
+  return error instanceof Error ? error : new Error('Unknown mail delivery error');
+};
+
+const sendViaResend = async ({
+  apiKey,
+  from,
+  to,
+  subject,
+  text,
+  filename,
+  csv,
+}: {
+  apiKey: string;
+  from: string;
+  to: string;
+  subject: string;
+  text: string;
+  filename: string;
+  csv: string;
+}) => {
+  const response = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      from,
+      to: [to],
+      subject,
+      text,
+      attachments: [
+        {
+          filename,
+          content: Buffer.from(csv, 'utf8').toString('base64'),
+        },
+      ],
+    }),
+  });
+
+  if (!response.ok) {
+    const body = await response.text().catch(() => '');
+    throw new Error(`Resend request failed with status ${response.status}${body ? `: ${body}` : ''}`);
+  }
 };
 
 const fetchPublicBillsData = async (baseUrl: string, period: 'last_month' | 'this_month') => {
@@ -301,21 +408,39 @@ export const sendMonthlyPublicBillsReport = async ({
   const data = await fetchPublicBillsData(baseUrl, period);
   const csv = buildPublicBillsCsv(data);
   const filename = `UBISmashers_Public_Bills_${period}_${monthKey}.csv`;
-  const { transporter, from } = await createTransport();
+  const { transporter, from, config } = await createTransport();
+  const subject = `UBISmashers Public Bills Report - ${period === 'last_month' ? 'Last Month' : 'This Month'} (${monthKey})`;
+  const text = `Attached is the UBISmashers public bills export for ${period.replace('_', ' ')}.`;
 
-  await transporter.sendMail({
-    from,
-    to: resolvedRecipient,
-    subject: `UBISmashers Public Bills Report - ${period === 'last_month' ? 'Last Month' : 'This Month'} (${monthKey})`,
-    text: `Attached is the UBISmashers public bills export for ${period.replace('_', ' ')}.`,
-    attachments: [
-      {
+  try {
+    if (config.provider === 'resend') {
+      await sendViaResend({
+        apiKey: config.resendApiKey!,
+        from,
+        to: resolvedRecipient,
+        subject,
+        text,
         filename,
-        content: csv,
-        contentType: 'text/csv; charset=utf-8',
-      },
-    ],
-  });
+        csv,
+      });
+    } else {
+      await transporter!.sendMail({
+        from,
+        to: resolvedRecipient,
+        subject,
+        text,
+        attachments: [
+          {
+            filename,
+            content: csv,
+            contentType: 'text/csv; charset=utf-8',
+          },
+        ],
+      });
+    }
+  } catch (error) {
+    throw normalizeMailError(error, config);
+  }
 
   await MonthlyEmailLog.findOneAndUpdate(
     { reportKey: resolvedReportKey },
@@ -329,6 +454,32 @@ export const sendMonthlyPublicBillsReport = async ({
 
   console.log(`[monthly-report] Sent ${filename} to ${resolvedRecipient}`);
   return { skipped: false, reportKey: resolvedReportKey, recipient: resolvedRecipient, filename };
+};
+
+export const getMonthlyPublicBillsMailStatus = async () => {
+  const config = getMailConfig();
+  assertMailConfig(config);
+
+  if (config.provider === 'resend') {
+    return {
+      provider: 'resend' as const,
+      from: config.from || null,
+      verified: Boolean(config.resendApiKey && config.from),
+      details: 'Using Resend HTTP API delivery.',
+    };
+  }
+
+  const transport = await createTransport();
+  return {
+    provider: 'smtp' as const,
+    host: config.host || null,
+    port: config.port,
+    secure: config.secure,
+    service: config.service || null,
+    from: transport.from,
+    verified: true,
+    details: 'SMTP transport verified successfully.',
+  };
 };
 
 const checkAndSendMonthlyPublicBillsReport = async (baseUrl: string) => {

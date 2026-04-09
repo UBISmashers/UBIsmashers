@@ -6,7 +6,7 @@ import { Expense } from '../models/Expense.js';
 import { Attendance } from '../models/Attendance.js';
 import { Booking } from '../models/Booking.js';
 import { Member } from '../models/Member.js';
-import { sendMonthlyPublicBillsReport } from '../services/monthlyPublicBillsEmail.js';
+import { getMonthlyPublicBillsMailStatus, sendMonthlyPublicBillsReport } from '../services/monthlyPublicBillsEmail.js';
 
 const router = express.Router();
 router.use(authenticate, authorize('admin'));
@@ -215,6 +215,18 @@ router.post('/monthly-public-bills/send', async (req: Request, res: Response) =>
       return res.status(400).json({ error: error.errors[0].message });
     }
     console.error('Send monthly public bills email error:', error);
+    return res.status(500).json({
+      error: error instanceof Error ? error.message : 'Internal server error',
+    });
+  }
+});
+
+router.get('/monthly-public-bills/status', async (_req: Request, res: Response) => {
+  try {
+    const status = await getMonthlyPublicBillsMailStatus();
+    return res.json(status);
+  } catch (error) {
+    console.error('Get monthly public bills mail status error:', error);
     return res.status(500).json({
       error: error instanceof Error ? error.message : 'Internal server error',
     });
