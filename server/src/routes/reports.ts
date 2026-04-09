@@ -41,19 +41,15 @@ router.get('/', async (req: Request, res: Response) => {
   }
 });
 
-// Get single report
-router.get('/:id', async (req: Request, res: Response) => {
+router.get('/monthly-public-bills/status', async (_req: Request, res: Response) => {
   try {
-    const report = await Report.findById(req.params.id).populate('generatedBy', 'name email');
-    
-    if (!report) {
-      return res.status(404).json({ error: 'Report not found' });
-    }
-
-    res.json(report);
+    const status = await getMonthlyPublicBillsMailStatus();
+    return res.json(status);
   } catch (error) {
-    console.error('Get report error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error('Get monthly public bills mail status error:', error);
+    return res.status(500).json({
+      error: error instanceof Error ? error.message : 'Internal server error',
+    });
   }
 });
 
@@ -217,19 +213,24 @@ router.post('/monthly-public-bills/send', async (req: Request, res: Response) =>
     console.error('Send monthly public bills email error:', error);
     return res.status(500).json({
       error: error instanceof Error ? error.message : 'Internal server error',
+      hint: 'Check GET /api/reports/monthly-public-bills/status on the same deployment to confirm which mail provider/config the server is using.',
     });
   }
 });
 
-router.get('/monthly-public-bills/status', async (_req: Request, res: Response) => {
+// Get single report
+router.get('/:id', async (req: Request, res: Response) => {
   try {
-    const status = await getMonthlyPublicBillsMailStatus();
-    return res.json(status);
+    const report = await Report.findById(req.params.id).populate('generatedBy', 'name email');
+    
+    if (!report) {
+      return res.status(404).json({ error: 'Report not found' });
+    }
+
+    res.json(report);
   } catch (error) {
-    console.error('Get monthly public bills mail status error:', error);
-    return res.status(500).json({
-      error: error instanceof Error ? error.message : 'Internal server error',
-    });
+    console.error('Get report error:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
