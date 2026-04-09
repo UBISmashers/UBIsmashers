@@ -62,6 +62,7 @@ interface Member {
   phone?: string;
   role: "admin" | "member";
   status: "active" | "inactive";
+  hiddenFromPublicBills?: boolean;
   joinDate: string;
   balance: number;
   attendanceRate: number;
@@ -166,6 +167,25 @@ export default function Members() {
     },
     onError: (error: any) => {
       toast.error("Failed to update member status", {
+        description: error.message || "An error occurred",
+      });
+    },
+  });
+
+  const toggleMemberBillsVisibilityMutation = useMutation({
+    mutationFn: ({ id, hiddenFromPublicBills }: { id: string; hiddenFromPublicBills: boolean }) =>
+      api.updateMember(id, { hiddenFromPublicBills }),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["members"] });
+      queryClient.invalidateQueries({ queryKey: ["publicBills"] });
+      toast.success(
+        variables.hiddenFromPublicBills
+          ? "Member hidden from public bills successfully!"
+          : "Member unhidden from public bills successfully!"
+      );
+    },
+    onError: (error: any) => {
+      toast.error("Failed to update member bills visibility", {
         description: error.message || "An error occurred",
       });
     },
@@ -530,6 +550,9 @@ export default function Members() {
                           >
                             {member.status}
                           </span>
+                          <Badge variant={member.hiddenFromPublicBills ? "outline" : "secondary"}>
+                            {member.hiddenFromPublicBills ? "Hidden in Bills" : "Visible in Bills"}
+                          </Badge>
                         </div>
                       </TableCell>
                       <TableCell>
@@ -606,6 +629,27 @@ export default function Members() {
                               <DropdownMenuItem onClick={() => handleViewPayments(member)}>
                                 <DollarSign className="h-4 w-4 mr-2" />
                                 View Payments
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() =>
+                                  toggleMemberBillsVisibilityMutation.mutate({
+                                    id: member._id,
+                                    hiddenFromPublicBills: !member.hiddenFromPublicBills,
+                                  })
+                                }
+                                disabled={toggleMemberBillsVisibilityMutation.isPending}
+                              >
+                                {member.hiddenFromPublicBills ? (
+                                  <>
+                                    <UserCheck className="h-4 w-4 mr-2" />
+                                    Unhide in Bills
+                                  </>
+                                ) : (
+                                  <>
+                                    <UserX className="h-4 w-4 mr-2" />
+                                    Hide in Bills
+                                  </>
+                                )}
                               </DropdownMenuItem>
                               <DropdownMenuItem
                                 onClick={() =>

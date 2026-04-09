@@ -110,9 +110,10 @@ router.get('/bills', async (req: Request, res: Response) => {
           }
         : {};
 
-    const members = await Member.find()
+    const members = await Member.find({ hiddenFromPublicBills: { $ne: true } })
       .select('_id name status')
       .sort({ name: 1 });
+    const visibleMemberIds = new Set(members.map((member) => member._id.toString()));
 
     const expenses = await Expense.find(expenseDateFilter)
       .select(
@@ -175,17 +176,7 @@ router.get('/bills', async (req: Request, res: Response) => {
         const memberId = (memberRef?._id || memberRef)?.toString?.();
         if (!memberId) return;
 
-        if (!byMemberId.has(memberId)) {
-          byMemberId.set(memberId, {
-            totalShare: 0,
-            totalPaid: 0,
-            pastPending: 0,
-            currentMonthExpenses: 0,
-            paidCount: 0,
-            unpaidCount: 0,
-            breakdown: [],
-          });
-        }
+        if (!visibleMemberIds.has(memberId)) return;
 
         const agg = byMemberId.get(memberId);
         const paidStatus =
@@ -320,6 +311,18 @@ router.get('/bills', async (req: Request, res: Response) => {
       .populate('selectedMembers', 'name email')
       .sort({ date: -1, createdAt: -1 });
 
+    const normalizedSessionHistory = sessionHistory.map((item: any) => {
+      const selectedMembers = (item.selectedMembers || []).filter((member: any) => {
+        const memberId = member?._id?.toString?.() || member?.toString?.();
+        return memberId ? visibleMemberIds.has(memberId) : false;
+      });
+
+      return {
+        ...item.toObject(),
+        selectedMembers,
+      };
+    });
+
     const totalAdvancePaid = normalizedJoiningFees.reduce(
       (sum: number, fee: any) =>
         sum + (fee.sourceType === 'expense_share_payment' ? 0 : Number(fee.amount || 0)),
@@ -344,7 +347,7 @@ router.get('/bills', async (req: Request, res: Response) => {
       joiningFees: normalizedJoiningFees,
       equipment,
       courtAdvanceBookings,
-      sessionHistory,
+      sessionHistory: normalizedSessionHistory,
       summary: {
         totalShare: bills.reduce((sum, item) => sum + item.totalExpenseShare, 0),
         totalPaid: bills.reduce((sum, item) => sum + item.amountPaid, 0),

@@ -4,7 +4,7 @@ import { authenticate, authorize } from '../middleware/auth.js';
 import { Booking } from '../models/Booking.js';
 
 const router = express.Router();
-router.use(authenticate, authorize('admin'));
+router.use(authenticate);
 
 const bookingSchema = z.object({
   date: z.string().or(z.date()),
@@ -64,6 +64,10 @@ router.get('/:id', async (req: Request, res: Response) => {
 // Create booking
 router.post('/', async (req: Request, res: Response) => {
   try {
+    if (req.user?.role !== 'admin') {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
     const validatedData = bookingSchema.parse(req.body);
     
     const bookingDate = new Date(validatedData.date);
@@ -110,6 +114,10 @@ router.post('/', async (req: Request, res: Response) => {
 // Update booking
 router.put('/:id', async (req: Request, res: Response) => {
   try {
+    if (req.user?.role !== 'admin') {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
     const booking = await Booking.findById(req.params.id);
     
     if (!booking) {
@@ -139,6 +147,10 @@ router.put('/:id', async (req: Request, res: Response) => {
 // Delete booking
 router.delete('/:id', async (req: Request, res: Response) => {
   try {
+    if (req.user?.role !== 'admin') {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
     const booking = await Booking.findById(req.params.id);
     
     if (!booking) {

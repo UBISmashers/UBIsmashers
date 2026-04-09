@@ -65,7 +65,9 @@ interface EquipmentPurchaseLite {
 
 interface CourtAdvanceBookingLite {
   date?: string;
+  courtBookedDate?: string;
   amount?: number;
+  courtsBooked?: number;
 }
 
 interface AttendanceLite {
@@ -182,10 +184,14 @@ const Index = () => {
     Number(publicBillsSummary?.summary?.totalAdvancePaid || 0) -
     (monthlyExpenses + Number(publicBillsSummary?.summary?.totalOutstanding || 0));
   
-  const thisMonthBookings = bookings.filter((b) => {
-    const bookingDate = new Date(b.date);
+  const thisMonthCourtAdvanceBookings = courtAdvanceBookings.filter((b) => {
+    const bookingDate = new Date(b.courtBookedDate || b.date || "");
     const now = new Date();
-    return bookingDate.getMonth() === now.getMonth() && bookingDate.getFullYear() === now.getFullYear();
+    return (
+      !Number.isNaN(bookingDate.getTime()) &&
+      bookingDate.getMonth() === now.getMonth() &&
+      bookingDate.getFullYear() === now.getFullYear()
+    );
   }).length;
 
   const totalShuttlesPurchased = equipmentPurchases.reduce(
@@ -396,9 +402,9 @@ const Index = () => {
             icon={DollarSign}
           />
           <StatCard
-            title="This Month's Bookings"
-            value={thisMonthBookings}
-            description="Bookings this month"
+            title="Court Advance Bookings"
+            value={thisMonthCourtAdvanceBookings}
+            description="Advance bookings this month"
             icon={Calendar}
           />
           <StatCard

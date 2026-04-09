@@ -3,7 +3,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Calendar, Clock, MapPin } from "lucide-react";
-import { format, isToday, isTomorrow, addDays, isAfter, isBefore } from "date-fns";
+import { format, isToday, isTomorrow } from "date-fns";
 import { Loader2 } from "lucide-react";
 
 const statusColors: Record<string, string> = {
@@ -21,11 +21,15 @@ export function UpcomingBookings() {
     queryFn: () => api.getBookings(),
   });
 
-  // Get upcoming bookings (from today onwards, status booked or pending)
+  const { data: courtAdvanceBookings = [], isLoading: isCourtAdvanceLoading } = useQuery({
+    queryKey: ["court-advance-bookings"],
+    queryFn: () => api.getCourtAdvanceBookings(),
+  });
+
   const now = new Date();
   now.setHours(0, 0, 0, 0);
 
-  const upcomingBookings = bookings
+  const bookingEntries = bookings
     .filter((b: any) => {
       const bookingDate = new Date(b.date);
       bookingDate.setHours(0, 0, 0, 0);
@@ -34,13 +38,6 @@ export function UpcomingBookings() {
         (b.status === "booked" || b.status === "pending")
       );
     })
-    .sort((a: any, b: any) => {
-      const dateA = new Date(a.date).getTime();
-      const dateB = new Date(b.date).getTime();
-      if (dateA !== dateB) return dateA - dateB;
-      return a.time.localeCompare(b.time);
-    })
-    .slice(0, 5)
     .map((booking: any) => {
       const bookingDate = new Date(booking.date);
       let dateLabel = format(bookingDate, "MMM d");
@@ -53,12 +50,46 @@ export function UpcomingBookings() {
         date: dateLabel,
         time: booking.time,
         players: booking.players || 0,
-        status: booking.status === "booked" ? "confirmed" : booking.status,
+        status: booking.status,
         bookedBy: booking.bookedBy?.name || "Unknown",
+        source: "court-booking",
+        sortDate: bookingDate.getTime(),
       };
     });
 
-  if (isLoading) {
+  const courtAdvanceEntries = courtAdvanceBookings
+    .filter((entry: any) => {
+      const bookingDate = new Date(entry.courtBookedDate || entry.date);
+      bookingDate.setHours(0, 0, 0, 0);
+      return bookingDate.getTime() >= now.getTime();
+    })
+    .map((entry: any) => {
+      const bookingDate = new Date(entry.courtBookedDate || entry.date);
+      let dateLabel = format(bookingDate, "MMM d");
+      if (isToday(bookingDate)) dateLabel = "Today";
+      else if (isTomorrow(bookingDate)) dateLabel = "Tomorrow";
+
+      return {
+        id: entry._id || entry.id,
+        court: `${entry.courtsBooked || 0} court${Number(entry.courtsBooked || 0) !== 1 ? "s" : ""}`,
+        date: dateLabel,
+        time: "Advance booking",
+        players: entry.courtsBooked || 0,
+        status: "booked",
+        bookedBy: entry.bookedByName || entry.paidBy?.name || "Unknown",
+        source: "court-advance",
+        sortDate: bookingDate.getTime(),
+      };
+    });
+
+  const upcomingBookings = [...bookingEntries, ...courtAdvanceEntries]
+    .sort((a, b) => {
+      if (a.sortDate !== b.sortDate) return a.sortDate - b.sortDate;
+      return a.time.localeCompare(b.time);
+    })
+    .slice(0, 5);
+
+  if (isLoading || isCourtAdvanceLoading) {
     return (
       <Card>
         <CardHeader>
@@ -111,9 +142,11 @@ export function UpcomingBookings() {
                   </span>
                 </div>
                 <p className="text-xs text-muted-foreground mt-2">
-                  {typeof booking.players === "number" 
-                    ? `${booking.players} player${booking.players !== 1 ? "s" : ""}`
-                    : `Booked by: ${booking.bookedBy}`}
+                  {booking.source === "court-advance"
+                    ? `Booked by: ${booking.bookedBy}`
+                    : typeof booking.players === "number"
+                      ? `${booking.players} player${booking.players !== 1 ? "s" : ""}`
+                      : `Booked by: ${booking.bookedBy}`}
                 </p>
               </div>
             </div>

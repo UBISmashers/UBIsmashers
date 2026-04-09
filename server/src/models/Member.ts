@@ -6,6 +6,7 @@ export interface IMember extends Document {
   phone?: string;
   role: 'admin' | 'member';
   status: 'active' | 'inactive';
+  hiddenFromPublicBills: boolean;
   joinDate: Date;
   balance: number;
   attendanceRate: number;
@@ -48,6 +49,10 @@ const memberSchema = new Schema<IMember>(
       type: String,
       enum: ['active', 'inactive'],
       default: 'active',
+    },
+    hiddenFromPublicBills: {
+      type: Boolean,
+      default: false,
     },
     joinDate: {
       type: Date,

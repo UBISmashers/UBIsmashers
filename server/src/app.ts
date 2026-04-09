@@ -1,6 +1,7 @@
-import cors from "cors";
+import cors, { type CorsOptionsDelegate } from "cors";
 import dotenv from "dotenv";
-import express from "express";
+import express, { type ErrorRequestHandler } from "express";
+
 import attendanceRoutes from "./routes/attendance.js";
 import authRoutes from "./routes/auth.js";
 import bookingRoutes from "./routes/bookings.js";
@@ -20,37 +21,64 @@ dotenv.config();
 
 const app = express();
 
-const allowedOrigins = [
-  process.env.FRONTEND_URL || "http://localhost:8080",
-  "http://localhost:5173",
-  "http://localhost:3000",
-  "https://ubismashers.vercel.app",
-  ...(process.env.VERCEL_URL ? [`https://${process.env.VERCEL_URL}`] : []),
-  ...(process.env.VERCEL ? [/^https:\/\/.*\.vercel\.app$/] : []),
-];
+const normalizeOrigin = (origin: string) => origin.trim().replace(/\/$/, "");
 
-app.use(
-  cors({
-    origin: (origin, callback) => {
-      if (!origin) return callback(null, true);
-
-      if (
-        allowedOrigins.some((allowed) => {
-          if (typeof allowed === "string") return allowed === origin;
-          if (allowed instanceof RegExp) return allowed.test(origin);
-          return false;
-        })
-      ) {
-        callback(null, true);
-      } else if (process.env.NODE_ENV === "production") {
-        callback(new Error("Not allowed by CORS"));
-      } else {
-        callback(null, true);
-      }
-    },
-    credentials: true,
-  })
+const allowedOrigins = new Set(
+  [
+    process.env.FRONTEND_URL,
+    "http://localhost:8080",
+    "http://localhost:5173",
+    "http://localhost:3000",
+    "https://ubismashers.vercel.app",
+    process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : undefined,
+  ]
+    .filter((origin): origin is string => Boolean(origin))
+    .map(normalizeOrigin)
 );
+
+const allowedOriginPatterns = [/^https:\/\/.*\.vercel\.app$/];
+
+const isOriginAllowed = (origin: string) => {
+  const normalizedOrigin = normalizeOrigin(origin);
+  return (
+    allowedOrigins.has(normalizedOrigin) ||
+    allowedOriginPatterns.some((pattern) => pattern.test(normalizedOrigin))
+  );
+};
+
+const corsOptionsDelegate: CorsOptionsDelegate = (req, callback) => {
+  const originHeader = typeof req.headers.origin === "string" ? req.headers.origin : undefined;
+  const requestedHeaders =
+    typeof req.headers["access-control-request-headers"] === "string"
+      ? req.headers["access-control-request-headers"]
+      : undefined;
+
+  if (!originHeader) {
+    return callback(null, { origin: true });
+  }
+
+  if (!isOriginAllowed(originHeader)) {
+    return callback(new Error("Not allowed by CORS"));
+  }
+
+  return callback(null, {
+    origin: originHeader,
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"],
+    allowedHeaders: requestedHeaders || [
+      "Content-Type",
+      "Authorization",
+      "Accept",
+      "Origin",
+      "X-Requested-With",
+    ],
+    optionsSuccessStatus: 204,
+    maxAge: 86400,
+  });
+};
+
+app.use(cors(corsOptionsDelegate));
+app.options("*", cors(corsOptionsDelegate));
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -74,11 +102,13 @@ app.use("/api/joining-fees", joiningFeeRoutes);
 app.use("/api/joining-requests", joiningRequestRoutes);
 app.use("/api/tournaments", tournamentRoutes);
 
-app.use((err: Error & { status?: number }, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-  console.error("Error:", err);
+const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
+  console.error("Error:", err.message);
   res.status(err.status || 500).json({
     error: err.message || "Internal server error",
   });
-});
+};
+
+app.use(errorHandler);
 
 export default app;

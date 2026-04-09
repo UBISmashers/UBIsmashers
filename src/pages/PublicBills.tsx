@@ -1,4 +1,4 @@
-import { Fragment, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { createApiClient } from "@/lib/api";
@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Loader2, ChevronDown, ChevronUp, Boxes } from "lucide-react";
-import { format } from "date-fns";
+import { format, parseISO } from "date-fns";
 
 const publicApi = createApiClient(() => null, () => {});
 type PeriodFilter = "all" | "custom" | "this_month" | "last_week" | "last_month" | "last_6_months" | "last_year";
@@ -65,12 +65,62 @@ interface SessionHistoryItem {
   selectedMembers?: Array<string | { name?: string }>;
 }
 
+interface MonthGroup<T> {
+  key: string;
+  label: string;
+  items: T[];
+}
+
+const CURRENT_MONTH_KEY = format(new Date(), "yyyy-MM");
+
+const getDisplayDate = (value?: string) => {
+  if (!value) return null;
+  const parsedDate = parseISO(value);
+  return Number.isNaN(parsedDate.getTime()) ? null : parsedDate;
+};
+
+const groupItemsByMonth = <T,>(items: T[], getDateValue: (item: T) => string | undefined): MonthGroup<T>[] => {
+  const monthMap = new Map<string, MonthGroup<T>>();
+
+  items.forEach((item) => {
+    const dateValue = getDateValue(item);
+    const date = getDisplayDate(dateValue);
+    const key = date ? format(date, "yyyy-MM") : "unknown";
+    const label = date ? format(date, "MMMM yyyy") : "Unknown Month";
+    const existingGroup = monthMap.get(key);
+
+    if (existingGroup) {
+      existingGroup.items.push(item);
+      return;
+    }
+
+    monthMap.set(key, {
+      key,
+      label,
+      items: [item],
+    });
+  });
+
+  return Array.from(monthMap.values()).sort((left, right) => right.key.localeCompare(left.key));
+};
+
+const getDefaultExpandedMonth = <T,>(groups: MonthGroup<T>[]) => {
+  if (groups.some((group) => group.key === CURRENT_MONTH_KEY)) {
+    return CURRENT_MONTH_KEY;
+  }
+
+  return groups[0]?.key ?? null;
+};
+
 export default function PublicBills() {
   const todayString = format(new Date(), "yyyy-MM-dd");
   const [expandedMemberId, setExpandedMemberId] = useState<string | null>(null);
   const [period, setPeriod] = useState<PeriodFilter>("all");
   const [customStartDate, setCustomStartDate] = useState(todayString);
   const [customEndDate, setCustomEndDate] = useState(todayString);
+  const [expandedEquipmentMonth, setExpandedEquipmentMonth] = useState<string | null>(CURRENT_MONTH_KEY);
+  const [expandedCourtAdvanceMonth, setExpandedCourtAdvanceMonth] = useState<string | null>(CURRENT_MONTH_KEY);
+  const [expandedSessionHistoryMonth, setExpandedSessionHistoryMonth] = useState<string | null>(CURRENT_MONTH_KEY);
   const { data, isLoading } = useQuery({
     queryKey: ["publicBills", period, customStartDate, customEndDate],
     queryFn: () =>
@@ -80,6 +130,35 @@ export default function PublicBills() {
       ),
     enabled: period !== "custom" || (Boolean(customStartDate) && Boolean(customEndDate)),
   });
+
+  const equipmentGroups = useMemo(
+    () => groupItemsByMonth((data?.equipment as EquipmentItem[]) || [], (item) => item.date),
+    [data?.equipment]
+  );
+  const courtAdvanceGroups = useMemo(
+    () =>
+      groupItemsByMonth(
+        (data?.courtAdvanceBookings as CourtAdvanceItem[]) || [],
+        (item) => item.courtBookedDate || item.date
+      ),
+    [data?.courtAdvanceBookings]
+  );
+  const sessionHistoryGroups = useMemo(
+    () => groupItemsByMonth((data?.sessionHistory as SessionHistoryItem[]) || [], (item) => item.date),
+    [data?.sessionHistory]
+  );
+
+  useEffect(() => {
+    setExpandedEquipmentMonth(getDefaultExpandedMonth(equipmentGroups));
+  }, [equipmentGroups]);
+
+  useEffect(() => {
+    setExpandedCourtAdvanceMonth(getDefaultExpandedMonth(courtAdvanceGroups));
+  }, [courtAdvanceGroups]);
+
+  useEffect(() => {
+    setExpandedSessionHistoryMonth(getDefaultExpandedMonth(sessionHistoryGroups));
+  }, [sessionHistoryGroups]);
 
   return (
     <div
@@ -267,59 +346,85 @@ export default function PublicBills() {
               <div className="py-10 text-center">
                 <Loader2 className="mx-auto h-6 w-6 animate-spin" />
               </div>
-            ) : (data?.equipment || []).length === 0 ? (
+            ) : equipmentGroups.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-8">
                 No equipment purchases recorded.
               </p>
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Item</TableHead>
-                    <TableHead>Qty</TableHead>
-                    <TableHead>Used</TableHead>
-                    <TableHead>Remaining</TableHead>
-                    <TableHead>Bought By</TableHead>
-                    <TableHead>Paid By</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {((data?.equipment as EquipmentItem[]) || []).map((item) => {
-                    const purchasedQty = item.quantityPurchased || 0;
-                    const usedQty = item.quantityUsed || 0;
-                    const remainingQty = Math.max(0, purchasedQty - usedQty);
-                    return (
-                      <TableRow key={item._id || item.id}>
-                        <TableCell className="font-medium">
-                          {item.date ? format(new Date(item.date), "MMM d") : "-"}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <div className="p-1.5 rounded bg-accent/10">
-                              <Boxes className="h-3.5 w-3.5 text-accent" />
-                            </div>
-                            <span className="text-sm">Shuttle</span>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="secondary">{purchasedQty}</Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline">{usedQty}</Badge>
-                        </TableCell>
-                        <TableCell className={remainingQty > 0 ? "text-success font-medium" : "text-destructive"}>
-                          {remainingQty}
-                        </TableCell>
-                        <TableCell>{item.boughtByName || "-"}</TableCell>
-                        <TableCell>
-                          {typeof item.paidBy === "object" ? item.paidBy?.name || "Unknown" : item.paidBy || "-"}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
+              <div className="space-y-4">
+                {equipmentGroups.map((group) => {
+                  const isExpanded = expandedEquipmentMonth === group.key;
+                  return (
+                    <div key={group.key} className="rounded-lg border bg-background/70">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        className="flex h-auto w-full items-center justify-between rounded-lg px-4 py-3"
+                        onClick={() =>
+                          setExpandedEquipmentMonth(isExpanded ? null : group.key)
+                        }
+                      >
+                        <span className="font-medium">{group.label}</span>
+                        {isExpanded ? (
+                          <ChevronUp className="h-4 w-4" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4" />
+                        )}
+                      </Button>
+                      {isExpanded && (
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Date</TableHead>
+                              <TableHead>Item</TableHead>
+                              <TableHead>Qty</TableHead>
+                              <TableHead>Used</TableHead>
+                              <TableHead>Remaining</TableHead>
+                              <TableHead>Bought By</TableHead>
+                              <TableHead>Paid By</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {group.items.map((item) => {
+                              const purchasedQty = item.quantityPurchased || 0;
+                              const usedQty = item.quantityUsed || 0;
+                              const remainingQty = Math.max(0, purchasedQty - usedQty);
+                              return (
+                                <TableRow key={item._id || item.id}>
+                                  <TableCell className="font-medium">
+                                    {item.date ? format(new Date(item.date), "MMM d") : "-"}
+                                  </TableCell>
+                                  <TableCell>
+                                    <div className="flex items-center gap-2">
+                                      <div className="rounded bg-accent/10 p-1.5">
+                                        <Boxes className="h-3.5 w-3.5 text-accent" />
+                                      </div>
+                                      <span className="text-sm">Shuttle</span>
+                                    </div>
+                                  </TableCell>
+                                  <TableCell>
+                                    <Badge variant="secondary">{purchasedQty}</Badge>
+                                  </TableCell>
+                                  <TableCell>
+                                    <Badge variant="outline">{usedQty}</Badge>
+                                  </TableCell>
+                                  <TableCell className={remainingQty > 0 ? "text-success font-medium" : "text-destructive"}>
+                                    {remainingQty}
+                                  </TableCell>
+                                  <TableCell>{item.boughtByName || "-"}</TableCell>
+                                  <TableCell>
+                                    {typeof item.paidBy === "object" ? item.paidBy?.name || "Unknown" : item.paidBy || "-"}
+                                  </TableCell>
+                                </TableRow>
+                              );
+                            })}
+                          </TableBody>
+                        </Table>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             )}
           </CardContent>
         </Card>
@@ -333,37 +438,63 @@ export default function PublicBills() {
               <div className="py-10 text-center">
                 <Loader2 className="mx-auto h-6 w-6 animate-spin" />
               </div>
-            ) : (data?.courtAdvanceBookings || []).length === 0 ? (
+            ) : courtAdvanceGroups.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-8">
                 No court advance bookings recorded.
               </p>
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Booked By</TableHead>
-                    <TableHead>No. of Courts</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {((data?.courtAdvanceBookings as CourtAdvanceItem[]) || []).map((item) => (
-                    <TableRow key={item._id || item.id}>
-                      <TableCell className="font-medium">
-                        {item.courtBookedDate
-                          ? format(new Date(item.courtBookedDate), "MMM d")
-                          : item.date
-                            ? format(new Date(item.date), "MMM d")
-                            : "-"}
-                      </TableCell>
-                      <TableCell>{item.bookedByName || "-"}</TableCell>
-                      <TableCell>
-                        <Badge variant="secondary">{item.courtsBooked || 0}</Badge>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+              <div className="space-y-4">
+                {courtAdvanceGroups.map((group) => {
+                  const isExpanded = expandedCourtAdvanceMonth === group.key;
+                  return (
+                    <div key={group.key} className="rounded-lg border bg-background/70">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        className="flex h-auto w-full items-center justify-between rounded-lg px-4 py-3"
+                        onClick={() =>
+                          setExpandedCourtAdvanceMonth(isExpanded ? null : group.key)
+                        }
+                      >
+                        <span className="font-medium">{group.label}</span>
+                        {isExpanded ? (
+                          <ChevronUp className="h-4 w-4" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4" />
+                        )}
+                      </Button>
+                      {isExpanded && (
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Date</TableHead>
+                              <TableHead>Booked By</TableHead>
+                              <TableHead>No. of Courts</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {group.items.map((item) => (
+                              <TableRow key={item._id || item.id}>
+                                <TableCell className="font-medium">
+                                  {item.courtBookedDate
+                                    ? format(new Date(item.courtBookedDate), "MMM d")
+                                    : item.date
+                                      ? format(new Date(item.date), "MMM d")
+                                      : "-"}
+                                </TableCell>
+                                <TableCell>{item.bookedByName || "-"}</TableCell>
+                                <TableCell>
+                                  <Badge variant="secondary">{item.courtsBooked || 0}</Badge>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             )}
           </CardContent>
         </Card>
@@ -377,51 +508,77 @@ export default function PublicBills() {
               <div className="py-10 text-center">
                 <Loader2 className="mx-auto h-6 w-6 animate-spin" />
               </div>
-            ) : (data?.sessionHistory || []).length === 0 ? (
+            ) : sessionHistoryGroups.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-8">
                 No session expenses recorded.
               </p>
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Description</TableHead>
-                    <TableHead>Court Cost</TableHead>
-                    <TableHead>Shuttles Used</TableHead>
-                    <TableHead>Per Shuttle Cost</TableHead>
-                    <TableHead>Total Shuttle Cost</TableHead>
-                    <TableHead>Total Amount</TableHead>
-                    <TableHead>Players Played</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {((data?.sessionHistory as SessionHistoryItem[]) || []).map((item) => (
-                    <TableRow key={item._id || item.id}>
-                      <TableCell className="font-medium">
-                        {item.date ? format(new Date(item.date), "MMM d") : "-"}
-                      </TableCell>
-                      <TableCell className="max-w-[220px] truncate">{item.description || "-"}</TableCell>
-                      <TableCell>${Number(item.courtBookingCost || 0).toFixed(2)}</TableCell>
-                      <TableCell>{Number(item.shuttlesUsed || 0)}</TableCell>
-                      <TableCell>${Number(item.perShuttleCost || 0).toFixed(2)}</TableCell>
-                      <TableCell>
-                        $
-                        {(
-                          Number(item.shuttlesUsed || 0) * Number(item.perShuttleCost || 0)
-                        ).toFixed(2)}
-                      </TableCell>
-                      <TableCell className="font-semibold">${Number(item.amount || 0).toFixed(2)}</TableCell>
-                      <TableCell>
-                        {(item.selectedMembers || [])
-                          .map((m) => (typeof m === "object" ? m?.name : m))
-                          .filter(Boolean)
-                          .join(", ") || "-"}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+              <div className="space-y-4">
+                {sessionHistoryGroups.map((group) => {
+                  const isExpanded = expandedSessionHistoryMonth === group.key;
+                  return (
+                    <div key={group.key} className="rounded-lg border bg-background/70">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        className="flex h-auto w-full items-center justify-between rounded-lg px-4 py-3"
+                        onClick={() =>
+                          setExpandedSessionHistoryMonth(isExpanded ? null : group.key)
+                        }
+                      >
+                        <span className="font-medium">{group.label}</span>
+                        {isExpanded ? (
+                          <ChevronUp className="h-4 w-4" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4" />
+                        )}
+                      </Button>
+                      {isExpanded && (
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Date</TableHead>
+                              <TableHead>Description</TableHead>
+                              <TableHead>Court Cost</TableHead>
+                              <TableHead>Shuttles Used</TableHead>
+                              <TableHead>Per Shuttle Cost</TableHead>
+                              <TableHead>Total Shuttle Cost</TableHead>
+                              <TableHead>Total Amount</TableHead>
+                              <TableHead>Players Played</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {group.items.map((item) => (
+                              <TableRow key={item._id || item.id}>
+                                <TableCell className="font-medium">
+                                  {item.date ? format(new Date(item.date), "MMM d") : "-"}
+                                </TableCell>
+                                <TableCell className="max-w-[220px] truncate">{item.description || "-"}</TableCell>
+                                <TableCell>${Number(item.courtBookingCost || 0).toFixed(2)}</TableCell>
+                                <TableCell>{Number(item.shuttlesUsed || 0)}</TableCell>
+                                <TableCell>${Number(item.perShuttleCost || 0).toFixed(2)}</TableCell>
+                                <TableCell>
+                                  $
+                                  {(
+                                    Number(item.shuttlesUsed || 0) * Number(item.perShuttleCost || 0)
+                                  ).toFixed(2)}
+                                </TableCell>
+                                <TableCell className="font-semibold">${Number(item.amount || 0).toFixed(2)}</TableCell>
+                                <TableCell>
+                                  {(item.selectedMembers || [])
+                                    .map((m) => (typeof m === "object" ? m?.name : m))
+                                    .filter(Boolean)
+                                    .join(", ") || "-"}
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             )}
           </CardContent>
         </Card>

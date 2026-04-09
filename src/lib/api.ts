@@ -17,13 +17,18 @@ class ApiClient {
     const token = this.getAuthToken();
     const url = `${this.baseURL}${endpoint}`;
 
-    const headers: HeadersInit = {
-      "Content-Type": "application/json",
-      ...options.headers,
-    };
+    const headers = new Headers(options.headers);
+    const hasBody = options.body !== undefined && options.body !== null;
+    const isFormDataBody = typeof FormData !== "undefined" && options.body instanceof FormData;
+    const isPublicEndpoint =
+      endpoint.startsWith("/public") || endpoint === "/auth/login" || endpoint === "/joining-requests";
 
-    if (token) {
-      headers["Authorization"] = `Bearer ${token}`;
+    if (hasBody && !isFormDataBody && !headers.has("Content-Type")) {
+      headers.set("Content-Type", "application/json");
+    }
+
+    if (token && !isPublicEndpoint && !headers.has("Authorization")) {
+      headers.set("Authorization", `Bearer ${token}`);
     }
 
     const response = await fetch(url, { ...options, headers });

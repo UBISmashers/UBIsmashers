@@ -21,6 +21,7 @@ const memberSchema = z.object({
   }),
   phone: optionalString,
   status: z.enum(['active', 'inactive']).optional(),
+  hiddenFromPublicBills: z.boolean().optional(),
   joiningFeeAmount: z.number().min(0).optional(),
   joiningFeeNote: z.string().optional(),
 });
@@ -65,6 +66,7 @@ router.post('/', async (req: Request, res: Response) => {
       name: validatedData.name,
       role: 'member',
       status: validatedData.status || 'active',
+      hiddenFromPublicBills: false,
       userId: null,
     };
     if (validatedData.email) memberPayload.email = validatedData.email;
