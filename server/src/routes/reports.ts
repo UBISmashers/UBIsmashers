@@ -6,6 +6,7 @@ import { Expense } from '../models/Expense.js';
 import { Attendance } from '../models/Attendance.js';
 import { Booking } from '../models/Booking.js';
 import { Member } from '../models/Member.js';
+import { sendMonthlyPublicBillsReport } from '../services/monthlyPublicBillsEmail.js';
 
 const router = express.Router();
 router.use(authenticate, authorize('admin'));
@@ -18,6 +19,12 @@ const reportSchema = z.object({
     start: z.string().or(z.date()),
     end: z.string().or(z.date()),
   }),
+});
+
+const monthlyPublicBillsEmailSchema = z.object({
+  recipient: z.string().email().optional(),
+  period: z.enum(['last_month', 'this_month']).optional(),
+  force: z.boolean().optional(),
 });
 
 // Get all reports (Admin only)
@@ -184,6 +191,33 @@ router.post('/generate', async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Generate report error:', error);
     res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.post('/monthly-public-bills/send', async (req: Request, res: Response) => {
+  try {
+    const { recipient, period, force } = monthlyPublicBillsEmailSchema.parse(req.body || {});
+    const port = process.env.PORT || 5000;
+    const baseUrl = process.env.MONTHLY_REPORT_BASE_URL || `http://127.0.0.1:${port}`;
+    const result = await sendMonthlyPublicBillsReport({
+      baseUrl,
+      recipient,
+      period: period || 'last_month',
+      force: Boolean(force),
+    });
+
+    return res.json({
+      message: result.skipped ? 'Monthly public bills email was already sent' : 'Monthly public bills email sent successfully',
+      ...result,
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: error.errors[0].message });
+    }
+    console.error('Send monthly public bills email error:', error);
+    return res.status(500).json({
+      error: error instanceof Error ? error.message : 'Internal server error',
+    });
   }
 });
 

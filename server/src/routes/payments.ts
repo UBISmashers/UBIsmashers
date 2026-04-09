@@ -28,6 +28,119 @@ const markMemberPaidSchema = z.object({
 
 router.use(authenticate, authorize('admin'));
 
+const expensePopulateFields =
+  'description amount date category courtBookingCost perShuttleCost shuttlesUsed paidBy selectedMembers perMemberShare';
+
+const buildMemberPaymentMap = async (memberId?: string) => {
+  const shareQuery = memberId ? { memberId } : {};
+  const expenseShares = await ExpenseShare.find(shareQuery)
+    .populate('expenseId', expensePopulateFields)
+    .populate('memberId', 'name email')
+    .sort({ createdAt: -1 });
+
+  const memberPayments: Record<string, any> = {};
+  const handledExpenseMemberPairs = new Set<string>();
+
+  expenseShares.forEach((share) => {
+    if (!share.memberId || !share.expenseId) {
+      return;
+    }
+
+    const resolvedMemberId = (share.memberId as any)._id.toString();
+    handledExpenseMemberPairs.add(`${(share.expenseId as any)._id.toString()}:${resolvedMemberId}`);
+
+    if (!memberPayments[resolvedMemberId]) {
+      memberPayments[resolvedMemberId] = {
+        member: share.memberId,
+        expenseShares: [],
+        totalShare: 0,
+        totalPaid: 0,
+        totalUnpaid: 0,
+        paidCount: 0,
+        unpaidCount: 0,
+      };
+    }
+
+    memberPayments[resolvedMemberId].expenseShares.push(share);
+    memberPayments[resolvedMemberId].totalShare += share.amount;
+
+    if (share.paidStatus) {
+      memberPayments[resolvedMemberId].totalPaid += share.amount;
+      memberPayments[resolvedMemberId].paidCount += 1;
+    } else {
+      memberPayments[resolvedMemberId].totalUnpaid += share.amount;
+      memberPayments[resolvedMemberId].unpaidCount += 1;
+    }
+  });
+
+  const expenseQuery = memberId
+    ? { selectedMembers: memberId }
+    : { selectedMembers: { $exists: true, $ne: [] } };
+
+  const expenses = await Expense.find(expenseQuery)
+    .populate('selectedMembers', 'name email')
+    .populate('paidBy', 'name email')
+    .sort({ date: -1, createdAt: -1 });
+
+  expenses.forEach((expense: any) => {
+    const expenseId = expense._id.toString();
+    const payerId = expense.paidBy?._id?.toString?.() || expense.paidBy?.toString?.();
+    const selectedMembers = (expense.selectedMembers || []) as any[];
+
+    selectedMembers.forEach((selectedMember) => {
+      const resolvedMemberId = selectedMember?._id?.toString?.() || selectedMember?.toString?.();
+      if (!resolvedMemberId || resolvedMemberId !== payerId) {
+        return;
+      }
+
+      const pairKey = `${expenseId}:${resolvedMemberId}`;
+      if (handledExpenseMemberPairs.has(pairKey)) {
+        return;
+      }
+
+      handledExpenseMemberPairs.add(pairKey);
+
+      if (!memberPayments[resolvedMemberId]) {
+        memberPayments[resolvedMemberId] = {
+          member: selectedMember,
+          expenseShares: [],
+          totalShare: 0,
+          totalPaid: 0,
+          totalUnpaid: 0,
+          paidCount: 0,
+          unpaidCount: 0,
+        };
+      }
+
+      const amount = Number(expense.perMemberShare || 0);
+      const syntheticShare = {
+        _id: `payer-${expenseId}-${resolvedMemberId}`,
+        expenseId: expense,
+        memberId: selectedMember,
+        amount,
+        paidStatus: true,
+        paidAt: expense.date,
+        isPayerShare: true,
+      };
+
+      memberPayments[resolvedMemberId].expenseShares.push(syntheticShare);
+      memberPayments[resolvedMemberId].totalShare += amount;
+      memberPayments[resolvedMemberId].totalPaid += amount;
+      memberPayments[resolvedMemberId].paidCount += 1;
+    });
+  });
+
+  Object.values(memberPayments).forEach((entry: any) => {
+    entry.expenseShares.sort((a: any, b: any) => {
+      const aTime = a.expenseId?.date ? new Date(a.expenseId.date).getTime() : 0;
+      const bTime = b.expenseId?.date ? new Date(b.expenseId.date).getTime() : 0;
+      return bTime - aTime;
+    });
+  });
+
+  return memberPayments;
+};
+
 const syncExpenseStatus = async (expenseId: string) => {
   const hasUnpaidShare = await ExpenseShare.exists({
     expenseId,
@@ -207,24 +320,30 @@ router.post('/mark-member-paid', async (req: Request, res: Response) => {
 router.get('/member/:memberId', async (req: Request, res: Response) => {
   try {
     const { memberId } = req.params;
-    const expenseShares = await ExpenseShare.find({ memberId })
-      .populate('expenseId', 'description amount date category courtBookingCost perShuttleCost shuttlesUsed')
-      .sort({ createdAt: -1 });
+    const memberPayments = await buildMemberPaymentMap(memberId);
+    const paymentEntry = memberPayments[memberId];
 
-    const totalShare = expenseShares.reduce((sum, share) => sum + share.amount, 0);
-    const totalPaid = expenseShares
-      .filter((share) => share.paidStatus)
-      .reduce((sum, share) => sum + share.amount, 0);
-    const totalUnpaid = totalShare - totalPaid;
+    if (!paymentEntry) {
+      return res.json({
+        expenseShares: [],
+        summary: {
+          totalShare: 0,
+          totalPaid: 0,
+          totalUnpaid: 0,
+          paidCount: 0,
+          unpaidCount: 0,
+        },
+      });
+    }
 
     return res.json({
-      expenseShares,
+      expenseShares: paymentEntry.expenseShares,
       summary: {
-        totalShare,
-        totalPaid,
-        totalUnpaid,
-        paidCount: expenseShares.filter((s) => s.paidStatus).length,
-        unpaidCount: expenseShares.filter((s) => !s.paidStatus).length,
+        totalShare: paymentEntry.totalShare,
+        totalPaid: paymentEntry.totalPaid,
+        totalUnpaid: paymentEntry.totalUnpaid,
+        paidCount: paymentEntry.paidCount,
+        unpaidCount: paymentEntry.unpaidCount,
       },
     });
   } catch (error) {
@@ -235,42 +354,7 @@ router.get('/member/:memberId', async (req: Request, res: Response) => {
 
 router.get('/all', async (_req: Request, res: Response) => {
   try {
-    const expenseShares = await ExpenseShare.find()
-      .populate('expenseId', 'description amount date category courtBookingCost perShuttleCost shuttlesUsed')
-      .populate('memberId', 'name email')
-      .sort({ createdAt: -1 });
-
-    const memberPayments: Record<string, any> = {};
-
-    expenseShares.forEach((share) => {
-      if (!share.memberId) {
-        return;
-      }
-
-      const memberId = (share.memberId as any)._id.toString();
-      if (!memberPayments[memberId]) {
-        memberPayments[memberId] = {
-          member: share.memberId,
-          expenseShares: [],
-          totalShare: 0,
-          totalPaid: 0,
-          totalUnpaid: 0,
-          paidCount: 0,
-          unpaidCount: 0,
-        };
-      }
-
-      memberPayments[memberId].expenseShares.push(share);
-      memberPayments[memberId].totalShare += share.amount;
-
-      if (share.paidStatus) {
-        memberPayments[memberId].totalPaid += share.amount;
-        memberPayments[memberId].paidCount += 1;
-      } else {
-        memberPayments[memberId].totalUnpaid += share.amount;
-        memberPayments[memberId].unpaidCount += 1;
-      }
-    });
+    const memberPayments = await buildMemberPaymentMap();
 
     return res.json({
       memberPayments: Object.values(memberPayments),

@@ -43,6 +43,24 @@ type PublicBillsData = {
   }>;
 };
 
+type MailConfig = {
+  host?: string;
+  port: number;
+  secure: boolean;
+  user?: string;
+  pass?: string;
+  from?: string;
+  service?: string;
+};
+
+type SendMonthlyReportOptions = {
+  baseUrl: string;
+  recipient?: string;
+  period?: 'last_month' | 'this_month';
+  reportKey?: string;
+  force?: boolean;
+};
+
 const csvCell = (value: string | number | boolean | null | undefined) => {
   const text = String(value ?? '');
   if (text.includes(',') || text.includes('"') || text.includes('\n')) {
@@ -196,61 +214,100 @@ const getDatePartsInTimeZone = (timeZone: string) => {
   };
 };
 
-const checkAndSendMonthlyPublicBillsReport = async (baseUrl: string) => {
-  const timeZone = process.env.MONTHLY_REPORT_TIMEZONE || 'Asia/Kolkata';
-  const { year, month, day } = getDatePartsInTimeZone(timeZone);
-  if (day !== 1) return;
-
-  const monthKey = `${year}-${String(month).padStart(2, '0')}`;
-  const reportKey = `public-bills-last-month-${monthKey}`;
-  const recipient = process.env.MONTHLY_REPORT_TO || 'ubismashers@gmail.com';
-
-  const existingLog = await MonthlyEmailLog.findOne({ reportKey }).select('_id').lean();
-  if (existingLog) return;
-
+const getMailConfig = (): MailConfig => {
   const smtpHost = process.env.SMTP_HOST;
   const smtpPort = Number(process.env.SMTP_PORT || 587);
-  const smtpUser = process.env.SMTP_USER;
-  const smtpPass = process.env.SMTP_PASS;
+  const smtpUser = process.env.SMTP_USER || process.env.MAIL_USER || process.env.GMAIL_USER;
+  const smtpPass = process.env.SMTP_PASS || process.env.MAIL_PASS || process.env.GMAIL_APP_PASSWORD;
+  const secure = String(process.env.SMTP_SECURE || process.env.MAIL_SECURE || 'false') === 'true';
+  const service = process.env.SMTP_SERVICE || process.env.MAIL_SERVICE || (!smtpHost && smtpUser && smtpPass ? 'gmail' : undefined);
 
-  if (!smtpHost || !smtpUser || !smtpPass) {
-    console.warn('[monthly-report] SMTP config missing. Skipping monthly email.');
-    return;
+  return {
+    host: smtpHost,
+    port: smtpPort,
+    secure,
+    user: smtpUser,
+    pass: smtpPass,
+    from: process.env.MONTHLY_REPORT_FROM || process.env.MAIL_FROM || smtpUser,
+    service,
+  };
+};
+
+const assertMailConfig = (config: MailConfig) => {
+  if (!config.user || !config.pass) {
+    throw new Error(
+      'Missing mail credentials. Configure SMTP_USER/SMTP_PASS or MAIL_USER/MAIL_PASS or GMAIL_USER/GMAIL_APP_PASSWORD.'
+    );
   }
 
-  let nodemailer: any;
-  try {
-    const mailModule = await import('nodemailer');
-    nodemailer = mailModule.default;
-  } catch (error) {
-    console.warn('[monthly-report] nodemailer is not installed. Skipping monthly email.');
-    return;
+  if (!config.host && !config.service) {
+    throw new Error('Missing SMTP host/service. Configure SMTP_HOST or SMTP_SERVICE/MAIL_SERVICE.');
   }
+};
 
-  const response = await fetch(`${baseUrl}/api/public/bills?period=last_month`);
+const createTransport = async () => {
+  const config = getMailConfig();
+  assertMailConfig(config);
+
+  const mailModule = await import('nodemailer');
+  const nodemailer = mailModule.default;
+  const transporter = nodemailer.createTransport({
+    host: config.host,
+    port: config.port,
+    secure: config.secure,
+    service: config.service,
+    auth: {
+      user: config.user,
+      pass: config.pass,
+    },
+  });
+
+  await transporter.verify();
+
+  return {
+    transporter,
+    from: config.from || config.user!,
+  };
+};
+
+const fetchPublicBillsData = async (baseUrl: string, period: 'last_month' | 'this_month') => {
+  const response = await fetch(`${baseUrl}/api/public/bills?period=${period}`);
   if (!response.ok) {
     throw new Error(`Failed to fetch public bills data. Status ${response.status}`);
   }
 
-  const data = (await response.json()) as PublicBillsData;
-  const csv = buildPublicBillsCsv(data);
-  const filename = `UBISmashers_Public_Bills_${monthKey}.csv`;
+  return (await response.json()) as PublicBillsData;
+};
 
-  const transporter = nodemailer.createTransport({
-    host: smtpHost,
-    port: smtpPort,
-    secure: String(process.env.SMTP_SECURE || 'false') === 'true',
-    auth: {
-      user: smtpUser,
-      pass: smtpPass,
-    },
-  });
+export const sendMonthlyPublicBillsReport = async ({
+  baseUrl,
+  recipient,
+  period = 'last_month',
+  reportKey,
+  force = false,
+}: SendMonthlyReportOptions) => {
+  const { year, month } = getDatePartsInTimeZone(process.env.MONTHLY_REPORT_TIMEZONE || 'Asia/Kolkata');
+  const monthKey = `${year}-${String(month).padStart(2, '0')}`;
+  const resolvedRecipient = recipient || process.env.MONTHLY_REPORT_TO || 'ubismashers@gmail.com';
+  const resolvedReportKey = reportKey || `public-bills-${period}-${monthKey}`;
+
+  if (!force) {
+    const existingLog = await MonthlyEmailLog.findOne({ reportKey: resolvedReportKey }).select('_id').lean();
+    if (existingLog) {
+      return { skipped: true, reason: 'already_sent', reportKey: resolvedReportKey, recipient: resolvedRecipient };
+    }
+  }
+
+  const data = await fetchPublicBillsData(baseUrl, period);
+  const csv = buildPublicBillsCsv(data);
+  const filename = `UBISmashers_Public_Bills_${period}_${monthKey}.csv`;
+  const { transporter, from } = await createTransport();
 
   await transporter.sendMail({
-    from: process.env.MONTHLY_REPORT_FROM || smtpUser,
-    to: recipient,
-    subject: `UBISmashers Public Bills Report - ${monthKey}`,
-    text: `Attached is the monthly public bills export for ${monthKey}.`,
+    from,
+    to: resolvedRecipient,
+    subject: `UBISmashers Public Bills Report - ${period === 'last_month' ? 'Last Month' : 'This Month'} (${monthKey})`,
+    text: `Attached is the UBISmashers public bills export for ${period.replace('_', ' ')}.`,
     attachments: [
       {
         filename,
@@ -260,13 +317,30 @@ const checkAndSendMonthlyPublicBillsReport = async (baseUrl: string) => {
     ],
   });
 
-  await MonthlyEmailLog.create({
-    reportKey,
-    recipient,
-    sentAt: new Date(),
-  });
+  await MonthlyEmailLog.findOneAndUpdate(
+    { reportKey: resolvedReportKey },
+    {
+      reportKey: resolvedReportKey,
+      recipient: resolvedRecipient,
+      sentAt: new Date(),
+    },
+    { upsert: true, new: true, setDefaultsOnInsert: true }
+  );
 
-  console.log(`[monthly-report] Sent ${filename} to ${recipient}`);
+  console.log(`[monthly-report] Sent ${filename} to ${resolvedRecipient}`);
+  return { skipped: false, reportKey: resolvedReportKey, recipient: resolvedRecipient, filename };
+};
+
+const checkAndSendMonthlyPublicBillsReport = async (baseUrl: string) => {
+  const timeZone = process.env.MONTHLY_REPORT_TIMEZONE || 'Asia/Kolkata';
+  const { year, month, day } = getDatePartsInTimeZone(timeZone);
+  if (day !== 1) return;
+
+  await sendMonthlyPublicBillsReport({
+    baseUrl,
+    period: 'last_month',
+    reportKey: `public-bills-last-month-${year}-${String(month).padStart(2, '0')}`,
+  });
 };
 
 export const startMonthlyPublicBillsEmailJob = (port: string | number) => {

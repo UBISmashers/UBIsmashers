@@ -39,6 +39,27 @@ NODE_ENV=development
 FRONTEND_URL=http://localhost:8080
 ```
 
+Optional mail env vars for the monthly public bills email:
+```bash
+MONTHLY_REPORT_ENABLED=true
+MONTHLY_REPORT_TO=recipient@example.com
+MONTHLY_REPORT_FROM=sender@example.com
+MONTHLY_REPORT_TIMEZONE=Asia/Kolkata
+MONTHLY_REPORT_BASE_URL=https://your-api-domain.com
+
+# Use either SMTP_* or MAIL_* or Gmail fallback vars
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=sender@example.com
+SMTP_PASS=your-app-password
+
+# or
+MAIL_SERVICE=gmail
+MAIL_USER=sender@example.com
+MAIL_PASS=your-app-password
+```
+
 **Important**: Change the JWT secrets to strong, random strings in production!
 
 ## Running the Server

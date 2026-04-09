@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -19,6 +19,8 @@ import {
   ReceiptText,
   UserPlus,
   Trophy,
+  Mail,
+  Loader2,
 } from "lucide-react";
 import { format } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -26,6 +28,8 @@ import { Badge } from "@/components/ui/badge";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 
 type PeriodFilter = "all" | "custom" | "this_month" | "last_week" | "last_month" | "last_6_months" | "last_year";
 
@@ -150,6 +154,18 @@ const Index = () => {
     queryKey: ["memberPayments", memberId],
     queryFn: () => api.getMemberPayments(memberId!),
     enabled: !!memberId && user?.role === "member",
+  });
+
+  const sendMonthlyMailMutation = useMutation({
+    mutationFn: () => api.sendMonthlyPublicBillsEmail({ period: "last_month", force: true }),
+    onSuccess: (response) => {
+      toast.success(response.message || "Monthly public bills email sent successfully");
+    },
+    onError: (error: any) => {
+      toast.error("Failed to send monthly public bills email", {
+        description: error.message || "An error occurred",
+      });
+    },
   });
 
   // Calculate stats
@@ -357,20 +373,38 @@ const Index = () => {
               Welcome back! Here's what's happening with our club.
             </p>
           </div>
-          <Select value={period} onValueChange={(value) => setPeriod(value as PeriodFilter)}>
-            <SelectTrigger className="w-44">
-              <SelectValue placeholder="Select range" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">{periodLabel.all}</SelectItem>
-              <SelectItem value="custom">{periodLabel.custom}</SelectItem>
-              <SelectItem value="this_month">{periodLabel.this_month}</SelectItem>
-              <SelectItem value="last_week">{periodLabel.last_week}</SelectItem>
-              <SelectItem value="last_month">{periodLabel.last_month}</SelectItem>
-              <SelectItem value="last_6_months">{periodLabel.last_6_months}</SelectItem>
-              <SelectItem value="last_year">{periodLabel.last_year}</SelectItem>
-            </SelectContent>
-          </Select>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <Select value={period} onValueChange={(value) => setPeriod(value as PeriodFilter)}>
+              <SelectTrigger className="w-44">
+                <SelectValue placeholder="Select range" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{periodLabel.all}</SelectItem>
+                <SelectItem value="custom">{periodLabel.custom}</SelectItem>
+                <SelectItem value="this_month">{periodLabel.this_month}</SelectItem>
+                <SelectItem value="last_week">{periodLabel.last_week}</SelectItem>
+                <SelectItem value="last_month">{periodLabel.last_month}</SelectItem>
+                <SelectItem value="last_6_months">{periodLabel.last_6_months}</SelectItem>
+                <SelectItem value="last_year">{periodLabel.last_year}</SelectItem>
+              </SelectContent>
+            </Select>
+            {user?.role === "admin" && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => sendMonthlyMailMutation.mutate()}
+                disabled={sendMonthlyMailMutation.isPending}
+                className="gap-2"
+              >
+                {sendMonthlyMailMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Mail className="h-4 w-4" />
+                )}
+                Send Monthly Mail
+              </Button>
+            )}
+          </div>
         </div>
         {period === "custom" && (
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:flex-wrap">

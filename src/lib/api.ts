@@ -346,6 +346,23 @@ class ApiClient {
     });
   }
 
+  async sendMonthlyPublicBillsEmail(data?: {
+    recipient?: string;
+    period?: "last_month" | "this_month";
+    force?: boolean;
+  }) {
+    return this.request<{
+      message: string;
+      skipped?: boolean;
+      reason?: string;
+      recipient?: string;
+      filename?: string;
+    }>("/reports/monthly-public-bills/send", {
+      method: "POST",
+      body: JSON.stringify(data || {}),
+    });
+  }
+
   async markPaymentPaid(data: { expenseId: string; memberId: string }) {
     return this.request<any>("/payments/mark-paid", {
       method: "POST",
