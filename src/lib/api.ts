@@ -241,9 +241,12 @@ class ApiClient {
     });
   }
 
-  async deleteMember(id: string) {
+  async deleteMember(id: string, options?: { subtractAdvanceFromTotals?: boolean }) {
     return this.request<{ message: string }>(`/members/${id}`, {
       method: "DELETE",
+      body: JSON.stringify({
+        subtractAdvanceFromTotals: Boolean(options?.subtractAdvanceFromTotals),
+      }),
     });
   }
 

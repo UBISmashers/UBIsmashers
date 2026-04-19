@@ -6,6 +6,8 @@ export interface IMember extends Document {
   phone?: string;
   role: 'admin' | 'member';
   status: 'active' | 'inactive';
+  isDeleted: boolean;
+  deletedAt?: Date | null;
   hiddenFromPublicBills: boolean;
   joinDate: Date;
   balance: number;
@@ -49,6 +51,15 @@ const memberSchema = new Schema<IMember>(
       type: String,
       enum: ['active', 'inactive'],
       default: 'active',
+    },
+    isDeleted: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    deletedAt: {
+      type: Date,
+      default: null,
     },
     hiddenFromPublicBills: {
       type: Boolean,

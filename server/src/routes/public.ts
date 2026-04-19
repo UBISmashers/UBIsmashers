@@ -110,7 +110,10 @@ router.get('/bills', async (req: Request, res: Response) => {
           }
         : {};
 
-    const members = await Member.find({ hiddenFromPublicBills: { $ne: true } })
+    const members = await Member.find({
+      hiddenFromPublicBills: { $ne: true },
+      isDeleted: { $ne: true },
+    })
       .select('_id name status')
       .sort({ name: 1 });
     const visibleMemberIds = new Set(members.map((member) => member._id.toString()));
@@ -242,6 +245,8 @@ router.get('/bills', async (req: Request, res: Response) => {
     normalizedJoiningFees.forEach((fee: any) => {
       const memberId = fee.memberId?._id?.toString?.() || fee.memberId?.toString?.();
       if (!memberId) return;
+      if (!visibleMemberIds.has(memberId)) return;
+      if (fee.excludeFromAdvanceTotals) return;
       const isAutoCredit = fee.sourceType === 'expense_share_payment';
       const prev = advancesByMember.get(memberId) || { totalPaid: 0, used: 0, remaining: 0 };
       advancesByMember.set(memberId, {
@@ -323,17 +328,21 @@ router.get('/bills', async (req: Request, res: Response) => {
       };
     });
 
-    const totalAdvancePaid = normalizedJoiningFees.reduce(
+    const totalEligibleJoiningFees = normalizedJoiningFees.filter(
+      (fee: any) => !fee.excludeFromAdvanceTotals
+    );
+
+    const totalAdvancePaid = totalEligibleJoiningFees.reduce(
       (sum: number, fee: any) =>
         sum + (fee.sourceType === 'expense_share_payment' ? 0 : Number(fee.amount || 0)),
       0
     );
-    const totalAdvanceRemaining = normalizedJoiningFees.reduce(
+    const totalAdvanceRemaining = totalEligibleJoiningFees.reduce(
       (sum: number, fee: any) => sum + Number(fee.remainingAmount || 0),
       0
     );
     const totalAdvanceUsed = Number(
-      normalizedJoiningFees.reduce(
+      totalEligibleJoiningFees.reduce(
         (sum: number, fee: any) =>
           sum + (fee.sourceType === 'expense_share_payment' ? 0 : Number(fee.usedAmount || 0)),
         0

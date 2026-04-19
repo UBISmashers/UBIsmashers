@@ -89,12 +89,12 @@ export default function JoiningFees() {
 
   const totalAdvancePaid = fees.reduce(
     (sum: number, fee: any) =>
-      sum + (fee.sourceType ? 0 : Number(fee.amount || 0)),
+      sum + (fee.sourceType || fee.excludeFromAdvanceTotals ? 0 : Number(fee.amount || 0)),
     0
   );
   const remainingAdvanceAmount = fees.reduce(
     (sum: number, fee: any) =>
-      sum + Number(fee.remainingAmount ?? fee.amount ?? 0),
+      sum + (fee.excludeFromAdvanceTotals ? 0 : Number(fee.remainingAmount ?? fee.amount ?? 0)),
     0
   );
 

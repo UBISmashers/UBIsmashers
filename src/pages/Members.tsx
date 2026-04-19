@@ -17,6 +17,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -68,6 +69,15 @@ interface Member {
   attendanceRate: number;
 }
 
+interface JoiningFeeItem {
+  _id?: string;
+  id?: string;
+  memberId?: string | { _id?: string; id?: string; name?: string };
+  amount?: number;
+  sourceType?: string;
+  excludeFromAdvanceTotals?: boolean;
+}
+
 export default function Members() {
   const { api, user } = useAuth();
   const queryClient = useQueryClient();
@@ -84,6 +94,9 @@ export default function Members() {
   const [selectedMemberForPayments, setSelectedMemberForPayments] = useState<Member | null>(null);
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
   const [isPaymentEditMode, setIsPaymentEditMode] = useState(false);
+  const [memberToDelete, setMemberToDelete] = useState<Member | null>(null);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [subtractAdvanceFromTotals, setSubtractAdvanceFromTotals] = useState(true);
 
   // Fetch members
   const { data: members = [], isLoading } = useQuery({
@@ -135,6 +148,12 @@ export default function Members() {
         description: error.message || "An error occurred",
       });
     },
+  });
+
+  const { data: joiningFees = [] } = useQuery<JoiningFeeItem[]>({
+    queryKey: ["joining-fees"],
+    queryFn: () => api.getJoiningFees(),
+    enabled: user?.role === "admin",
   });
 
   const markAllMemberPaidMutation = useMutation({
@@ -193,9 +212,17 @@ export default function Members() {
 
   // Delete member mutation
   const deleteMemberMutation = useMutation({
-    mutationFn: (id: string) => api.deleteMember(id),
+    mutationFn: (data: { id: string; subtractAdvanceFromTotals: boolean }) =>
+      api.deleteMember(data.id, {
+        subtractAdvanceFromTotals: data.subtractAdvanceFromTotals,
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["members"] });
+      queryClient.invalidateQueries({ queryKey: ["joining-fees"] });
+      queryClient.invalidateQueries({ queryKey: ["publicBills"] });
+      queryClient.invalidateQueries({ queryKey: ["allPayments"] });
+      setIsDeleteDialogOpen(false);
+      setMemberToDelete(null);
       toast.success("Member deleted successfully!");
     },
     onError: (error: any) => {
@@ -260,10 +287,33 @@ export default function Members() {
     return memberPayment || null;
   };
 
-  const handleDeleteMember = (id: string) => {
-    if (confirm("Are you sure you want to delete this member?")) {
-      deleteMemberMutation.mutate(id);
-    }
+  const getMemberAdvanceAmount = (memberId: string) => {
+    return joiningFees.reduce((sum, fee) => {
+      const feeMemberId =
+        typeof fee.memberId === "string"
+          ? fee.memberId
+          : fee.memberId?._id || fee.memberId?.id || "";
+      const isDirectAdvance = fee.sourceType !== "expense_share_payment";
+      if (!feeMemberId || feeMemberId !== memberId || !isDirectAdvance) return sum;
+      if (fee.excludeFromAdvanceTotals) return sum;
+      return sum + Number(fee.amount || 0);
+    }, 0);
+  };
+
+  const handleDeleteMember = (member: Member) => {
+    const advanceAmount = getMemberAdvanceAmount(member._id);
+    setMemberToDelete(member);
+    setSubtractAdvanceFromTotals(advanceAmount > 0);
+    setIsDeleteDialogOpen(true);
+  };
+
+  const confirmDeleteMember = () => {
+    if (!memberToDelete?._id) return;
+    const advanceAmount = getMemberAdvanceAmount(memberToDelete._id);
+    deleteMemberMutation.mutate({
+      id: memberToDelete._id,
+      subtractAdvanceFromTotals: advanceAmount > 0 ? subtractAdvanceFromTotals : false,
+    });
   };
 
   const formatExpenseTitle = (expense: any) => {
@@ -674,7 +724,7 @@ export default function Members() {
                               </DropdownMenuItem>
                               <DropdownMenuItem
                                 className="text-destructive"
-                                onClick={() => handleDeleteMember(member._id)}
+                                onClick={() => handleDeleteMember(member)}
                               >
                                 <Trash2 className="h-4 w-4 mr-2" />
                                 Remove
@@ -826,6 +876,81 @@ export default function Members() {
             <DialogFooter>
               <Button variant="outline" onClick={() => setIsPaymentDialogOpen(false)}>
                 Close
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog
+          open={isDeleteDialogOpen}
+          onOpenChange={(open) => {
+            setIsDeleteDialogOpen(open);
+            if (!open) {
+              setMemberToDelete(null);
+            }
+          }}
+        >
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Delete Member</DialogTitle>
+              <DialogDescription>
+                The member will be removed from the member list, but past expenses and payment history will be kept.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-2">
+              <div className="rounded-md border p-3 text-sm">
+                <p className="font-medium">{memberToDelete?.name}</p>
+                <p className="text-muted-foreground">
+                  This member will appear as <span className="font-medium">name + (deleted member)</span> in historical records.
+                </p>
+              </div>
+              {memberToDelete && getMemberAdvanceAmount(memberToDelete._id) > 0 ? (
+                <div className="flex items-start gap-3 rounded-md border p-3">
+                  <Checkbox
+                    id="subtract-advance-on-delete"
+                    checked={subtractAdvanceFromTotals}
+                    onCheckedChange={(checked) => setSubtractAdvanceFromTotals(checked === true)}
+                    className="mt-0.5"
+                  />
+                  <div className="space-y-1">
+                    <Label htmlFor="subtract-advance-on-delete" className="cursor-pointer">
+                      Subtract this member&apos;s advance from total advance amount
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      Advance found: ${getMemberAdvanceAmount(memberToDelete._id).toFixed(2)}
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  No direct advance payment found for this member.
+                </p>
+              )}
+            </div>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setIsDeleteDialogOpen(false);
+                  setMemberToDelete(null);
+                }}
+                disabled={deleteMemberMutation.isPending}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={confirmDeleteMember}
+                disabled={deleteMemberMutation.isPending}
+              >
+                {deleteMemberMutation.isPending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Deleting...
+                  </>
+                ) : (
+                  "Delete Member"
+                )}
               </Button>
             </DialogFooter>
           </DialogContent>

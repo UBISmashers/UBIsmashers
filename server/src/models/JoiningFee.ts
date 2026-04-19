@@ -9,6 +9,7 @@ export interface IJoiningFee extends Document {
   sourceType?: 'expense_share_payment';
   sourceExpenseId?: mongoose.Types.ObjectId;
   sourceMemberId?: mongoose.Types.ObjectId;
+  excludeFromAdvanceTotals?: boolean;
   date: Date;
   note?: string;
   createdAt: Date;
@@ -61,6 +62,11 @@ const joiningFeeSchema = new Schema<IJoiningFee>(
       ref: 'Member',
       index: true,
       default: undefined,
+    },
+    excludeFromAdvanceTotals: {
+      type: Boolean,
+      default: false,
+      index: true,
     },
     date: {
       type: Date,

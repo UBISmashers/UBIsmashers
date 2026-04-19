@@ -2,6 +2,7 @@ import express, { Request, Response } from 'express';
 import { z } from 'zod';
 import { authenticate, authorize } from '../middleware/auth.js';
 import { Member } from '../models/Member.js';
+import { JoiningFee } from '../models/JoiningFee.js';
 
 const router = express.Router();
 
@@ -26,11 +27,15 @@ const memberSchema = z.object({
   joiningFeeNote: z.string().optional(),
 });
 
+const deleteMemberSchema = z.object({
+  subtractAdvanceFromTotals: z.boolean().optional(),
+});
+
 router.use(authenticate, authorize('admin'));
 
 router.get('/', async (_req: Request, res: Response) => {
   try {
-    const members = await Member.find().sort({ createdAt: -1 });
+    const members = await Member.find({ isDeleted: { $ne: true } }).sort({ createdAt: -1 });
     return res.json(members);
   } catch (error) {
     console.error('Get members error:', error);
@@ -56,7 +61,10 @@ router.post('/', async (req: Request, res: Response) => {
     const validatedData = memberSchema.parse(req.body);
 
     if (validatedData.email) {
-      const existingMember = await Member.findOne({ email: validatedData.email });
+      const existingMember = await Member.findOne({
+        email: validatedData.email,
+        isDeleted: { $ne: true },
+      });
       if (existingMember) {
         return res.status(400).json({ error: 'Member already exists with this email' });
       }
@@ -132,9 +140,48 @@ router.delete('/:id', async (req: Request, res: Response) => {
       return res.status(403).json({ error: 'Admin member cannot be deleted' });
     }
 
-    await member.deleteOne();
-    return res.json({ message: 'Member deleted successfully' });
+    if (member.isDeleted) {
+      return res.status(400).json({ error: 'Member is already deleted' });
+    }
+
+    const validatedDeleteData = deleteMemberSchema.parse(req.body || {});
+    const subtractAdvanceFromTotals = Boolean(validatedDeleteData.subtractAdvanceFromTotals);
+
+    const currentName = member.name || 'Member';
+    const deletedSuffix = '(deleted member)';
+    const nextName = currentName.toLowerCase().includes(deletedSuffix)
+      ? currentName
+      : `${currentName} ${deletedSuffix}`;
+
+    member.name = nextName;
+    member.status = 'inactive';
+    member.hiddenFromPublicBills = true;
+    member.isDeleted = true;
+    member.deletedAt = new Date();
+    member.userId = null as any;
+    member.email = undefined;
+    member.phone = undefined;
+    await member.save();
+
+    if (subtractAdvanceFromTotals) {
+      await JoiningFee.updateMany(
+        { memberId: member._id },
+        {
+          $set: {
+            excludeFromAdvanceTotals: true,
+          },
+        }
+      );
+    }
+
+    return res.json({
+      message: 'Member deleted successfully',
+      subtractAdvanceFromTotals,
+    });
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: error.errors[0].message });
+    }
     console.error('Delete member error:', error);
     return res.status(500).json({ error: 'Internal server error' });
   }
