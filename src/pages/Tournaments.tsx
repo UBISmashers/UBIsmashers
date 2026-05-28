@@ -80,7 +80,9 @@ export default function Tournaments() {
     allowTeamRegistration: false,
     registrationDeadline: "",
   });
-  const [teamName, setTeamName] = useState("");
+  const [teamPlayer1, setTeamPlayer1] = useState("");
+  const [teamPlayer2, setTeamPlayer2] = useState("");
+  const [editingTeamId, setEditingTeamId] = useState("");
   const [adminContactMobileNumber, setAdminContactMobileNumber] = useState("");
   const [entryFeePaid, setEntryFeePaid] = useState("");
   const [customMatchForm, setCustomMatchForm] = useState({
@@ -273,16 +275,43 @@ export default function Tournaments() {
   const addTeamMutation = useMutation({
     mutationFn: () =>
       api.addTournamentTeam(selectedTournament!._id, {
-        name: teamName.trim(),
+        players:
+          selectedTournament?.type === "doubles"
+            ? [teamPlayer1.trim(), teamPlayer2.trim()]
+            : [teamPlayer1.trim()],
         contactMobileNumber: adminContactMobileNumber.trim() || undefined,
         entryFeePaid: entryFeePaid ? Number(entryFeePaid) : 0,
       }),
     onSuccess: async () => {
-      setTeamName("");
+      setTeamPlayer1("");
+      setTeamPlayer2("");
+      setEditingTeamId("");
       setAdminContactMobileNumber("");
       setEntryFeePaid("");
       await refresh();
       toast({ title: "Team added" });
+    },
+    onError: (error: Error) => toast({ title: "Failed", description: error.message, variant: "destructive" }),
+  });
+
+  const updateTeamMutation = useMutation({
+    mutationFn: () =>
+      api.updateTournamentTeam(selectedTournament!._id, editingTeamId, {
+        players:
+          selectedTournament?.type === "doubles"
+            ? [teamPlayer1.trim(), teamPlayer2.trim()]
+            : [teamPlayer1.trim()],
+        contactMobileNumber: adminContactMobileNumber.trim() || undefined,
+        entryFeePaid: entryFeePaid ? Number(entryFeePaid) : 0,
+      }),
+    onSuccess: async () => {
+      setTeamPlayer1("");
+      setTeamPlayer2("");
+      setEditingTeamId("");
+      setAdminContactMobileNumber("");
+      setEntryFeePaid("");
+      await refresh();
+      toast({ title: "Team updated" });
     },
     onError: (error: Error) => toast({ title: "Failed", description: error.message, variant: "destructive" }),
   });
@@ -414,6 +443,25 @@ export default function Tournaments() {
     onError: (error: Error) => toast({ title: "Failed", description: error.message, variant: "destructive" }),
   });
 
+  const startEditTeam = (team: Tournament["teams"][number]) => {
+    setEditingTeamId(team._id);
+    setTeamPlayer1(team.players[0] || "");
+    setTeamPlayer2(team.players[1] || "");
+    const registryEntry = selectedTournament?.teamRegistry?.find(
+      (entry) => entry.teamId === team._id || entry.teamName.trim().toLowerCase() === team.name.trim().toLowerCase()
+    );
+    setAdminContactMobileNumber(registryEntry?.members?.[0]?.mobileNumber || "");
+    setEntryFeePaid(registryEntry ? String(registryEntry.entryFeePaid || 0) : "");
+  };
+
+  const cancelEditTeam = () => {
+    setEditingTeamId("");
+    setTeamPlayer1("");
+    setTeamPlayer2("");
+    setAdminContactMobileNumber("");
+    setEntryFeePaid("");
+  };
+
   const addTournamentExpenseMutation = useMutation({
     mutationFn: () =>
       api.addTournamentExpense(selectedTournament!._id, {
@@ -483,7 +531,10 @@ export default function Tournaments() {
   });
 
   const canAddTeams = Boolean(selectedTournament && selectedTournament.matches.length === 0);
-  const canSubmitTeam = canAddTeams && Boolean(teamName.trim());
+  const canSubmitTeam =
+    canAddTeams &&
+    Boolean(teamPlayer1.trim()) &&
+    (selectedTournament?.type === "singles" || Boolean(teamPlayer2.trim()));
   const scheduleMatches = [...(selectedTournament?.matches || [])].sort((a, b) => {
     const aTs = a.scheduledAt ? new Date(a.scheduledAt).getTime() : Number.MAX_SAFE_INTEGER;
     const bTs = b.scheduledAt ? new Date(b.scheduledAt).getTime() : Number.MAX_SAFE_INTEGER;
@@ -924,19 +975,29 @@ export default function Tournaments() {
                     <CardContent className="space-y-3">
                       <div className="grid gap-2 sm:grid-cols-2">
                         <Input
-                          placeholder={selectedTournament.type === "doubles" ? "Player1+Player2 / Player1/Player2" : "Player1"}
-                          value={teamName}
-                          onChange={(event) => setTeamName(event.target.value)}
+                          placeholder="Player 1"
+                          value={teamPlayer1}
+                          onChange={(event) => setTeamPlayer1(event.target.value)}
                           disabled={!canAddTeams}
                         />
+                        {selectedTournament.type === "doubles" ? (
+                          <Input
+                            placeholder="Player 2"
+                            value={teamPlayer2}
+                            onChange={(event) => setTeamPlayer2(event.target.value)}
+                            disabled={!canAddTeams}
+                          />
+                        ) : (
+                          <div />
+                        )}
+                      </div>
+                      <div className="grid gap-2 sm:grid-cols-2">
                         <Input
                           placeholder="Phone number (optional)"
                           value={adminContactMobileNumber}
                           onChange={(event) => setAdminContactMobileNumber(event.target.value)}
                           disabled={!canAddTeams}
                         />
-                      </div>
-                      <div className="grid gap-2 sm:grid-cols-2">
                         <Input
                           type="number"
                           min={0}
@@ -945,12 +1006,22 @@ export default function Tournaments() {
                           onChange={(event) => setEntryFeePaid(event.target.value)}
                           disabled={!canAddTeams}
                         />
-                        <Button onClick={() => addTeamMutation.mutate()} disabled={!canSubmitTeam}>
-                          Add Team
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          onClick={() => (editingTeamId ? updateTeamMutation.mutate() : addTeamMutation.mutate())}
+                          disabled={!canSubmitTeam}
+                        >
+                          {editingTeamId ? "Save Team" : "Add Team"}
                         </Button>
+                        {editingTeamId && (
+                          <Button variant="outline" onClick={cancelEditTeam}>
+                            Cancel Edit
+                          </Button>
+                        )}
                       </div>
                       <p className="text-xs text-muted-foreground">
-                        Team name format:{" "}
+                        Team name will be created internally as <span className="font-medium">Player1+Player2</span>.
                         <span className="font-medium">
                           {selectedTournament.type === "doubles" ? "Player1+Player2 / Player1/Player2" : "Player1"}
                         </span>
@@ -962,16 +1033,26 @@ export default function Tournaments() {
                       )}
                       <div className="space-y-2">
                         {selectedTournament.teams.map((team) => (
-                          <div key={team._id} className="flex items-center justify-between rounded-md border bg-secondary/30 px-3 py-2">
+                          <div
+                            key={team._id}
+                            className="flex flex-wrap items-center justify-between gap-3 rounded-md border bg-secondary/30 px-3 py-3"
+                          >
                             <div>
                               <p className="font-medium">{team.name}</p>
                               <p className="text-xs text-muted-foreground">{team.players.join(" / ")}</p>
                             </div>
-                            {canAddTeams && (
-                              <Button size="sm" variant="ghost" onClick={() => removeTeamMutation.mutate(team._id)}>
-                                Remove
-                              </Button>
-                            )}
+                            <div className="flex flex-wrap gap-2">
+                              {canAddTeams && (
+                                <Button size="sm" variant="outline" onClick={() => startEditTeam(team)}>
+                                  Edit
+                                </Button>
+                              )}
+                              {canAddTeams && (
+                                <Button size="sm" variant="ghost" onClick={() => removeTeamMutation.mutate(team._id)}>
+                                  Remove
+                                </Button>
+                              )}
+                            </div>
                           </div>
                         ))}
                       </div>

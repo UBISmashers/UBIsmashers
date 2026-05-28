@@ -20,6 +20,7 @@ import {
   reviewTeamRegistration,
   setTournamentVisibility,
   updateMatchDetails,
+  updateTeam,
   updateTeamRegistryEntry,
   updateTournamentExpense,
   updateTournamentIncome,
@@ -49,11 +50,60 @@ const optionalMobileSchema = z
     message: "Enter a valid mobile number",
   });
 
-const teamSchema = z.object({
-  name: z.string().min(1, "Team name is required"),
-  contactMobileNumber: optionalMobileSchema.optional(),
-  entryFeePaid: z.number().min(0).optional(),
-});
+const teamSchema = z
+  .object({
+    name: z.string().min(1, "Team name is required").optional(),
+    player1: z.string().trim().optional(),
+    player2: z.string().trim().optional(),
+    players: z.array(z.string().min(1)).optional(),
+    contactMobileNumber: optionalMobileSchema.optional(),
+    teamLeadName: z.string().trim().optional(),
+    members: z.array(
+      z.object({
+        name: z.string().trim().min(1),
+        mobileNumber: optionalMobileSchema.optional(),
+        gender: z.enum(["male", "female", "other"]),
+      })
+    ).optional(),
+    entryFeePaid: z.number().min(0).optional(),
+  })
+  .refine(
+    (data) => Boolean(data.name?.trim()) || Boolean(data.player1?.trim()) || (data.players && data.players.length > 0),
+    {
+      message: "Team name or player1 is required",
+    }
+  );
+
+const updateTeamSchema = z
+  .object({
+    name: z.string().min(1, "Team name is required").optional(),
+    player1: z.string().trim().optional(),
+    player2: z.string().trim().optional(),
+    players: z.array(z.string().min(1)).optional(),
+    contactMobileNumber: optionalMobileSchema.optional(),
+    teamLeadName: z.string().trim().optional(),
+    members: z.array(
+      z.object({
+        name: z.string().trim().min(1),
+        mobileNumber: optionalMobileSchema.optional(),
+        gender: z.enum(["male", "female", "other"]),
+      })
+    ).optional(),
+    entryFeePaid: z.number().min(0).optional(),
+  })
+  .refine(
+    (data) =>
+      Boolean(data.name?.trim()) ||
+      Boolean(data.player1?.trim()) ||
+      Boolean(data.teamLeadName?.trim()) ||
+      (data.players && data.players.length > 0) ||
+      (data.members && data.members.length > 0) ||
+      data.contactMobileNumber !== undefined ||
+      data.entryFeePaid !== undefined,
+    {
+      message: "At least one value must be provided for team update",
+    }
+  );
 
 const visibilitySchema = z.object({
   enabled: z.boolean(),
@@ -228,6 +278,21 @@ export const addTournamentTeam = async (req: Request, res: Response) => {
       return res.status(400).json({ error: error.errors[0].message });
     }
     console.error("Add team error:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+export const updateAdminTournamentTeam = async (req: Request, res: Response) => {
+  try {
+    const payload = updateTeamSchema.parse(req.body);
+    const result = await updateTeam(req.params.id, req.params.teamId, payload);
+    if (isServiceError(result)) return res.status(result.status).json({ error: result.error });
+    return res.json(result.tournament);
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: error.errors[0].message });
+    }
+    console.error("Update team error:", error);
     return res.status(500).json({ error: "Internal server error" });
   }
 };

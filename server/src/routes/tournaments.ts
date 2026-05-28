@@ -17,6 +17,7 @@ import {
   reviewAdminTournamentRegistration,
   updateAdminTournament,
   updateTournamentConfig,
+  updateAdminTournamentTeam,
   updateAdminTournamentTeamRegistry,
   updateAdminTournamentExpense,
   updateAdminTournamentIncome,
@@ -38,6 +39,7 @@ router.get("/:id", getAdminTournament);
 router.put("/:id", updateAdminTournament);
 router.delete("/:id", deleteAdminTournament);
 router.post("/:id/teams", addTournamentTeam);
+router.patch("/:id/teams/:teamId", updateAdminTournamentTeam);
 router.delete("/:id/teams/:teamId", removeTournamentTeam);
 router.patch("/:id/team-registry/:registryId", updateAdminTournamentTeamRegistry);
 router.post("/:id/finance/expenses", addAdminTournamentExpense);

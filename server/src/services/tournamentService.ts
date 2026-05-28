@@ -1033,6 +1033,17 @@ type AddTeamInput = {
   entryFeePaid?: number;
 };
 
+type UpdateTeamInput = {
+  name?: string;
+  player1?: string;
+  player2?: string;
+  players?: string[];
+  contactMobileNumber?: string;
+  teamLeadName?: string;
+  members?: TeamRegistryMemberInput[];
+  entryFeePaid?: number;
+};
+
 type RegisterTeamInput = {
   teamName: string;
   contactMobileNumber?: string;
@@ -1217,6 +1228,106 @@ export const addTeam = async (tournamentId: string, input: AddTeamInput) => {
   if ("error" in teamAddResult) return teamAddResult;
   await tournament.save();
 
+  return { tournament: serializeTournament(tournament) };
+};
+
+export const updateTeam = async (
+  tournamentId: string,
+  teamId: string,
+  input: UpdateTeamInput
+) => {
+  const tournament = await Tournament.findById(tournamentId);
+  if (!tournament) return { error: "Tournament not found", status: 404 as const };
+  if (tournament.matches.length > 0) {
+    return { error: "Cannot update teams after bracket generation", status: 400 as const };
+  }
+
+  const team = tournament.teams.find((item) => item._id.toString() === teamId);
+  if (!team) return { error: "Team not found", status: 404 as const };
+
+  const existingName = team.name;
+  const currentPlayers = [...team.players];
+
+  const playerInputs = input.players?.map((player) => player.trim()).filter(Boolean) ?? [];
+  if (input.player1) playerInputs[0] = input.player1.trim();
+  if (input.player2) playerInputs[1] = input.player2.trim();
+  const normalizedPlayers = playerInputs.length > 0 ? playerInputs : team.players;
+
+  const expectedPlayerCount = tournament.type === "doubles" ? 2 : 1;
+  if (normalizedPlayers.length !== expectedPlayerCount) {
+    return {
+      error:
+        tournament.type === "doubles"
+          ? "For doubles, provide both player1 and player2"
+          : "For singles, provide the player name",
+      status: 400 as const,
+    };
+  }
+
+  const playersLower = normalizedPlayers.map((player) => player.toLowerCase());
+  if (new Set(playersLower).size !== normalizedPlayers.length) {
+    return { error: "Duplicate player names are not allowed in the same team", status: 400 as const };
+  }
+
+  const incomingSignature = normalizeTeamSignature(normalizedPlayers);
+  const duplicateSignature = tournament.teams.some(
+    (item) => item._id.toString() !== teamId && normalizeTeamSignature(item.players) === incomingSignature
+  );
+  if (duplicateSignature) return { error: "Duplicate team entry is not allowed", status: 400 as const };
+
+  const nextName = input.name?.trim() ||
+    (tournament.type === "doubles" ? `${normalizedPlayers[0]}+${normalizedPlayers[1]}` : normalizedPlayers[0]);
+  if (!nextName) {
+    return { error: "Team name is required", status: 400 as const };
+  }
+
+  const contactMobileNumber = (input.contactMobileNumber || "").trim();
+  if (contactMobileNumber && !/^\+?[0-9]{8,15}$/.test(contactMobileNumber)) {
+    return { error: "Enter a valid contact mobile number", status: 400 as const };
+  }
+
+  const registryMembers = normalizeRegistryMembers(normalizedPlayers, input.members);
+  if (contactMobileNumber && registryMembers.length > 0) {
+    registryMembers[0].mobileNumber = contactMobileNumber;
+  }
+  if (registryMembers.length !== expectedPlayerCount) {
+    return {
+      error: `Team registry requires exactly ${expectedPlayerCount} member(s)`,
+      status: 400 as const,
+    };
+  }
+
+  const invalidRegistryMember = registryMembers.some(
+    (member) =>
+      !member.name.trim() ||
+      !member.gender ||
+      (member.mobileNumber.trim().length > 0 && !/^\+?[0-9]{8,15}$/.test(member.mobileNumber.trim()))
+  );
+  if (invalidRegistryMember) {
+    return {
+      error: "Each team registry member needs name and gender. Mobile number is optional but must be valid when provided",
+      status: 400 as const,
+    };
+  }
+
+  team.name = nextName;
+  team.players = normalizedPlayers;
+
+  const registryResult = upsertTeamRegistry(tournament, team._id, {
+    teamName: team.name,
+    teamLeadName: (input.teamLeadName || normalizedPlayers[0] || team.name).trim(),
+    members: registryMembers,
+    entryFeePaid: Math.max(0, input.entryFeePaid || 0),
+  });
+
+  captureEntryFeeAdjustment(tournament, {
+    teamName: team.name,
+    previousAmount: registryResult.previousEntryFeePaid,
+    nextAmount: registryResult.nextEntryFeePaid,
+    teamRegistryId: registryResult.entry?._id || null,
+  });
+
+  await tournament.save();
   return { tournament: serializeTournament(tournament) };
 };
 

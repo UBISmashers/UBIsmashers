@@ -487,13 +487,34 @@ class ApiClient {
   async addTournamentTeam(
     id: string,
     data: {
-      name: string;
+      name?: string;
+      player1?: string;
+      player2?: string;
+      players?: string[];
       contactMobileNumber?: string;
       entryFeePaid?: number;
     }
   ) {
     return this.request<Tournament>(`/tournaments/${id}/teams`, {
       method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateTournamentTeam(
+    id: string,
+    teamId: string,
+    data: {
+      name?: string;
+      player1?: string;
+      player2?: string;
+      players?: string[];
+      contactMobileNumber?: string;
+      entryFeePaid?: number;
+    }
+  ) {
+    return this.request<Tournament>(`/tournaments/${id}/teams/${teamId}`, {
+      method: "PATCH",
       body: JSON.stringify(data),
     });
   }
