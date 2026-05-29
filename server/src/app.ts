@@ -30,6 +30,7 @@ const allowedOrigins = new Set(
     "http://localhost:5173",
     "http://localhost:3000",
     "https://ubismashers.vercel.app",
+    "https://www.ubismashers.team",
     process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : undefined,
   ]
     .filter((origin): origin is string => Boolean(origin))
