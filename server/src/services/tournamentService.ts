@@ -1136,17 +1136,22 @@ const tryAddTeamToTournament = (tournament: ITournament, input: AddTeamInput): T
     return { error: "Cannot add teams after bracket generation", status: 400 as const };
   }
 
-  const teamName = input.name.trim();
+    const expectedPlayerCount = tournament.type === "doubles" ? 2 : 1;
+  const playersFromInput = (input.players || []).map((player) => player.trim()).filter(Boolean);
+  const normalizedPlayers =
+    playersFromInput.length > 0 ? playersFromInput : parsePlayersFromTeamName(input.name?.trim() || "", expectedPlayerCount) || [];
+
+  const teamName = input.name?.trim() ||
+    (normalizedPlayers.length > 0
+      ? tournament.type === "doubles"
+        ? `${normalizedPlayers[0]}+${normalizedPlayers[1]}`
+        : normalizedPlayers[0]
+      : "");
   const contactMobileNumber = (input.contactMobileNumber || "").trim();
   if (!teamName) return { error: "Team name is required", status: 400 as const };
   if (contactMobileNumber && !/^\+?[0-9]{8,15}$/.test(contactMobileNumber)) {
     return { error: "Enter a valid contact mobile number", status: 400 as const };
   }
-
-  const expectedPlayerCount = tournament.type === "doubles" ? 2 : 1;
-  const playersFromInput = (input.players || []).map((player) => player.trim()).filter(Boolean);
-  const normalizedPlayers =
-    playersFromInput.length > 0 ? playersFromInput : parsePlayersFromTeamName(teamName, expectedPlayerCount) || [];
 
   if (normalizedPlayers.length !== expectedPlayerCount) {
     return {
