@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import { AppSetting } from "../models/AppSetting.js";
 import {
+  GroupDistributionMode,
   ITournament,
   ITournamentMatch,
   Tournament,
@@ -38,6 +39,82 @@ const shuffle = <T>(items: T[]) => {
   }
   return result;
 };
+
+const getDefaultGroupCount = (teamCount: number) => {
+  if (teamCount <= 8) return 2;
+  if (teamCount <= 24) return 4;
+  return Math.min(16, Math.max(2, Math.ceil(teamCount / 4)));
+};
+
+const getGroupLabel = (index: number) => {
+  const letter = String.fromCharCode(65 + (index % 26));
+  return `Group ${letter}`;
+};
+
+const clampGroupCount = (value: number | null | undefined, teamCount: number) =>
+  Math.min(16, Math.max(2, Math.min(teamCount, value || getDefaultGroupCount(teamCount))));
+
+const distributeTeamsToGroups = (
+  teamIds: mongoose.Types.ObjectId[],
+  groupCount: number,
+  mode: GroupDistributionMode
+) => {
+  const source = mode === "random" ? shuffle(teamIds) : [...teamIds];
+  const groups = Array.from({ length: groupCount }, () => [] as mongoose.Types.ObjectId[]);
+
+  source.forEach((teamId, index) => {
+    if (mode === "balanced") {
+      const block = Math.floor(index / groupCount);
+      const offset = index % groupCount;
+      const groupIndex = block % 2 === 0 ? offset : groupCount - 1 - offset;
+      groups[groupIndex].push(teamId);
+      return;
+    }
+
+    groups[index % groupCount].push(teamId);
+  });
+
+  return groups;
+};
+
+const recordAudit = (tournament: ITournament, action: string, userId?: string | null) => {
+  tournament.auditHistory.push({
+    _id: new mongoose.Types.ObjectId(),
+    action,
+    userId: userId || null,
+    createdAt: new Date(),
+  } as any);
+};
+
+const resetTournamentProgress = (tournament: ITournament, action: string, userId?: string | null) => {
+  const hadGeneratedMatches = tournament.matches.length > 0;
+  tournament.matches = [] as any;
+  tournament.totalRounds = 0;
+  tournament.championTeamId = null;
+  tournament.finalScore = null;
+  tournament.status = "upcoming";
+  if (hadGeneratedMatches) {
+    recordAudit(tournament, action, userId);
+  }
+};
+
+const makeTournamentGroups = (
+  teamIds: mongoose.Types.ObjectId[],
+  groupCount: number,
+  mode: GroupDistributionMode
+) => {
+  const distributed = mode === "manual" ? Array.from({ length: groupCount }, () => [] as mongoose.Types.ObjectId[]) : distributeTeamsToGroups(teamIds, groupCount, mode);
+  return distributed.map((groupTeamIds, index) => ({
+    _id: new mongoose.Types.ObjectId(),
+    groupName: getGroupLabel(index),
+    groupOrder: index,
+    teamIds: groupTeamIds,
+    isLocked: false,
+  }));
+};
+
+const getOrderedTournamentGroups = (tournament: ITournament) =>
+  [...(tournament.tournamentGroups || [])].sort((a, b) => a.groupOrder - b.groupOrder);
 
 type TeamStanding = {
   teamId: mongoose.Types.ObjectId;
@@ -478,23 +555,34 @@ const reconcileRoundRobinPlayoffState = (tournament: ITournament) => {
   final.winnerTeamId = final.scoreA > final.scoreB ? final.teamAId : final.teamBId;
 };
 
-const buildGroupKnockoutMatches = (teams: ITournament["teams"]) => {
-  const shuffledTeams = shuffle(teams.map((team) => team._id));
-  const groupA: mongoose.Types.ObjectId[] = [];
-  const groupB: mongoose.Types.ObjectId[] = [];
-
-  shuffledTeams.forEach((teamId, index) => {
-    if (index % 2 === 0) groupA.push(teamId);
-    else groupB.push(teamId);
-  });
-
+const buildGroupKnockoutMatches = (
+  teams: ITournament["teams"],
+  options: {
+    groupCount?: number | null;
+    distributionMode?: GroupDistributionMode;
+    teamsQualifyingPerGroup?: number;
+    tournamentGroups?: ITournament["tournamentGroups"];
+  } = {}
+) => {
+  const teamIds = teams.map((team) => team._id);
+  const groupCount = clampGroupCount(options.groupCount, teamIds.length);
+  const groupsFromModel = [...(options.tournamentGroups || [])]
+    .sort((a, b) => a.groupOrder - b.groupOrder)
+    .map((group) => group.teamIds.filter((teamId) => teamIds.some((id) => id.toString() === teamId.toString())));
+  const groups =
+    groupsFromModel.length > 0
+      ? groupsFromModel
+      : distributeTeamsToGroups(teamIds, groupCount, options.distributionMode || "random");
+  const activeTeamIds = groups.flat();
+  const teamsQualifyingPerGroup = Math.max(1, Math.min(8, options.teamsQualifyingPerGroup || 2));
   const groupMatches: ITournamentMatch[] = [];
   let matchNumber = 1;
-  const pushGroupMatches = (groupName: "Group A" | "Group B", groupTeams: mongoose.Types.ObjectId[]) => {
+
+  const pushGroupMatches = (groupName: string, groupIndex: number, groupTeams: mongoose.Types.ObjectId[]) => {
     for (let i = 0; i < groupTeams.length; i += 1) {
       for (let j = i + 1; j < groupTeams.length; j += 1) {
         groupMatches.push({
-          matchId: `GR-${groupName === "Group A" ? "A" : "B"}-M${matchNumber}`,
+          matchId: `GR-${String.fromCharCode(65 + groupIndex)}-M${matchNumber}`,
           roundNumber: 1,
           roundLabel: groupName,
           matchNumber,
@@ -516,67 +604,47 @@ const buildGroupKnockoutMatches = (teams: ITournament["teams"]) => {
     }
   };
 
-  pushGroupMatches("Group A", groupA);
-  pushGroupMatches("Group B", groupB);
+  groups.forEach((groupTeams, index) => pushGroupMatches(getGroupLabel(index), index, groupTeams));
 
-  const knockoutMatches: ITournamentMatch[] = [
-    {
-      matchId: "KO-SF1",
-      roundNumber: 2,
-      roundLabel: "Semi Finals",
-      matchNumber: 1,
-      matchType: "semifinal",
-      isManual: false,
-      manualOverrideTeams: false,
-      scheduledAt: null,
-      scheduledEndAt: null,
-      court: null,
-      teamAId: null,
-      teamBId: null,
-      scoreA: null,
-      scoreB: null,
-      winnerTeamId: null,
-      isCompleted: false,
-    } as ITournamentMatch,
-    {
-      matchId: "KO-SF2",
-      roundNumber: 2,
-      roundLabel: "Semi Finals",
-      matchNumber: 2,
-      matchType: "semifinal",
-      isManual: false,
-      manualOverrideTeams: false,
-      scheduledAt: null,
-      scheduledEndAt: null,
-      court: null,
-      teamAId: null,
-      teamBId: null,
-      scoreA: null,
-      scoreB: null,
-      winnerTeamId: null,
-      isCompleted: false,
-    } as ITournamentMatch,
-    {
-      matchId: "KO-FINAL",
-      roundNumber: 3,
-      roundLabel: "Final",
-      matchNumber: 1,
-      matchType: "final",
-      isManual: false,
-      manualOverrideTeams: false,
-      scheduledAt: null,
-      scheduledEndAt: null,
-      court: null,
-      teamAId: null,
-      teamBId: null,
-      scoreA: null,
-      scoreB: null,
-      winnerTeamId: null,
-      isCompleted: false,
-    } as ITournamentMatch,
-  ];
+  const qualifierCount = Math.min(activeTeamIds.length, groups.length * teamsQualifyingPerGroup);
+  const knockoutSize = nextPowerOfTwo(Math.max(2, qualifierCount));
+  const knockoutRounds = Math.log2(knockoutSize);
+  const knockoutMatches: ITournamentMatch[] = [];
 
-  return { matches: [...groupMatches, ...knockoutMatches], totalRounds: 3 };
+  for (let knockoutRound = 1; knockoutRound <= knockoutRounds; knockoutRound += 1) {
+    const roundNumber = knockoutRound + 1;
+    const matchCount = knockoutSize / 2 ** knockoutRound;
+    for (let knockoutMatchNumber = 1; knockoutMatchNumber <= matchCount; knockoutMatchNumber += 1) {
+      knockoutMatches.push({
+        matchId:
+          knockoutRound === knockoutRounds
+            ? "KO-FINAL"
+            : `KO-R${knockoutRound}-M${knockoutMatchNumber}`,
+        roundNumber,
+        roundLabel: getRoundLabel(knockoutRound, knockoutRounds),
+        matchNumber: knockoutMatchNumber,
+        matchType:
+          knockoutRound === knockoutRounds
+            ? "final"
+            : knockoutRound === knockoutRounds - 1
+            ? "semifinal"
+            : "league",
+        isManual: false,
+        manualOverrideTeams: false,
+        scheduledAt: null,
+        scheduledEndAt: null,
+        court: null,
+        teamAId: null,
+        teamBId: null,
+        scoreA: null,
+        scoreB: null,
+        winnerTeamId: null,
+        isCompleted: false,
+      } as ITournamentMatch);
+    }
+  }
+
+  return { matches: [...groupMatches, ...knockoutMatches], totalRounds: knockoutRounds + 1 };
 };
 
 const resetInvalidMatch = (match: ITournamentMatch) => {
@@ -643,83 +711,79 @@ const reconcileRoundRobinState = (tournament: ITournament) => {
 };
 
 const seedGroupKnockoutSlots = (tournament: ITournament) => {
-  const groupAMatches = tournament.matches.filter(
-    (match) => !match.isManual && match.roundNumber === 1 && match.roundLabel === "Group A"
+  const groupMatches = tournament.matches.filter(
+    (match) => !match.isManual && match.roundNumber === 1 && isGroupLeagueMatch(match)
   );
-  const groupBMatches = tournament.matches.filter(
-    (match) => !match.isManual && match.roundNumber === 1 && match.roundLabel === "Group B"
-  );
-  const allGroupCompleted =
-    groupAMatches.length > 0 &&
-    groupBMatches.length > 0 &&
-    [...groupAMatches, ...groupBMatches].every((match) => match.isCompleted);
+  const firstKnockoutMatches = tournament.matches
+    .filter((match) => !match.isManual && match.roundNumber === 2)
+    .sort((a, b) => a.matchNumber - b.matchNumber);
+  if (firstKnockoutMatches.length === 0) return;
 
-  const semi1 = tournament.matches.find((match) => match.matchId === "KO-SF1");
-  const semi2 = tournament.matches.find((match) => match.matchId === "KO-SF2");
-  const final = tournament.matches.find((match) => match.matchId === "KO-FINAL");
-  if (!semi1 || !semi2 || !final) return;
+  const allGroupCompleted = groupMatches.length > 0 && groupMatches.every((match) => match.isCompleted);
 
   if (!allGroupCompleted) {
-    if (!semi1.manualOverrideTeams) {
-      semi1.teamAId = null;
-      semi1.teamBId = null;
-    }
-    if (!semi2.manualOverrideTeams) {
-      semi2.teamAId = null;
-      semi2.teamBId = null;
-    }
-    resetInvalidMatch(semi1);
-    resetInvalidMatch(semi2);
-    if (!final.manualOverrideTeams) {
-      final.teamAId = null;
-      final.teamBId = null;
-    }
-    resetInvalidMatch(final);
+    tournament.matches
+      .filter((match) => !match.isManual && match.roundNumber >= 2)
+      .forEach((match) => {
+        if (!match.manualOverrideTeams) {
+          match.teamAId = null;
+          match.teamBId = null;
+        }
+        resetInvalidMatch(match);
+      });
     return;
   }
 
-  const groupATeamIds = new Set<string>();
-  const groupBTeamIds = new Set<string>();
-  groupAMatches.forEach((match) => {
-    if (match.teamAId) groupATeamIds.add(match.teamAId.toString());
-    if (match.teamBId) groupATeamIds.add(match.teamBId.toString());
+  const groupLabels = [...new Set(groupMatches.map((match) => match.roundLabel))]
+    .filter(Boolean)
+    .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+
+  const standingsByGroup = groupLabels.map((label) => {
+    const matches = groupMatches.filter((match) => match.roundLabel === label);
+    const teamIds = new Set<string>();
+    matches.forEach((match) => {
+      if (match.teamAId) teamIds.add(match.teamAId.toString());
+      if (match.teamBId) teamIds.add(match.teamBId.toString());
+    });
+    const groupTeams = tournament.teams.filter((team) => teamIds.has(team._id.toString()));
+    return buildStandings(groupTeams, matches);
   });
-  groupBMatches.forEach((match) => {
-    if (match.teamAId) groupBTeamIds.add(match.teamAId.toString());
-    if (match.teamBId) groupBTeamIds.add(match.teamBId.toString());
+
+  const qualifiersPerGroup = Math.max(1, tournament.teamsQualifyingPerGroup || 2);
+  const matchupPairs: Array<[mongoose.Types.ObjectId | null, mongoose.Types.ObjectId | null]> = [];
+
+  for (let i = 0; i < standingsByGroup.length; i += 2) {
+    const current = standingsByGroup[i] || [];
+    const next = standingsByGroup[i + 1] || [];
+
+    if (next.length > 0) {
+      if (qualifiersPerGroup >= 2) {
+        matchupPairs.push([current[0]?.teamId || null, next[1]?.teamId || null]);
+        matchupPairs.push([next[0]?.teamId || null, current[1]?.teamId || null]);
+        for (let rank = 2; rank < qualifiersPerGroup; rank += 1) {
+          matchupPairs.push([current[rank]?.teamId || null, next[rank]?.teamId || null]);
+        }
+      } else {
+        matchupPairs.push([current[0]?.teamId || null, next[0]?.teamId || null]);
+      }
+    } else {
+      for (let rank = 0; rank < qualifiersPerGroup; rank += 1) {
+        matchupPairs.push([current[rank]?.teamId || null, null]);
+      }
+    }
+  }
+
+  firstKnockoutMatches.forEach((match, index) => {
+    if (match.manualOverrideTeams) return;
+    const [teamAId, teamBId] = matchupPairs[index] || [null, null];
+    match.teamAId = teamAId;
+    match.teamBId = teamBId;
   });
-
-  const groupATeams = tournament.teams.filter((team) => groupATeamIds.has(team._id.toString()));
-  const groupBTeams = tournament.teams.filter((team) => groupBTeamIds.has(team._id.toString()));
-
-  const groupAStanding = buildStandings(groupATeams, groupAMatches);
-  const groupBStanding = buildStandings(groupBTeams, groupBMatches);
-  const a1 = groupAStanding[0]?.teamId || null;
-  const a2 = groupAStanding[1]?.teamId || null;
-  const b1 = groupBStanding[0]?.teamId || null;
-  const b2 = groupBStanding[1]?.teamId || null;
-
-  if (!semi1.manualOverrideTeams) {
-    semi1.teamAId = a1;
-    semi1.teamBId = b2;
-  }
-  if (!semi2.manualOverrideTeams) {
-    semi2.teamAId = b1;
-    semi2.teamBId = a2;
-  }
-
-  if (!isValidCompletedMatch(semi1)) resetInvalidMatch(semi1);
-  if (!isValidCompletedMatch(semi2)) resetInvalidMatch(semi2);
-
-  if (!final.manualOverrideTeams) {
-    final.teamAId = semi1.isCompleted ? semi1.winnerTeamId : null;
-    final.teamBId = semi2.isCompleted ? semi2.winnerTeamId : null;
-  }
-
-  if (!isValidCompletedMatch(final)) resetInvalidMatch(final);
 };
 
 const reconcileGroupKnockoutState = (tournament: ITournament) => {
+  const preserved = captureMatches(tournament.matches);
+
   tournament.matches
     .filter((match) => !match.isManual && match.roundNumber === 1)
     .forEach((match) => {
@@ -740,45 +804,52 @@ const reconcileGroupKnockoutState = (tournament: ITournament) => {
 
   seedGroupKnockoutSlots(tournament);
 
-  const semiMatches = tournament.matches.filter((match) => !match.isManual && match.roundNumber === 2);
-  semiMatches.forEach((match) => {
-    if (!match.teamAId || !match.teamBId) {
-      resetInvalidMatch(match);
-      return;
-    }
-    if (!match.isCompleted) {
-      match.winnerTeamId = null;
-      return;
-    }
-    if (match.scoreA === null || match.scoreB === null || match.scoreA === match.scoreB) {
-      resetInvalidMatch(match);
-      return;
-    }
-    match.winnerTeamId = match.scoreA > match.scoreB ? match.teamAId : match.teamBId;
-  });
+  for (let round = 2; round <= tournament.totalRounds; round += 1) {
+    const roundMatches = tournament.matches
+      .filter((match) => !match.isManual && match.roundNumber === round)
+      .sort((a, b) => a.matchNumber - b.matchNumber);
 
-  const finalMatch = tournament.matches.find((match) => match.matchId === "KO-FINAL");
-  if (finalMatch) {
-    if (!finalMatch.manualOverrideTeams) {
-      finalMatch.teamAId = semiMatches[0]?.isCompleted ? semiMatches[0].winnerTeamId : null;
-      finalMatch.teamBId = semiMatches[1]?.isCompleted ? semiMatches[1].winnerTeamId : null;
-    }
+    roundMatches.forEach((match) => {
+      if (round > 2 && !match.manualOverrideTeams) {
+        const sourceA = getSourceMatch(tournament.matches, round, match.matchNumber, "A");
+        const sourceB = getSourceMatch(tournament.matches, round, match.matchNumber, "B");
+        match.teamAId = sourceA?.isCompleted ? sourceA.winnerTeamId : null;
+        match.teamBId = sourceB?.isCompleted ? sourceB.winnerTeamId : null;
+      }
 
-    if (!finalMatch.teamAId || !finalMatch.teamBId) {
-      resetInvalidMatch(finalMatch);
-    } else if (!finalMatch.isCompleted) {
-      finalMatch.winnerTeamId = null;
-    } else if (
-      finalMatch.scoreA === null ||
-      finalMatch.scoreB === null ||
-      finalMatch.scoreA === finalMatch.scoreB
-    ) {
-      resetInvalidMatch(finalMatch);
-    } else {
-      finalMatch.winnerTeamId = finalMatch.scoreA > finalMatch.scoreB ? finalMatch.teamAId : finalMatch.teamBId;
-    }
+      const teamAId = toId(match.teamAId);
+      const teamBId = toId(match.teamBId);
+      const old = preserved.get(match.matchId);
+
+      if (!teamAId && !teamBId) {
+        resetInvalidMatch(match);
+      } else if (teamAId && !teamBId) {
+        match.isCompleted = true;
+        match.winnerTeamId = match.teamAId;
+      } else if (!teamAId && teamBId) {
+        match.isCompleted = true;
+        match.winnerTeamId = match.teamBId;
+      } else if (old && old.teamAId === teamAId && old.teamBId === teamBId && old.isCompleted) {
+        match.scoreA = old.scoreA;
+        match.scoreB = old.scoreB;
+        match.winnerTeamId = old.winnerTeamId ? new mongoose.Types.ObjectId(old.winnerTeamId) : null;
+        match.isCompleted = true;
+        if (!isValidCompletedMatch(match)) resetInvalidMatch(match);
+      } else if (!match.isCompleted) {
+        match.winnerTeamId = null;
+      } else if (match.scoreA === null || match.scoreB === null || match.scoreA === match.scoreB) {
+        resetInvalidMatch(match);
+      } else {
+        match.winnerTeamId = match.scoreA > match.scoreB ? match.teamAId : match.teamBId;
+      }
+
+      if (match.isCompleted) {
+        setNextRoundSlot(tournament.matches, round, match.matchNumber, match.winnerTeamId);
+      }
+    });
   }
 
+  const finalMatch = findMatch(tournament.matches, tournament.totalRounds, 1);
   if (finalMatch?.isCompleted && finalMatch.winnerTeamId) {
     tournament.championTeamId = finalMatch.winnerTeamId;
     tournament.finalScore =
@@ -876,6 +947,10 @@ const serializeTournament = (tournament: ITournament) => {
   return {
     ...plain,
     format: plain.format || "knockout",
+    groupCount: plain.groupCount ?? null,
+    groupDistributionMode: plain.groupDistributionMode || "random",
+    teamsQualifyingPerGroup: plain.teamsQualifyingPerGroup || 2,
+    enableManualGroupEditing: Boolean(plain.enableManualGroupEditing),
     time: plain.time || "",
     championTeam: champion,
     teamRegistry: (plain.teamRegistry || []).map((entry: any) => ({
@@ -887,6 +962,13 @@ const serializeTournament = (tournament: ITournament) => {
         gender: member.gender,
       })),
     })),
+    tournamentGroups: (plain.tournamentGroups || []).map((group: any) => ({
+      ...group,
+      teamIds: (group.teamIds || []).map((teamId: any) => teamId.toString()),
+    })),
+    auditHistory: (plain.auditHistory || [])
+      .slice()
+      .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
     tournamentExpenses: (plain.tournamentExpenses || []).map((expense: any) => ({
       ...expense,
       amount: toNumber(expense.amount),
@@ -960,6 +1042,10 @@ type CreateTournamentInput = {
   location: string;
   type: "singles" | "doubles";
   format?: TournamentFormat;
+  groupCount?: number | null;
+  groupDistributionMode?: GroupDistributionMode;
+  teamsQualifyingPerGroup?: number;
+  enableManualGroupEditing?: boolean;
   entryFee?: number;
   status?: "upcoming" | "ongoing" | "completed";
   isVisibleToMembers?: boolean;
@@ -975,6 +1061,10 @@ export const createTournament = async (input: CreateTournamentInput) => {
     location: input.location.trim(),
     type: input.type,
     format: input.format || "knockout",
+    groupCount: input.groupCount ?? null,
+    groupDistributionMode: input.groupDistributionMode || "random",
+    teamsQualifyingPerGroup: input.teamsQualifyingPerGroup || 2,
+    enableManualGroupEditing: input.enableManualGroupEditing ?? false,
     entryFee: input.entryFee || 0,
     status: input.status || "upcoming",
     isVisibleToMembers: input.isVisibleToMembers ?? true,
@@ -983,6 +1073,8 @@ export const createTournament = async (input: CreateTournamentInput) => {
     teams: [],
     registrations: [],
     teamRegistry: [],
+    tournamentGroups: [],
+    auditHistory: [],
     tournamentExpenses: [],
     tournamentIncomes: [],
     matches: [],
@@ -998,7 +1090,7 @@ type UpdateTournamentInput = Partial<CreateTournamentInput>;
 
 type TeamRegistryMemberInput = {
   name: string;
-  mobileNumber: string;
+  mobileNumber?: string;
   gender: "male" | "female" | "other";
 };
 
@@ -1012,6 +1104,10 @@ export const updateTournament = async (id: string, input: UpdateTournamentInput)
   if (input.location !== undefined) tournament.location = input.location.trim();
   if (input.type !== undefined) tournament.type = input.type;
   if (input.format !== undefined) tournament.format = input.format;
+  if (input.groupCount !== undefined) tournament.groupCount = input.groupCount;
+  if (input.groupDistributionMode !== undefined) tournament.groupDistributionMode = input.groupDistributionMode;
+  if (input.teamsQualifyingPerGroup !== undefined) tournament.teamsQualifyingPerGroup = input.teamsQualifyingPerGroup;
+  if (input.enableManualGroupEditing !== undefined) tournament.enableManualGroupEditing = input.enableManualGroupEditing;
   if (input.entryFee !== undefined) tournament.entryFee = input.entryFee;
   if (input.status !== undefined) tournament.status = input.status;
   if (input.isVisibleToMembers !== undefined) tournament.isVisibleToMembers = input.isVisibleToMembers;
@@ -1025,7 +1121,9 @@ export const updateTournament = async (id: string, input: UpdateTournamentInput)
 };
 
 type AddTeamInput = {
-  name: string;
+  name?: string;
+  player1?: string;
+  player2?: string;
   contactMobileNumber?: string;
   players?: string[];
   teamLeadName?: string;
@@ -1063,7 +1161,7 @@ const normalizeRegistryMembers = (
   if (members && members.length > 0) {
     return members.map((member) => ({
       name: member.name.trim(),
-      mobileNumber: member.mobileNumber.trim(),
+      mobileNumber: (member.mobileNumber || "").trim(),
       gender: member.gender,
     }));
   }
@@ -1107,7 +1205,7 @@ const upsertTeamRegistry = (
     existing.teamLeadName = payload.teamLeadName.trim();
     existing.members = payload.members.map((member) => ({
       name: member.name.trim(),
-      mobileNumber: member.mobileNumber.trim(),
+      mobileNumber: (member.mobileNumber || "").trim(),
       gender: member.gender,
     })) as any;
     existing.entryFeePaid = nextEntryFeePaid;
@@ -1122,7 +1220,7 @@ const upsertTeamRegistry = (
     teamLeadName: payload.teamLeadName.trim(),
     members: payload.members.map((member) => ({
       name: member.name.trim(),
-      mobileNumber: member.mobileNumber.trim(),
+      mobileNumber: (member.mobileNumber || "").trim(),
       gender: member.gender,
     })) as any,
     entryFeePaid: nextEntryFeePaid,
@@ -1132,11 +1230,7 @@ const upsertTeamRegistry = (
 };
 
 const tryAddTeamToTournament = (tournament: ITournament, input: AddTeamInput): TeamInsertResult => {
-  if (tournament.matches.length > 0) {
-    return { error: "Cannot add teams after bracket generation", status: 400 as const };
-  }
-
-    const expectedPlayerCount = tournament.type === "doubles" ? 2 : 1;
+  const expectedPlayerCount = tournament.type === "doubles" ? 2 : 1;
   const playersFromInput = (input.players || []).map((player) => player.trim()).filter(Boolean);
   const normalizedPlayers =
     playersFromInput.length > 0 ? playersFromInput : parsePlayersFromTeamName(input.name?.trim() || "", expectedPlayerCount) || [];
@@ -1183,7 +1277,7 @@ const tryAddTeamToTournament = (tournament: ITournament, input: AddTeamInput): T
     (member) =>
       !member.name.trim() ||
       !member.gender ||
-      (member.mobileNumber.trim().length > 0 && !/^\+?[0-9]{8,15}$/.test(member.mobileNumber.trim()))
+      ((member.mobileNumber || "").trim().length > 0 && !/^\+?[0-9]{8,15}$/.test((member.mobileNumber || "").trim()))
   );
   if (invalidRegistryMember) {
     return {
@@ -1226,11 +1320,16 @@ const tryAddTeamToTournament = (tournament: ITournament, input: AddTeamInput): T
   return { ok: true };
 };
 
-export const addTeam = async (tournamentId: string, input: AddTeamInput) => {
+export const addTeam = async (tournamentId: string, input: AddTeamInput, userId?: string | null) => {
   const tournament = await Tournament.findById(tournamentId);
   if (!tournament) return { error: "Tournament not found", status: 404 as const };
+  const hadGeneratedMatches = tournament.matches.length > 0;
   const teamAddResult = tryAddTeamToTournament(tournament, input);
   if ("error" in teamAddResult) return teamAddResult;
+  if (hadGeneratedMatches) {
+    resetTournamentProgress(tournament, "Added team after bracket generation; generated bracket was cleared", userId);
+  }
+  recordAudit(tournament, `Added team ${tournament.teams[tournament.teams.length - 1]?.name || ""}`.trim(), userId);
   await tournament.save();
 
   return { tournament: serializeTournament(tournament) };
@@ -1239,13 +1338,12 @@ export const addTeam = async (tournamentId: string, input: AddTeamInput) => {
 export const updateTeam = async (
   tournamentId: string,
   teamId: string,
-  input: UpdateTeamInput
+  input: UpdateTeamInput,
+  userId?: string | null
 ) => {
   const tournament = await Tournament.findById(tournamentId);
   if (!tournament) return { error: "Tournament not found", status: 404 as const };
-  if (tournament.matches.length > 0) {
-    return { error: "Cannot update teams after bracket generation", status: 400 as const };
-  }
+  const hadGeneratedMatches = tournament.matches.length > 0;
 
   const team = tournament.teams.find((item) => item._id.toString() === teamId);
   if (!team) return { error: "Team not found", status: 404 as const };
@@ -1306,7 +1404,7 @@ export const updateTeam = async (
     (member) =>
       !member.name.trim() ||
       !member.gender ||
-      (member.mobileNumber.trim().length > 0 && !/^\+?[0-9]{8,15}$/.test(member.mobileNumber.trim()))
+      ((member.mobileNumber || "").trim().length > 0 && !/^\+?[0-9]{8,15}$/.test((member.mobileNumber || "").trim()))
   );
   if (invalidRegistryMember) {
     return {
@@ -1332,16 +1430,101 @@ export const updateTeam = async (
     teamRegistryId: registryResult.entry?._id || null,
   });
 
+  if (hadGeneratedMatches) {
+    resetTournamentProgress(tournament, `Updated team ${team.name}; generated bracket was cleared`, userId);
+  }
+  recordAudit(tournament, `Updated team ${existingName} to ${team.name}`, userId);
   await tournament.save();
   return { tournament: serializeTournament(tournament) };
 };
 
-export const removeTeam = async (tournamentId: string, teamId: string) => {
+export const generateGroups = async (tournamentId: string, userId?: string | null) => {
   const tournament = await Tournament.findById(tournamentId);
   if (!tournament) return { error: "Tournament not found", status: 404 as const };
-  if (tournament.matches.length > 0) {
-    return { error: "Cannot remove teams after bracket generation", status: 400 as const };
+  if ((tournament.format || "knockout") !== "group_knockout") {
+    return { error: "Groups are only available for Group + Knockout tournaments", status: 400 as const };
   }
+  if (tournament.teams.length < 2) {
+    return { error: "At least 2 teams are required to generate groups", status: 400 as const };
+  }
+
+  const groupCount = clampGroupCount(tournament.groupCount, tournament.teams.length);
+  tournament.tournamentGroups = makeTournamentGroups(
+    tournament.teams.map((team) => team._id),
+    groupCount,
+    tournament.groupDistributionMode || "random"
+  ) as any;
+  resetTournamentProgress(tournament, "Regenerated groups; generated bracket was cleared", userId);
+  recordAudit(tournament, `Generated ${groupCount} groups using ${tournament.groupDistributionMode || "random"} distribution`, userId);
+  await tournament.save();
+  return { tournament: serializeTournament(tournament) };
+};
+
+export const renameTournamentGroup = async (
+  tournamentId: string,
+  groupId: string,
+  groupName: string,
+  userId?: string | null
+) => {
+  const tournament = await Tournament.findById(tournamentId);
+  if (!tournament) return { error: "Tournament not found", status: 404 as const };
+  const group = tournament.tournamentGroups.find((item) => item._id.toString() === groupId);
+  if (!group) return { error: "Group not found", status: 404 as const };
+  if (group.isLocked) return { error: "Group is locked", status: 400 as const };
+  const previousName = group.groupName;
+  group.groupName = groupName.trim();
+  resetTournamentProgress(tournament, `Renamed group ${previousName} to ${group.groupName}; generated bracket was cleared`, userId);
+  recordAudit(tournament, `Renamed group ${previousName} to ${group.groupName}`, userId);
+  await tournament.save();
+  return { tournament: serializeTournament(tournament) };
+};
+
+export const setTournamentGroupLock = async (
+  tournamentId: string,
+  groupId: string,
+  isLocked: boolean,
+  userId?: string | null
+) => {
+  const tournament = await Tournament.findById(tournamentId);
+  if (!tournament) return { error: "Tournament not found", status: 404 as const };
+  const group = tournament.tournamentGroups.find((item) => item._id.toString() === groupId);
+  if (!group) return { error: "Group not found", status: 404 as const };
+  group.isLocked = isLocked;
+  recordAudit(tournament, `${isLocked ? "Locked" : "Unlocked"} ${group.groupName}`, userId);
+  await tournament.save();
+  return { tournament: serializeTournament(tournament) };
+};
+
+export const updateTournamentGroupTeams = async (
+  tournamentId: string,
+  groupId: string,
+  teamIds: string[],
+  userId?: string | null
+) => {
+  const tournament = await Tournament.findById(tournamentId);
+  if (!tournament) return { error: "Tournament not found", status: 404 as const };
+  const group = tournament.tournamentGroups.find((item) => item._id.toString() === groupId);
+  if (!group) return { error: "Group not found", status: 404 as const };
+  if (group.isLocked) return { error: "Group is locked", status: 400 as const };
+
+  const validTeamIds = new Set(tournament.teams.map((team) => team._id.toString()));
+  const uniqueTeamIds = [...new Set(teamIds)].filter((teamId) => validTeamIds.has(teamId));
+  tournament.tournamentGroups.forEach((item) => {
+    if (item._id.toString() === groupId) return;
+    item.teamIds = item.teamIds.filter((teamId) => !uniqueTeamIds.includes(teamId.toString())) as any;
+  });
+  group.teamIds = uniqueTeamIds.map((teamId) => new mongoose.Types.ObjectId(teamId)) as any;
+  resetTournamentProgress(tournament, `Updated teams in ${group.groupName}; generated bracket was cleared`, userId);
+  recordAudit(tournament, `Updated teams in ${group.groupName}`, userId);
+  await tournament.save();
+  return { tournament: serializeTournament(tournament) };
+};
+
+export const removeTeam = async (tournamentId: string, teamId: string, userId?: string | null) => {
+  const tournament = await Tournament.findById(tournamentId);
+  if (!tournament) return { error: "Tournament not found", status: 404 as const };
+  const hadGeneratedMatches = tournament.matches.length > 0;
+  const removedTeam = tournament.teams.find((team) => team._id.toString() === teamId);
 
   const beforeCount = tournament.teams.length;
   tournament.teams = tournament.teams.filter((team) => team._id.toString() !== teamId) as any;
@@ -1351,6 +1534,13 @@ export const removeTeam = async (tournamentId: string, teamId: string) => {
   tournament.teamRegistry = (tournament.teamRegistry || []).filter(
     (entry) => !entry.teamId || entry.teamId.toString() !== teamId
   ) as any;
+  tournament.tournamentGroups.forEach((group) => {
+    group.teamIds = group.teamIds.filter((id) => id.toString() !== teamId) as any;
+  });
+  if (hadGeneratedMatches) {
+    resetTournamentProgress(tournament, `Removed team ${removedTeam?.name || teamId}; generated bracket was cleared`, userId);
+  }
+  recordAudit(tournament, `Removed team ${removedTeam?.name || teamId}`, userId);
 
   await tournament.save();
   return { tournament: serializeTournament(tournament) };
@@ -1477,11 +1667,35 @@ export const generateBracket = async (tournamentId: string) => {
     return { error: "At least 4 teams are required for Group + Knockout format", status: 400 as const };
   }
 
+  if (format === "group_knockout" && tournament.tournamentGroups.length === 0) {
+    const groupCount = clampGroupCount(tournament.groupCount, tournament.teams.length);
+    tournament.tournamentGroups = makeTournamentGroups(
+      tournament.teams.map((team) => team._id),
+      groupCount,
+      tournament.groupDistributionMode || "random"
+    ) as any;
+    recordAudit(tournament, `Generated ${groupCount} groups before bracket generation`, undefined);
+  }
+
+  if (format === "group_knockout") {
+    const assignedTeamCount = new Set(
+      tournament.tournamentGroups.flatMap((group) => group.teamIds.map((teamId) => teamId.toString()))
+    ).size;
+    if (assignedTeamCount < 4) {
+      return { error: "Assign at least 4 teams to groups before generating the bracket", status: 400 as const };
+    }
+  }
+
   const { matches, totalRounds } =
     format === "round_robin"
       ? buildRoundRobinMatches(tournament.teams)
       : format === "group_knockout"
-      ? buildGroupKnockoutMatches(tournament.teams)
+      ? buildGroupKnockoutMatches(tournament.teams, {
+          groupCount: tournament.groupCount,
+          distributionMode: tournament.groupDistributionMode,
+          teamsQualifyingPerGroup: tournament.teamsQualifyingPerGroup,
+          tournamentGroups: tournament.tournamentGroups,
+        })
       : buildBracketMatches(tournament.teams);
   tournament.matches = matches as any;
   tournament.totalRounds = totalRounds;
@@ -1935,7 +2149,7 @@ export const updateTeamRegistryEntry = async (
   if (input.members !== undefined) {
     const members = input.members.map((member) => ({
       name: member.name.trim(),
-      mobileNumber: member.mobileNumber.trim(),
+      mobileNumber: (member.mobileNumber || "").trim(),
       gender: member.gender,
     }));
     const invalid = members.some(

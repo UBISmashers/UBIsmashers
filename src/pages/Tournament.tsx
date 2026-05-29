@@ -28,7 +28,8 @@ export default function TournamentPage() {
   const tournaments = data?.tournaments || [];
   const [expandedTournamentId, setExpandedTournamentId] = useState<string>("");
   const [registrationTournamentId, setRegistrationTournamentId] = useState<string>("");
-  const [teamName, setTeamName] = useState("");
+  const [teamPlayer1, setTeamPlayer1] = useState("");
+  const [teamPlayer2, setTeamPlayer2] = useState("");
   const [contactMobileNumber, setContactMobileNumber] = useState("");
 
   const registrationTournament = tournaments.find((item) => item._id === registrationTournamentId) || null;
@@ -38,14 +39,18 @@ export default function TournamentPage() {
   };
 
   const resetRegistrationForm = () => {
-    setTeamName("");
+    setTeamPlayer1("");
+    setTeamPlayer2("");
     setContactMobileNumber("");
   };
 
   const registerMutation = useMutation({
     mutationFn: () =>
       publicApi.registerPublicTournamentTeam(registrationTournament!._id, {
-        teamName,
+        teamName:
+          registrationTournament?.type === "doubles"
+            ? `${teamPlayer1.trim()}+${teamPlayer2.trim()}`
+            : teamPlayer1.trim(),
         contactMobileNumber,
       }),
     onSuccess: async () => {
@@ -58,8 +63,13 @@ export default function TournamentPage() {
   });
 
   const canSubmitRegistration = useMemo(
-    () => Boolean(registrationTournament && teamName.trim()),
-    [registrationTournament, teamName]
+    () =>
+      Boolean(
+        registrationTournament &&
+          teamPlayer1.trim() &&
+          (registrationTournament.type !== "doubles" || teamPlayer2.trim())
+      ),
+    [registrationTournament, teamPlayer1, teamPlayer2]
   );
 
   if (isLoading) {
@@ -216,17 +226,27 @@ export default function TournamentPage() {
                             <CardTitle className="text-base">Team Registration</CardTitle>
                           </CardHeader>
                           <CardContent className="space-y-4">
-                            <div className="space-y-1">
-                              <Label>Team Name</Label>
-                              <Input
-                                value={teamName}
-                                onChange={(e) => setTeamName(e.target.value)}
-                                placeholder={
-                                  registrationTournament?.type === "doubles"
-                                    ? "Player1+Player2 / Player1/Player2"
-                                    : "Player1"
-                                }
-                              />
+                            <div className="grid gap-2 sm:grid-cols-2">
+                              <div className="space-y-1">
+                                <Label>Player 1</Label>
+                                <Input
+                                  value={teamPlayer1}
+                                  onChange={(e) => setTeamPlayer1(e.target.value)}
+                                  placeholder="Player 1"
+                                />
+                              </div>
+                              {registrationTournament.type === "doubles" ? (
+                                <div className="space-y-1">
+                                  <Label>Player 2</Label>
+                                  <Input
+                                    value={teamPlayer2}
+                                    onChange={(e) => setTeamPlayer2(e.target.value)}
+                                    placeholder="Player 2"
+                                  />
+                                </div>
+                              ) : (
+                                <div />
+                              )}
                             </div>
                             <div className="space-y-1">
                               <Label>Contact Mobile Number (Optional)</Label>
@@ -237,11 +257,7 @@ export default function TournamentPage() {
                               />
                             </div>
                             <p className="text-xs text-muted-foreground">
-                              Use team name format{" "}
-                              <span className="font-medium">
-                                {registrationTournament?.type === "doubles" ? "Player1+Player2 / Player1/Player2" : "Player1"}
-                              </span>
-                              .
+                              Team name will be created internally as <span className="font-medium">Player1+Player2</span>.
                             </p>
 
                             <Button onClick={() => registerMutation.mutate()} disabled={!canSubmitRegistration}>
@@ -326,26 +342,6 @@ export default function TournamentPage() {
                                       </tbody>
                                     </table>
                                   </div>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </CardContent>
-                      </Card>
-
-                      <Card>
-                        <CardHeader>
-                          <CardTitle className="text-base">Team Details</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                          {tournament.teams.length === 0 ? (
-                            <p className="text-sm text-muted-foreground">No teams added yet.</p>
-                          ) : (
-                            <div className="space-y-2">
-                              {tournament.teams.map((team) => (
-                                <div key={team._id} className="rounded-md border bg-secondary/20 p-3">
-                                  <p className="font-medium">{team.name}</p>
-                                  <p className="text-sm text-muted-foreground">{team.players.join(" / ")}</p>
                                 </div>
                               ))}
                             </div>

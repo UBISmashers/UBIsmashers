@@ -447,6 +447,10 @@ class ApiClient {
     location: string;
     type: "singles" | "doubles";
     format?: "knockout" | "round_robin" | "group_knockout";
+    groupCount?: number | null;
+    groupDistributionMode?: "random" | "balanced" | "manual";
+    teamsQualifyingPerGroup?: number;
+    enableManualGroupEditing?: boolean;
     entryFee?: number;
     status?: "upcoming" | "ongoing" | "completed";
     isVisibleToMembers?: boolean;
@@ -466,6 +470,10 @@ class ApiClient {
     location: string;
     type: "singles" | "doubles";
     format: "knockout" | "round_robin" | "group_knockout";
+    groupCount: number | null;
+    groupDistributionMode: "random" | "balanced" | "manual";
+    teamsQualifyingPerGroup: number;
+    enableManualGroupEditing: boolean;
     entryFee: number;
     status: "upcoming" | "ongoing" | "completed";
     isVisibleToMembers: boolean;
@@ -612,6 +620,33 @@ class ApiClient {
   async generateTournamentBracket(id: string) {
     return this.request<Tournament>(`/tournaments/${id}/generate-bracket`, {
       method: "POST",
+    });
+  }
+
+  async generateTournamentGroups(id: string) {
+    return this.request<Tournament>(`/tournaments/${id}/groups/generate`, {
+      method: "POST",
+    });
+  }
+
+  async renameTournamentGroup(id: string, groupId: string, groupName: string) {
+    return this.request<Tournament>(`/tournaments/${id}/groups/${groupId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ groupName }),
+    });
+  }
+
+  async updateTournamentGroupTeams(id: string, groupId: string, teamIds: string[]) {
+    return this.request<Tournament>(`/tournaments/${id}/groups/${groupId}/teams`, {
+      method: "PATCH",
+      body: JSON.stringify({ teamIds }),
+    });
+  }
+
+  async updateTournamentGroupLock(id: string, groupId: string, isLocked: boolean) {
+    return this.request<Tournament>(`/tournaments/${id}/groups/${groupId}/lock`, {
+      method: "PATCH",
+      body: JSON.stringify({ isLocked }),
     });
   }
 

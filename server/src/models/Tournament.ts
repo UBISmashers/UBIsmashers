@@ -3,11 +3,29 @@ import mongoose, { Document, Schema } from "mongoose";
 export type TournamentType = "singles" | "doubles";
 export type TournamentStatus = "upcoming" | "ongoing" | "completed";
 export type TournamentFormat = "knockout" | "round_robin" | "group_knockout";
+export type GroupDistributionMode = "random" | "balanced" | "manual";
 
 export interface ITournamentTeam {
   _id: mongoose.Types.ObjectId;
   name: string;
   players: string[];
+}
+
+export interface ITournamentGroup {
+  _id: mongoose.Types.ObjectId;
+  groupName: string;
+  groupOrder: number;
+  teamIds: mongoose.Types.ObjectId[];
+  isLocked: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface ITournamentAuditEntry {
+  _id: mongoose.Types.ObjectId;
+  action: string;
+  userId: string | null;
+  createdAt: Date;
 }
 
 export type TournamentRegistrationStatus = "pending" | "accepted" | "rejected";
@@ -99,6 +117,10 @@ export interface ITournament extends Document {
   location: string;
   type: TournamentType;
   format: TournamentFormat;
+  groupCount: number | null;
+  groupDistributionMode: GroupDistributionMode;
+  teamsQualifyingPerGroup: number;
+  enableManualGroupEditing: boolean;
   entryFee?: number;
   status: TournamentStatus;
   isVisibleToMembers: boolean;
@@ -107,6 +129,8 @@ export interface ITournament extends Document {
   teams: ITournamentTeam[];
   registrations: ITournamentRegistration[];
   teamRegistry: ITournamentTeamRegistry[];
+  tournamentGroups: ITournamentGroup[];
+  auditHistory: ITournamentAuditEntry[];
   tournamentExpenses: ITournamentExpenseEntry[];
   tournamentIncomes: ITournamentIncomeEntry[];
   matches: ITournamentMatch[];
@@ -131,6 +155,24 @@ const teamSchema = new Schema<ITournamentTeam>(
     },
   },
   { _id: true }
+);
+
+const tournamentGroupSchema = new Schema<ITournamentGroup>(
+  {
+    groupName: { type: String, required: true, trim: true },
+    groupOrder: { type: Number, required: true, min: 0 },
+    teamIds: { type: [Schema.Types.ObjectId], default: [] },
+    isLocked: { type: Boolean, default: false },
+  },
+  { _id: true, timestamps: true }
+);
+
+const tournamentAuditSchema = new Schema<ITournamentAuditEntry>(
+  {
+    action: { type: String, required: true, trim: true },
+    userId: { type: String, trim: true, default: null },
+  },
+  { _id: true, timestamps: { createdAt: true, updatedAt: false } }
 );
 
 const registrationMemberSchema = new Schema<ITournamentRegistrationMember>(
@@ -255,6 +297,27 @@ const tournamentSchema = new Schema<ITournament>(
       enum: ["knockout", "round_robin", "group_knockout"],
       default: "knockout",
     },
+    groupCount: {
+      type: Number,
+      min: 2,
+      max: 16,
+      default: null,
+    },
+    groupDistributionMode: {
+      type: String,
+      enum: ["random", "balanced", "manual"],
+      default: "random",
+    },
+    teamsQualifyingPerGroup: {
+      type: Number,
+      min: 1,
+      max: 8,
+      default: 2,
+    },
+    enableManualGroupEditing: {
+      type: Boolean,
+      default: false,
+    },
     entryFee: {
       type: Number,
       min: 0,
@@ -287,6 +350,14 @@ const tournamentSchema = new Schema<ITournament>(
     },
     teamRegistry: {
       type: [teamRegistrySchema],
+      default: [],
+    },
+    tournamentGroups: {
+      type: [tournamentGroupSchema],
+      default: [],
+    },
+    auditHistory: {
+      type: [tournamentAuditSchema],
       default: [],
     },
     tournamentExpenses: {

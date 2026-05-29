@@ -14,11 +14,15 @@ import {
   getPublicTournamentById,
   getPublicTournamentPayload,
   getTournamentVisibility,
+  generateGroups,
   listAdminTournaments,
+  renameTournamentGroup,
   registerTeam,
   removeTeam,
   reviewTeamRegistration,
+  setTournamentGroupLock,
   setTournamentVisibility,
+  updateTournamentGroupTeams,
   updateMatchDetails,
   updateTeam,
   updateTeamRegistryEntry,
@@ -36,6 +40,10 @@ const tournamentSchema = z.object({
   location: z.string().min(1, "Location is required"),
   type: z.enum(["singles", "doubles"]),
   format: z.enum(["knockout", "round_robin", "group_knockout"]).optional(),
+  groupCount: z.number().int().min(2).max(16).nullable().optional(),
+  groupDistributionMode: z.enum(["random", "balanced", "manual"]).optional(),
+  teamsQualifyingPerGroup: z.number().int().min(1).max(8).optional(),
+  enableManualGroupEditing: z.boolean().optional(),
   entryFee: z.number().min(0).optional(),
   status: z.enum(["upcoming", "ongoing", "completed"]).optional(),
   isVisibleToMembers: z.boolean().optional(),
@@ -142,6 +150,18 @@ const generateScheduleSchema = z.object({
   courtCount: z.number().int().min(1).max(12),
   startTime: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Start time must be in HH:mm format"),
   matchDurationMinutes: z.number().int().min(1).max(240),
+});
+
+const groupNameSchema = z.object({
+  groupName: z.string().trim().min(1, "Group name is required"),
+});
+
+const groupLockSchema = z.object({
+  isLocked: z.boolean(),
+});
+
+const groupTeamsSchema = z.object({
+  teamIds: z.array(z.string()),
 });
 
 const registerTeamSchema = z.object({
@@ -270,7 +290,7 @@ export const deleteAdminTournament = async (req: Request, res: Response) => {
 export const addTournamentTeam = async (req: Request, res: Response) => {
   try {
     const payload = teamSchema.parse(req.body);
-    const result = await addTeam(req.params.id, payload);
+    const result = await addTeam(req.params.id, payload, req.user?.id);
     if (isServiceError(result)) return res.status(result.status).json({ error: result.error });
     return res.status(201).json(result.tournament);
   } catch (error) {
@@ -285,7 +305,7 @@ export const addTournamentTeam = async (req: Request, res: Response) => {
 export const updateAdminTournamentTeam = async (req: Request, res: Response) => {
   try {
     const payload = updateTeamSchema.parse(req.body);
-    const result = await updateTeam(req.params.id, req.params.teamId, payload);
+    const result = await updateTeam(req.params.id, req.params.teamId, payload, req.user?.id);
     if (isServiceError(result)) return res.status(result.status).json({ error: result.error });
     return res.json(result.tournament);
   } catch (error) {
@@ -299,7 +319,7 @@ export const updateAdminTournamentTeam = async (req: Request, res: Response) => 
 
 export const removeTournamentTeam = async (req: Request, res: Response) => {
   try {
-    const result = await removeTeam(req.params.id, req.params.teamId);
+    const result = await removeTeam(req.params.id, req.params.teamId, req.user?.id);
     if (isServiceError(result)) return res.status(result.status).json({ error: result.error });
     return res.json(result.tournament);
   } catch (error) {
@@ -315,6 +335,62 @@ export const generateTournamentBracket = async (req: Request, res: Response) => 
     return res.json(result.tournament);
   } catch (error) {
     console.error("Generate bracket error:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+export const generateTournamentGroups = async (req: Request, res: Response) => {
+  try {
+    const result = await generateGroups(req.params.id, req.user?.id);
+    if (isServiceError(result)) return res.status(result.status).json({ error: result.error });
+    return res.json(result.tournament);
+  } catch (error) {
+    console.error("Generate groups error:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+export const renameAdminTournamentGroup = async (req: Request, res: Response) => {
+  try {
+    const { groupName } = groupNameSchema.parse(req.body);
+    const result = await renameTournamentGroup(req.params.id, req.params.groupId, groupName, req.user?.id);
+    if (isServiceError(result)) return res.status(result.status).json({ error: result.error });
+    return res.json(result.tournament);
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: error.errors[0].message });
+    }
+    console.error("Rename group error:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+export const updateAdminTournamentGroupTeams = async (req: Request, res: Response) => {
+  try {
+    const { teamIds } = groupTeamsSchema.parse(req.body);
+    const result = await updateTournamentGroupTeams(req.params.id, req.params.groupId, teamIds, req.user?.id);
+    if (isServiceError(result)) return res.status(result.status).json({ error: result.error });
+    return res.json(result.tournament);
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: error.errors[0].message });
+    }
+    console.error("Update group teams error:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+export const updateAdminTournamentGroupLock = async (req: Request, res: Response) => {
+  try {
+    const { isLocked } = groupLockSchema.parse(req.body);
+    const result = await setTournamentGroupLock(req.params.id, req.params.groupId, isLocked, req.user?.id);
+    if (isServiceError(result)) return res.status(result.status).json({ error: result.error });
+    return res.json(result.tournament);
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: error.errors[0].message });
+    }
+    console.error("Update group lock error:", error);
     return res.status(500).json({ error: "Internal server error" });
   }
 };

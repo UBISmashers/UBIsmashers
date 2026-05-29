@@ -27,7 +27,7 @@ export default function TournamentPopup() {
       "📅 June 14, 2026 (Sunday)",
       "🕗 8:00 AM Onwards",
       "🏸 Doubles Tournament",
-      "🏸 Mixed Doubles Also Welcome",
+      "🏸 Mens Only Tournament",
       "👥 Maximum 32 Teams",
       "🏆 League Stage ➡ Quarter Final ➡ Semi Final ➡ Final",
       "✅ Minimum 3 Matches Per Team",

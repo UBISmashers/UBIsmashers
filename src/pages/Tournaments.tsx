@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronDown, ChevronUp, Pencil, Plus, Trash2, X } from "lucide-react";
+import { ChevronDown, ChevronUp, Download, Lock, Pencil, Plus, Trash2, Unlock, X } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -32,6 +32,12 @@ const formatOptions = [
   { label: "Group + Knockout", value: "group_knockout" },
 ] as const;
 
+const groupDistributionOptions = [
+  { label: "Random Distribution", value: "random" },
+  { label: "Balanced Distribution", value: "balanced" },
+  { label: "Manual Distribution", value: "manual" },
+] as const;
+
 const customMatchTypeOptions: Array<{ label: string; value: TournamentMatchType }> = [
   { label: "League Match", value: "league" },
   { label: "Semi Final", value: "semifinal" },
@@ -49,6 +55,12 @@ const formatShortDate = (value?: string | null) => {
   return parsed.toLocaleDateString();
 };
 
+const getAutoGroupCount = (teamCount: number) => {
+  if (teamCount <= 8) return 2;
+  if (teamCount <= 24) return 4;
+  return Math.min(16, Math.max(2, Math.ceil(teamCount / 4)));
+};
+
 export default function Tournaments() {
   const { api } = useAuth();
   const queryClient = useQueryClient();
@@ -61,6 +73,10 @@ export default function Tournaments() {
     location: "",
     type: "doubles" as "singles" | "doubles",
     format: "knockout" as "knockout" | "round_robin" | "group_knockout",
+    groupCount: "",
+    groupDistributionMode: "random" as "random" | "balanced" | "manual",
+    teamsQualifyingPerGroup: "2",
+    enableManualGroupEditing: false,
     entryFee: "",
     status: "upcoming" as "upcoming" | "ongoing" | "completed",
     isVisibleToMembers: true,
@@ -74,6 +90,10 @@ export default function Tournaments() {
     location: "",
     type: "doubles" as "singles" | "doubles",
     format: "knockout" as "knockout" | "round_robin" | "group_knockout",
+    groupCount: "",
+    groupDistributionMode: "random" as "random" | "balanced" | "manual",
+    teamsQualifyingPerGroup: "2",
+    enableManualGroupEditing: false,
     entryFee: "",
     status: "upcoming" as "upcoming" | "ongoing" | "completed",
     isVisibleToMembers: true,
@@ -118,6 +138,9 @@ export default function Tournaments() {
   const [financeTab, setFinanceTab] = useState<"expenses" | "incoming">("expenses");
   const [editingExpenseId, setEditingExpenseId] = useState("");
   const [editingIncomeId, setEditingIncomeId] = useState("");
+  const [draggedTeamId, setDraggedTeamId] = useState("");
+  const [groupRenameDrafts, setGroupRenameDrafts] = useState<Record<string, string>>({});
+  const [teamToAddByGroup, setTeamToAddByGroup] = useState<Record<string, string>>({});
 
   const { data: tournaments = [] } = useQuery<Tournament[]>({
     queryKey: ["tournaments"],
@@ -143,12 +166,23 @@ export default function Tournaments() {
       location: selectedTournament.location,
       type: selectedTournament.type,
       format: selectedTournament.format || "knockout",
+      groupCount: selectedTournament.groupCount?.toString() || "",
+      groupDistributionMode: selectedTournament.groupDistributionMode || "random",
+      teamsQualifyingPerGroup: selectedTournament.teamsQualifyingPerGroup?.toString() || "2",
+      enableManualGroupEditing: selectedTournament.enableManualGroupEditing ?? false,
       entryFee: selectedTournament.entryFee?.toString() || "0",
       status: selectedTournament.status,
       isVisibleToMembers: selectedTournament.isVisibleToMembers,
       allowTeamRegistration: selectedTournament.allowTeamRegistration ?? false,
       registrationDeadline: selectedTournament.registrationDeadline ? selectedTournament.registrationDeadline.slice(0, 10) : "",
     });
+  }, [selectedTournament]);
+
+  useEffect(() => {
+    if (!selectedTournament) return;
+    setGroupRenameDrafts(
+      Object.fromEntries((selectedTournament.tournamentGroups || []).map((group) => [group._id, group.groupName]))
+    );
   }, [selectedTournament]);
 
   useEffect(() => {
@@ -205,6 +239,10 @@ export default function Tournaments() {
         location: form.location,
         type: form.type,
         format: form.format,
+        groupCount: form.format === "group_knockout" && form.groupCount ? Number(form.groupCount) : null,
+        groupDistributionMode: form.groupDistributionMode,
+        teamsQualifyingPerGroup: Number(form.teamsQualifyingPerGroup || 2),
+        enableManualGroupEditing: form.enableManualGroupEditing,
         entryFee: form.entryFee ? Number(form.entryFee) : 0,
         status: form.status,
         isVisibleToMembers: form.isVisibleToMembers,
@@ -220,6 +258,10 @@ export default function Tournaments() {
         location: "",
         type: "doubles",
         format: "knockout",
+        groupCount: "",
+        groupDistributionMode: "random",
+        teamsQualifyingPerGroup: "2",
+        enableManualGroupEditing: false,
         entryFee: "",
         status: "upcoming",
         isVisibleToMembers: true,
@@ -249,6 +291,10 @@ export default function Tournaments() {
       location: string;
       type: "singles" | "doubles";
       format: "knockout" | "round_robin" | "group_knockout";
+      groupCount: number | null;
+      groupDistributionMode: "random" | "balanced" | "manual";
+      teamsQualifyingPerGroup: number;
+      enableManualGroupEditing: boolean;
       entryFee: number;
       status: "upcoming" | "ongoing" | "completed";
       isVisibleToMembers: boolean;
@@ -330,6 +376,45 @@ export default function Tournaments() {
     onSuccess: async () => {
       await refresh();
       toast({ title: "Bracket generated" });
+    },
+    onError: (error: Error) => toast({ title: "Failed", description: error.message, variant: "destructive" }),
+  });
+
+  const generateGroupsMutation = useMutation({
+    mutationFn: () => api.generateTournamentGroups(selectedTournament!._id),
+    onSuccess: async () => {
+      await refresh();
+      toast({ title: "Groups generated" });
+    },
+    onError: (error: Error) => toast({ title: "Failed", description: error.message, variant: "destructive" }),
+  });
+
+  const renameGroupMutation = useMutation({
+    mutationFn: ({ groupId, groupName }: { groupId: string; groupName: string }) =>
+      api.renameTournamentGroup(selectedTournament!._id, groupId, groupName),
+    onSuccess: async () => {
+      await refresh();
+      toast({ title: "Group renamed" });
+    },
+    onError: (error: Error) => toast({ title: "Failed", description: error.message, variant: "destructive" }),
+  });
+
+  const updateGroupTeamsMutation = useMutation({
+    mutationFn: ({ groupId, teamIds }: { groupId: string; teamIds: string[] }) =>
+      api.updateTournamentGroupTeams(selectedTournament!._id, groupId, teamIds),
+    onSuccess: async () => {
+      await refresh();
+      toast({ title: "Group teams updated" });
+    },
+    onError: (error: Error) => toast({ title: "Failed", description: error.message, variant: "destructive" }),
+  });
+
+  const updateGroupLockMutation = useMutation({
+    mutationFn: ({ groupId, isLocked }: { groupId: string; isLocked: boolean }) =>
+      api.updateTournamentGroupLock(selectedTournament!._id, groupId, isLocked),
+    onSuccess: async () => {
+      await refresh();
+      toast({ title: "Group lock updated" });
     },
     onError: (error: Error) => toast({ title: "Failed", description: error.message, variant: "destructive" }),
   });
@@ -530,7 +615,7 @@ export default function Tournaments() {
     onError: (error: Error) => toast({ title: "Failed", description: error.message, variant: "destructive" }),
   });
 
-  const canAddTeams = Boolean(selectedTournament && selectedTournament.matches.length === 0);
+  const canAddTeams = Boolean(selectedTournament);
   const canSubmitTeam =
     canAddTeams &&
     Boolean(teamPlayer1.trim()) &&
@@ -560,6 +645,118 @@ export default function Tournaments() {
     }));
   }, [scheduleRows]);
   const groupView = useMemo(() => buildTournamentGroupView(selectedTournament), [selectedTournament]);
+  const teamsById = useMemo(
+    () => new Map((selectedTournament?.teams || []).map((team) => [team._id, team])),
+    [selectedTournament?.teams]
+  );
+  const groupCards = useMemo(
+    () =>
+      [...(selectedTournament?.tournamentGroups || [])]
+        .sort((a, b) => a.groupOrder - b.groupOrder)
+        .map((group) => ({
+          ...group,
+          teams: group.teamIds.map((teamId) => teamsById.get(teamId)).filter((team): team is Tournament["teams"][number] => Boolean(team)),
+        })),
+    [selectedTournament?.tournamentGroups, teamsById]
+  );
+  const assignedGroupTeamIds = useMemo(
+    () => new Set(groupCards.flatMap((group) => group.teamIds)),
+    [groupCards]
+  );
+  const unassignedTeams = useMemo(
+    () => (selectedTournament?.teams || []).filter((team) => !assignedGroupTeamIds.has(team._id)),
+    [assignedGroupTeamIds, selectedTournament?.teams]
+  );
+  const groupStandings = useMemo(() => {
+    const standings = new Map<string, Map<string, { wins: number; losses: number; points: number }>>();
+    groupCards.forEach((group) => {
+      standings.set(
+        group._id,
+        new Map(group.teamIds.map((teamId) => [teamId, { wins: 0, losses: 0, points: 0 }]))
+      );
+    });
+
+    (selectedTournament?.matches || []).forEach((match) => {
+      if (match.matchType !== "league" || !match.isCompleted || !match.teamAId || !match.teamBId) return;
+      if (match.scoreA === null || match.scoreB === null) return;
+      const group = groupCards.find((item) => item.groupName === match.roundLabel);
+      if (!group) return;
+      const rows = standings.get(group._id);
+      const teamA = rows?.get(match.teamAId);
+      const teamB = rows?.get(match.teamBId);
+      if (!teamA || !teamB) return;
+
+      if (match.scoreA > match.scoreB) {
+        teamA.wins += 1;
+        teamA.points += 2;
+        teamB.losses += 1;
+      } else if (match.scoreB > match.scoreA) {
+        teamB.wins += 1;
+        teamB.points += 2;
+        teamA.losses += 1;
+      } else {
+        teamA.points += 1;
+        teamB.points += 1;
+      }
+    });
+
+    return standings;
+  }, [groupCards, selectedTournament?.matches]);
+  const confirmBracketReset = () =>
+    !selectedTournament?.matches.length ||
+    window.confirm("This change will delete the generated bracket and schedule. Generate a new bracket after saving?");
+  const downloadCsv = (filename: string, rows: string[][]) => {
+    const csv = rows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+  const exportGroups = () => {
+    if (!selectedTournament) return;
+    downloadCsv(`${selectedTournament.name}-groups.csv`, [
+      ["Group", "Team", "Players", "Wins", "Losses", "Points"],
+      ...groupCards.flatMap((group) =>
+        group.teams.map((team) => {
+          const standing = groupStandings.get(group._id)?.get(team._id) || { wins: 0, losses: 0, points: 0 };
+          return [group.groupName, team.name, team.players.join(" / "), standing.wins, standing.losses, standing.points];
+        })
+      ),
+    ]);
+  };
+  const exportFixtures = () => {
+    if (!selectedTournament) return;
+    downloadCsv(`${selectedTournament.name}-fixtures.csv`, [
+      ["Match ID", "Round", "Team A", "Team B", "Date", "Court", "Status"],
+      ...scheduleMatches.map((match) => [
+        match.matchId,
+        match.roundLabel,
+        match.teamA?.name || "TBD",
+        match.teamB?.name || "TBD",
+        formatScheduleDateTime(match.scheduledAt),
+        match.court || "",
+        match.isCompleted ? "Completed" : "Pending",
+      ]),
+    ]);
+  };
+  const exportResults = () => {
+    if (!selectedTournament) return;
+    downloadCsv(`${selectedTournament.name}-results.csv`, [
+      ["Match ID", "Round", "Team A", "Score A", "Score B", "Team B", "Winner"],
+      ...selectedTournament.matches.map((match) => [
+        match.matchId,
+        match.roundLabel,
+        match.teamA?.name || "TBD",
+        match.scoreA ?? "",
+        match.scoreB ?? "",
+        match.teamB?.name || "TBD",
+        match.winnerTeam?.name || "",
+      ]),
+    ]);
+  };
   const registryByTeamName = useMemo(
     () =>
       new Map(
@@ -691,6 +888,70 @@ export default function Tournaments() {
                   />
                 </div>
               </div>
+              {form.format === "group_knockout" && (
+                <div className="space-y-3 rounded-md border p-3">
+                  <div>
+                    <h3 className="text-sm font-semibold">Group Configuration</h3>
+                    <p className="text-xs text-muted-foreground">
+                      Leave group count blank to use the automatic default.
+                    </p>
+                  </div>
+                  <div className="grid gap-2 sm:grid-cols-3">
+                    <div className="space-y-1">
+                      <Label>Number of Groups</Label>
+                      <Input
+                        type="number"
+                        min={2}
+                        max={16}
+                        placeholder="Auto"
+                        value={form.groupCount}
+                        onChange={(e) => setForm((prev) => ({ ...prev, groupCount: e.target.value }))}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label>Distribution Mode</Label>
+                      <Select
+                        value={form.groupDistributionMode}
+                        onValueChange={(value: "random" | "balanced" | "manual") =>
+                          setForm((prev) => ({ ...prev, groupDistributionMode: value }))
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {groupDistributionOptions.map((item) => (
+                            <SelectItem key={item.value} value={item.value}>
+                              {item.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label>Teams Qualifying</Label>
+                      <Input
+                        type="number"
+                        min={1}
+                        max={8}
+                        value={form.teamsQualifyingPerGroup}
+                        onChange={(e) =>
+                          setForm((prev) => ({ ...prev, teamsQualifyingPerGroup: e.target.value }))
+                        }
+                      />
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between rounded-md border p-2">
+                    <span className="text-sm">Enable manual group editing</span>
+                    <Switch
+                      checked={form.enableManualGroupEditing}
+                      onCheckedChange={(checked) =>
+                        setForm((prev) => ({ ...prev, enableManualGroupEditing: checked }))
+                      }
+                    />
+                  </div>
+                </div>
+              )}
               <div className="space-y-1">
                 <Label>Team Registration Deadline</Label>
                 <Input
@@ -803,6 +1064,249 @@ export default function Tournaments() {
                     </Card>
                   )}
 
+                  {selectedTournament.format === "group_knockout" && (
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-base">Group Management</CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                          <div className="rounded-md border p-3 text-sm">
+                            <p className="text-muted-foreground">Tournament</p>
+                            <p className="font-medium">{selectedTournament.name}</p>
+                          </div>
+                          <div className="rounded-md border p-3 text-sm">
+                            <p className="text-muted-foreground">Total Teams</p>
+                            <p className="font-medium">{selectedTournament.teams.length}</p>
+                          </div>
+                          <div className="rounded-md border p-3 text-sm">
+                            <p className="text-muted-foreground">Groups</p>
+                            <p className="font-medium">{groupCards.length || selectedTournament.groupCount || "Auto"}</p>
+                          </div>
+                          <div className="rounded-md border p-3 text-sm">
+                            <p className="text-muted-foreground">Qualifiers</p>
+                            <p className="font-medium">{selectedTournament.teamsQualifyingPerGroup} / group</p>
+                          </div>
+                          <div className="rounded-md border p-3 text-sm">
+                            <p className="text-muted-foreground">Mode</p>
+                            <p className="font-medium capitalize">{selectedTournament.groupDistributionMode}</p>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-wrap gap-2">
+                          <Button
+                            variant="outline"
+                            onClick={() => {
+                              if (!confirmBracketReset()) return;
+                              generateGroupsMutation.mutate();
+                            }}
+                          >
+                            Generate Groups
+                          </Button>
+                          <Button variant="outline" onClick={exportGroups} disabled={groupCards.length === 0}>
+                            <Download className="mr-2 h-4 w-4" />
+                            Export Standings
+                          </Button>
+                          <Button variant="outline" onClick={exportFixtures} disabled={scheduleMatches.length === 0}>
+                            <Download className="mr-2 h-4 w-4" />
+                            Export Fixtures
+                          </Button>
+                          <Button variant="outline" onClick={exportResults} disabled={selectedTournament.matches.length === 0}>
+                            <Download className="mr-2 h-4 w-4" />
+                            Export Results
+                          </Button>
+                        </div>
+
+                        {unassignedTeams.length > 0 && (
+                          <div className="rounded-md border border-dashed p-3">
+                            <p className="mb-2 text-sm font-medium">Unassigned Teams</p>
+                            <div className="flex flex-wrap gap-2">
+                              {unassignedTeams.map((team) => (
+                                <div
+                                  key={team._id}
+                                  draggable
+                                  onDragStart={() => setDraggedTeamId(team._id)}
+                                  className="cursor-grab rounded-md border bg-secondary/40 px-3 py-2 text-sm"
+                                >
+                                  {team.name}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {groupCards.length === 0 ? (
+                          <p className="text-sm text-muted-foreground">Generate groups to start manual assignment.</p>
+                        ) : (
+                          <div className="grid gap-3 lg:grid-cols-2">
+                            {groupCards.map((group) => (
+                              <div
+                                key={group._id}
+                                className="rounded-md border"
+                                onDragOver={(event) => event.preventDefault()}
+                                onDrop={() => {
+                                  if (!draggedTeamId || group.isLocked) return;
+                                  const nextTeamIds = [...group.teamIds.filter((id) => id !== draggedTeamId), draggedTeamId];
+                                  updateGroupTeamsMutation.mutate({ groupId: group._id, teamIds: nextTeamIds });
+                                  setDraggedTeamId("");
+                                }}
+                              >
+                                <div className="flex flex-col gap-2 border-b bg-secondary/30 p-3 sm:flex-row sm:items-center sm:justify-between">
+                                  <div className="flex flex-1 items-center gap-2">
+                                    <Input
+                                      value={groupRenameDrafts[group._id] ?? group.groupName}
+                                      onChange={(event) =>
+                                        setGroupRenameDrafts((prev) => ({ ...prev, [group._id]: event.target.value }))
+                                      }
+                                      disabled={group.isLocked}
+                                    />
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      disabled={group.isLocked || !groupRenameDrafts[group._id]?.trim()}
+                                      onClick={() =>
+                                        renameGroupMutation.mutate({
+                                          groupId: group._id,
+                                          groupName: groupRenameDrafts[group._id] || group.groupName,
+                                        })
+                                      }
+                                    >
+                                      Rename
+                                    </Button>
+                                  </div>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() =>
+                                      updateGroupLockMutation.mutate({ groupId: group._id, isLocked: !group.isLocked })
+                                    }
+                                  >
+                                    {group.isLocked ? <Unlock className="mr-2 h-4 w-4" /> : <Lock className="mr-2 h-4 w-4" />}
+                                    {group.isLocked ? "Unlock" : "Lock"}
+                                  </Button>
+                                </div>
+
+                                <div className="space-y-3 p-3">
+                                  <div className="flex flex-col gap-2 sm:flex-row">
+                                    <Select
+                                      value={teamToAddByGroup[group._id] || "__none__"}
+                                      onValueChange={(value) =>
+                                        setTeamToAddByGroup((prev) => ({ ...prev, [group._id]: value }))
+                                      }
+                                      disabled={group.isLocked}
+                                    >
+                                      <SelectTrigger>
+                                        <SelectValue placeholder="Add team" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="__none__">Select team</SelectItem>
+                                        {unassignedTeams.map((team) => (
+                                          <SelectItem key={team._id} value={team._id}>
+                                            {team.name}
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                    <Button
+                                      variant="outline"
+                                      disabled={group.isLocked || !teamToAddByGroup[group._id] || teamToAddByGroup[group._id] === "__none__"}
+                                      onClick={() => {
+                                        const teamId = teamToAddByGroup[group._id];
+                                        if (!teamId || teamId === "__none__") return;
+                                        updateGroupTeamsMutation.mutate({
+                                          groupId: group._id,
+                                          teamIds: [...group.teamIds, teamId],
+                                        });
+                                        setTeamToAddByGroup((prev) => ({ ...prev, [group._id]: "__none__" }));
+                                      }}
+                                    >
+                                      Add Team
+                                    </Button>
+                                  </div>
+
+                                  <div className="overflow-x-auto">
+                                    <table className="min-w-full text-sm">
+                                      <thead>
+                                        <tr className="border-b text-left">
+                                          <th className="px-3 py-2">Team</th>
+                                          <th className="px-3 py-2 text-right">Wins</th>
+                                          <th className="px-3 py-2 text-right">Losses</th>
+                                          <th className="px-3 py-2 text-right">Points</th>
+                                          <th className="px-3 py-2"></th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {group.teams.map((team) => {
+                                          const standing = groupStandings.get(group._id)?.get(team._id) || {
+                                            wins: 0,
+                                            losses: 0,
+                                            points: 0,
+                                          };
+                                          return (
+                                            <tr
+                                              key={team._id}
+                                              draggable={!group.isLocked}
+                                              onDragStart={() => setDraggedTeamId(team._id)}
+                                              className="border-b last:border-0"
+                                            >
+                                              <td className="px-3 py-2 font-medium">{team.name}</td>
+                                              <td className="px-3 py-2 text-right">{standing.wins}</td>
+                                              <td className="px-3 py-2 text-right">{standing.losses}</td>
+                                              <td className="px-3 py-2 text-right">{standing.points}</td>
+                                              <td className="px-3 py-2 text-right">
+                                                <Button
+                                                  size="sm"
+                                                  variant="ghost"
+                                                  disabled={group.isLocked}
+                                                  onClick={() => {
+                                                    if (!window.confirm(`Remove ${team.name} from ${group.groupName}?`)) return;
+                                                    updateGroupTeamsMutation.mutate({
+                                                      groupId: group._id,
+                                                      teamIds: group.teamIds.filter((teamId) => teamId !== team._id),
+                                                    });
+                                                  }}
+                                                >
+                                                  Remove
+                                                </Button>
+                                              </td>
+                                            </tr>
+                                          );
+                                        })}
+                                        {group.teams.length === 0 && (
+                                          <tr>
+                                            <td className="px-3 py-4 text-muted-foreground" colSpan={5}>
+                                              Drop teams here or use Add Team.
+                                            </td>
+                                          </tr>
+                                        )}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        <div className="rounded-md border p-3">
+                          <p className="mb-2 text-sm font-medium">Audit History</p>
+                          {selectedTournament.auditHistory.length === 0 ? (
+                            <p className="text-sm text-muted-foreground">No admin actions recorded yet.</p>
+                          ) : (
+                            <div className="max-h-56 space-y-2 overflow-y-auto">
+                              {selectedTournament.auditHistory.slice(0, 30).map((entry) => (
+                                <div key={entry._id} className="rounded-md bg-secondary/30 px-3 py-2 text-sm">
+                                  <p>{entry.action}</p>
+                                  <p className="text-xs text-muted-foreground">{formatShortDate(entry.createdAt)}</p>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+
                   <div className="flex flex-wrap gap-2">
                     <Button
                       variant="outline"
@@ -903,6 +1407,73 @@ export default function Tournaments() {
                           />
                         </div>
                       </div>
+                      {editForm.format === "group_knockout" && (
+                        <div className="space-y-3 rounded-md border p-3">
+                          <div>
+                            <h3 className="text-sm font-semibold">Group Configuration</h3>
+                            <p className="text-xs text-muted-foreground">
+                              Auto default for current teams: {getAutoGroupCount(selectedTournament.teams.length)} groups.
+                            </p>
+                          </div>
+                          <div className="grid gap-2 sm:grid-cols-3">
+                            <div className="space-y-1">
+                              <Label>Number of Groups</Label>
+                              <Input
+                                type="number"
+                                min={2}
+                                max={16}
+                                placeholder="Auto"
+                                value={editForm.groupCount}
+                                onChange={(e) => setEditForm((prev) => ({ ...prev, groupCount: e.target.value }))}
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <Label>Distribution Mode</Label>
+                              <Select
+                                value={editForm.groupDistributionMode}
+                                onValueChange={(value: "random" | "balanced" | "manual") =>
+                                  setEditForm((prev) => ({ ...prev, groupDistributionMode: value }))
+                                }
+                              >
+                                <SelectTrigger>
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {groupDistributionOptions.map((item) => (
+                                    <SelectItem key={item.value} value={item.value}>
+                                      {item.label}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div className="space-y-1">
+                              <Label>Teams Qualifying</Label>
+                              <Input
+                                type="number"
+                                min={1}
+                                max={8}
+                                value={editForm.teamsQualifyingPerGroup}
+                                onChange={(e) =>
+                                  setEditForm((prev) => ({
+                                    ...prev,
+                                    teamsQualifyingPerGroup: e.target.value,
+                                  }))
+                                }
+                              />
+                            </div>
+                          </div>
+                          <div className="flex items-center justify-between rounded-md border p-2">
+                            <span className="text-sm">Enable manual group editing</span>
+                            <Switch
+                              checked={editForm.enableManualGroupEditing}
+                              onCheckedChange={(checked) =>
+                                setEditForm((prev) => ({ ...prev, enableManualGroupEditing: checked }))
+                              }
+                            />
+                          </div>
+                        </div>
+                      )}
                       <div className="space-y-1">
                         <Label>Team Registration Deadline</Label>
                         <Input
@@ -954,6 +1525,13 @@ export default function Tournaments() {
                             location: editForm.location,
                             type: editForm.type,
                             format: editForm.format,
+                            groupCount:
+                              editForm.format === "group_knockout" && editForm.groupCount
+                                ? Number(editForm.groupCount)
+                                : null,
+                            groupDistributionMode: editForm.groupDistributionMode,
+                            teamsQualifyingPerGroup: Number(editForm.teamsQualifyingPerGroup || 2),
+                            enableManualGroupEditing: editForm.enableManualGroupEditing,
                             entryFee: editForm.entryFee ? Number(editForm.entryFee) : 0,
                             status: editForm.status,
                             isVisibleToMembers: editForm.isVisibleToMembers,
@@ -978,14 +1556,12 @@ export default function Tournaments() {
                           placeholder="Player 1"
                           value={teamPlayer1}
                           onChange={(event) => setTeamPlayer1(event.target.value)}
-                          disabled={!canAddTeams}
                         />
                         {selectedTournament.type === "doubles" ? (
                           <Input
                             placeholder="Player 2"
                             value={teamPlayer2}
                             onChange={(event) => setTeamPlayer2(event.target.value)}
-                            disabled={!canAddTeams}
                           />
                         ) : (
                           <div />
@@ -996,7 +1572,6 @@ export default function Tournaments() {
                           placeholder="Phone number (optional)"
                           value={adminContactMobileNumber}
                           onChange={(event) => setAdminContactMobileNumber(event.target.value)}
-                          disabled={!canAddTeams}
                         />
                         <Input
                           type="number"
@@ -1004,12 +1579,14 @@ export default function Tournaments() {
                           placeholder="Entry fee paid"
                           value={entryFeePaid}
                           onChange={(event) => setEntryFeePaid(event.target.value)}
-                          disabled={!canAddTeams}
                         />
                       </div>
                       <div className="flex flex-wrap gap-2">
                         <Button
-                          onClick={() => (editingTeamId ? updateTeamMutation.mutate() : addTeamMutation.mutate())}
+                          onClick={() => {
+                            if (!confirmBracketReset()) return;
+                            editingTeamId ? updateTeamMutation.mutate() : addTeamMutation.mutate();
+                          }}
                           disabled={!canSubmitTeam}
                         >
                           {editingTeamId ? "Save Team" : "Add Team"}
@@ -1026,9 +1603,9 @@ export default function Tournaments() {
                           {selectedTournament.type === "doubles" ? "Player1+Player2 / Player1/Player2" : "Player1"}
                         </span>
                       </p>
-                      {!canAddTeams && (
+                      {selectedTournament.matches.length > 0 && (
                         <p className="text-xs text-muted-foreground">
-                          Team edits are disabled after bracket generation.
+                          Editing teams after bracket generation will clear the current bracket and schedule.
                         </p>
                       )}
                       <div className="space-y-2">
@@ -1042,16 +1619,19 @@ export default function Tournaments() {
                               <p className="text-xs text-muted-foreground">{team.players.join(" / ")}</p>
                             </div>
                             <div className="flex flex-wrap gap-2">
-                              {canAddTeams && (
-                                <Button size="sm" variant="outline" onClick={() => startEditTeam(team)}>
-                                  Edit
-                                </Button>
-                              )}
-                              {canAddTeams && (
-                                <Button size="sm" variant="ghost" onClick={() => removeTeamMutation.mutate(team._id)}>
-                                  Remove
-                                </Button>
-                              )}
+                              <Button size="sm" variant="outline" onClick={() => startEditTeam(team)}>
+                                Edit
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => {
+                                  if (!confirmBracketReset()) return;
+                                  removeTeamMutation.mutate(team._id);
+                                }}
+                              >
+                                Remove
+                              </Button>
                             </div>
                           </div>
                         ))}
@@ -1867,5 +2447,3 @@ export default function Tournaments() {
     </MainLayout>
   );
 }
-
-

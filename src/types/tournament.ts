@@ -1,6 +1,7 @@
 export type TournamentType = "singles" | "doubles";
 export type TournamentStatus = "upcoming" | "ongoing" | "completed";
 export type TournamentFormat = "knockout" | "round_robin" | "group_knockout";
+export type GroupDistributionMode = "random" | "balanced" | "manual";
 export type TournamentMatchType = "league" | "semifinal" | "final" | "friendly" | "practice";
 export type TournamentRegistrationStatus = "pending" | "accepted" | "rejected";
 export type RegistrationGender = "male" | "female" | "other";
@@ -9,6 +10,23 @@ export interface TournamentTeam {
   _id: string;
   name: string;
   players: string[];
+}
+
+export interface TournamentGroup {
+  _id: string;
+  groupName: string;
+  groupOrder: number;
+  teamIds: string[];
+  isLocked: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TournamentAuditEntry {
+  _id: string;
+  action: string;
+  userId: string | null;
+  createdAt: string;
 }
 
 export interface TournamentMatch {
@@ -109,6 +127,10 @@ export interface Tournament {
   location: string;
   type: TournamentType;
   format: TournamentFormat;
+  groupCount: number | null;
+  groupDistributionMode: GroupDistributionMode;
+  teamsQualifyingPerGroup: number;
+  enableManualGroupEditing: boolean;
   entryFee: number;
   status: TournamentStatus;
   isVisibleToMembers: boolean;
@@ -117,6 +139,8 @@ export interface Tournament {
   teams: TournamentTeam[];
   registrations: TournamentRegistration[];
   teamRegistry: TournamentTeamRegistryEntry[];
+  tournamentGroups: TournamentGroup[];
+  auditHistory: TournamentAuditEntry[];
   tournamentExpenses: TournamentExpenseEntry[];
   tournamentIncomes: TournamentIncomingEntry[];
   financeSummary?: TournamentFinanceSummary;

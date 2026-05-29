@@ -9,17 +9,21 @@ import {
   declareTournamentChampion,
   deleteAdminTournament,
   generateTournamentBracket,
+  generateTournamentGroups,
   generateTournamentSchedule,
   getAdminTournament,
   getAdminTournaments,
   getTournamentConfig,
   removeTournamentTeam,
+  renameAdminTournamentGroup,
   reviewAdminTournamentRegistration,
   updateAdminTournament,
   updateTournamentConfig,
   updateAdminTournamentTeam,
   updateAdminTournamentTeamRegistry,
   updateAdminTournamentExpense,
+  updateAdminTournamentGroupLock,
+  updateAdminTournamentGroupTeams,
   updateAdminTournamentIncome,
   updateTournamentMatchDetails,
   updateTournamentPlayoffTeams,
@@ -47,6 +51,10 @@ router.post("/:id/finance/incomes", addAdminTournamentIncome);
 router.patch("/:id/finance/expenses/:expenseId", updateAdminTournamentExpense);
 router.patch("/:id/finance/incomes/:incomeId", updateAdminTournamentIncome);
 router.patch("/:id/registrations/:registrationId/review", reviewAdminTournamentRegistration);
+router.post("/:id/groups/generate", generateTournamentGroups);
+router.patch("/:id/groups/:groupId", renameAdminTournamentGroup);
+router.patch("/:id/groups/:groupId/teams", updateAdminTournamentGroupTeams);
+router.patch("/:id/groups/:groupId/lock", updateAdminTournamentGroupLock);
 router.post("/:id/generate-bracket", generateTournamentBracket);
 router.post("/:id/generate-schedule", generateTournamentSchedule);
 router.patch("/:id/matches/:matchId", updateTournamentMatchScore);
