@@ -29,7 +29,7 @@ const allowedOrigins = new Set(
     "http://localhost:8080",
     "http://localhost:5173",
     "http://localhost:3000",
-    "https://ubismashers.vercel.app",
+    "https://www.ubismashers.team",
     "https://www.ubismashers.team",
     process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : undefined,
   ]

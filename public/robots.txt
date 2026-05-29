@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://ubismashers.vercel.app/sitemap.xml
+Sitemap: https://www.ubismashers.team/sitemap.xml
