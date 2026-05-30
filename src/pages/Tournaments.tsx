@@ -13,6 +13,16 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { TournamentBracket } from "@/components/tournament/TournamentBracket";
@@ -78,6 +88,49 @@ const getAutoGroupCount = (teamCount: number) => {
   if (teamCount <= 8) return 2;
   if (teamCount <= 24) return 4;
   return Math.min(16, Math.max(2, Math.ceil(teamCount / 4)));
+};
+
+const isAdminGroupLeagueMatch = (match: Tournament["matches"][number]) =>
+  match.matchType === "league" && /^Group\s/i.test(match.roundLabel || "");
+
+const isAdminKnockoutStageMatch = (match: Tournament["matches"][number]) =>
+  !isAdminGroupLeagueMatch(match) &&
+  match.matchType !== "friendly" &&
+  match.matchType !== "practice" &&
+  match.roundNumber >= 2;
+
+const getBracketActionState = (tournament: Tournament) => {
+  if (tournament.format !== "group_knockout") {
+    return { label: "Generate Bracket", disabled: false };
+  }
+
+  const groupMatches = tournament.matches.filter(isAdminGroupLeagueMatch);
+  const knockoutMatches = tournament.matches.filter(isAdminKnockoutStageMatch);
+  const allGroupMatchesCompleted = groupMatches.length > 0 && groupMatches.every((match) => match.isCompleted);
+
+  if (groupMatches.length === 0) {
+    return { label: "Generate Group Fixtures", disabled: false };
+  }
+  if (knockoutMatches.length > 0) {
+    return { label: "Knockout Bracket Generated", disabled: true };
+  }
+  if (!allGroupMatchesCompleted) {
+    return { label: "Complete Group Matches First", disabled: true };
+  }
+
+  return { label: "Generate Knockout Bracket", disabled: false };
+};
+
+const getAdminBracketMatches = (tournament: Tournament) => {
+  if (tournament.format === "knockout") return tournament.matches;
+  if (tournament.format === "round_robin") return tournament.matches.filter(isAdminKnockoutStageMatch);
+
+  const groupMatches = tournament.matches.filter(isAdminGroupLeagueMatch);
+  const allGroupMatchesCompleted = groupMatches.length > 0 && groupMatches.every((match) => match.isCompleted);
+  const knockoutMatches = tournament.matches.filter(isAdminKnockoutStageMatch);
+  const knockoutGenerated = knockoutMatches.some((match) => match.teamAId || match.teamBId);
+
+  return allGroupMatchesCompleted && knockoutGenerated ? knockoutMatches : [];
 };
 
 export default function Tournaments() {
@@ -160,6 +213,8 @@ export default function Tournaments() {
   const [draggedTeamId, setDraggedTeamId] = useState("");
   const [groupRenameDrafts, setGroupRenameDrafts] = useState<Record<string, string>>({});
   const [teamToAddByGroup, setTeamToAddByGroup] = useState<Record<string, string>>({});
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleteConfirmationName, setDeleteConfirmationName] = useState("");
 
   const { data: tournaments = [] } = useQuery<Tournament[]>({
     queryKey: ["tournaments"],
@@ -175,6 +230,15 @@ export default function Tournaments() {
     () => tournaments.find((item) => item._id === selectedTournamentId) || tournaments[0],
     [selectedTournamentId, tournaments]
   );
+  const bracketActionState = selectedTournament
+    ? getBracketActionState(selectedTournament)
+    : { label: "Generate Bracket", disabled: true };
+  const adminBracketMatches = selectedTournament ? getAdminBracketMatches(selectedTournament) : [];
+  const adminBracketTournament = selectedTournament
+    ? { ...selectedTournament, matches: adminBracketMatches }
+    : selectedTournament;
+  const canConfirmTournamentDelete =
+    Boolean(selectedTournament) && deleteConfirmationName === selectedTournament.name;
 
   useEffect(() => {
     if (!selectedTournament) return;
@@ -330,6 +394,8 @@ export default function Tournaments() {
   const deleteTournamentMutation = useMutation({
     mutationFn: (id: string) => api.deleteTournament(id),
     onSuccess: async () => {
+      setDeleteDialogOpen(false);
+      setDeleteConfirmationName("");
       setSelectedTournamentId("");
       await refresh();
       toast({ title: "Tournament deleted" });
@@ -394,7 +460,7 @@ export default function Tournaments() {
     mutationFn: () => api.generateTournamentBracket(selectedTournament!._id),
     onSuccess: async () => {
       await refresh();
-      toast({ title: "Bracket generated" });
+      toast({ title: selectedTournament?.format === "group_knockout" ? "Tournament stage generated" : "Bracket generated" });
     },
     onError: (error: Error) => toast({ title: "Failed", description: error.message, variant: "destructive" }),
   });
@@ -1340,8 +1406,12 @@ export default function Tournaments() {
                     >
                       {selectedTournament.isVisibleToMembers ? "Hide from Members" : "Show to Members"}
                     </Button>
-                    <Button variant="outline" onClick={() => generateBracketMutation.mutate()}>
-                      Generate Bracket
+                    <Button
+                      variant="outline"
+                      onClick={() => generateBracketMutation.mutate()}
+                      disabled={bracketActionState.disabled || generateBracketMutation.isPending}
+                    >
+                      {bracketActionState.label}
                     </Button>
                     <Button
                       variant="outline"
@@ -1353,13 +1423,53 @@ export default function Tournaments() {
                     >
                       Declare Winner
                     </Button>
-                    <Button
-                      variant="destructive"
-                      onClick={() => deleteTournamentMutation.mutate(selectedTournament._id)}
+                    <AlertDialog
+                      open={deleteDialogOpen}
+                      onOpenChange={(open) => {
+                        setDeleteDialogOpen(open);
+                        if (!open) setDeleteConfirmationName("");
+                      }}
                     >
-                      <Trash2 className="mr-2 h-4 w-4" />
-                      Delete
-                    </Button>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="destructive">
+                          <Trash2 className="mr-2 h-4 w-4" />
+                          Delete
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Delete entire tournament?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            This will permanently delete the tournament, teams, groups, matches, scores, registrations,
+                            expenses, incomes, audit history, and champion details. This action cannot be undone.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+
+                        <div className="space-y-2">
+                          <Label htmlFor="delete-tournament-name">
+                            Type <span className="font-semibold text-foreground">{selectedTournament.name}</span> to confirm.
+                          </Label>
+                          <Input
+                            id="delete-tournament-name"
+                            value={deleteConfirmationName}
+                            onChange={(event) => setDeleteConfirmationName(event.target.value)}
+                            placeholder={selectedTournament.name}
+                            autoComplete="off"
+                          />
+                        </div>
+
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <Button
+                            variant="destructive"
+                            disabled={!canConfirmTournamentDelete || deleteTournamentMutation.isPending}
+                            onClick={() => deleteTournamentMutation.mutate(selectedTournament._id)}
+                          >
+                            Delete Tournament
+                          </Button>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
                   </div>
 
                   <TournamentSectionItem value={`editTournament-${selectedTournament._id}`} title="Edit Tournament">
@@ -2467,10 +2577,10 @@ export default function Tournaments() {
                     </Card>
                   </TournamentSectionItem>
 
-                  {selectedTournament.matches.length > 0 && (
+                  {adminBracketTournament && adminBracketMatches.length > 0 && (
                     <TournamentSectionItem value={`tournamentBracket-${selectedTournament._id}`} title="Tournament Bracket">
                       <TournamentBracket
-                        tournament={selectedTournament}
+                        tournament={adminBracketTournament}
                         editable
                         onSubmitScore={(matchId, scoreA, scoreB) => {
                           updateScoreMutation.mutate({ matchId, scoreA, scoreB });

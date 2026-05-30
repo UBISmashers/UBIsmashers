@@ -35,7 +35,7 @@ export default function TournamentPopup() {
       "🏆 500 SGD + Trophies",
       "📍 Block 306, UBI Avenue 1, Singapore - 400306",
       "Above Giant Super Market - Level 3",
-      "📅 Registration Deadline: May 20, 2026",
+      "📅 Registration Deadline: June 7, 2026",
       "🍎 Fruits  🥤 Drinks  🍿 Snacks",
       "🥇 Participant Medals For Everyone",
     ],

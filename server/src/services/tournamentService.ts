@@ -849,6 +849,16 @@ const reconcileGroupKnockoutState = (tournament: ITournament) => {
     });
   }
 
+  const hasKnockoutStage = tournament.matches.some(
+    (match) => !match.isManual && !isGroupLeagueMatch(match) && match.roundNumber >= 2
+  );
+  if (!hasKnockoutStage) {
+    tournament.championTeamId = null;
+    tournament.finalScore = null;
+    tournament.status = tournament.matches.some((match) => match.isCompleted) ? "ongoing" : "upcoming";
+    return;
+  }
+
   const finalMatch = findMatch(tournament.matches, tournament.totalRounds, 1);
   if (finalMatch?.isCompleted && finalMatch.winnerTeamId) {
     tournament.championTeamId = finalMatch.winnerTeamId;
@@ -1686,19 +1696,44 @@ export const generateBracket = async (tournamentId: string) => {
     }
   }
 
-  const { matches, totalRounds } =
-    format === "round_robin"
-      ? buildRoundRobinMatches(tournament.teams)
-      : format === "group_knockout"
-      ? buildGroupKnockoutMatches(tournament.teams, {
-          groupCount: tournament.groupCount,
-          distributionMode: tournament.groupDistributionMode,
-          teamsQualifyingPerGroup: tournament.teamsQualifyingPerGroup,
-          tournamentGroups: tournament.tournamentGroups,
-        })
-      : buildBracketMatches(tournament.teams);
-  tournament.matches = matches as any;
-  tournament.totalRounds = totalRounds;
+  if (format === "group_knockout") {
+    const groupMatches = tournament.matches.filter((match) => !match.isManual && isGroupLeagueMatch(match));
+    const knockoutMatches = tournament.matches.filter(
+      (match) => !match.isManual && !isGroupLeagueMatch(match) && match.roundNumber >= 2
+    );
+    const generated = buildGroupKnockoutMatches(tournament.teams, {
+      groupCount: tournament.groupCount,
+      distributionMode: tournament.groupDistributionMode,
+      teamsQualifyingPerGroup: tournament.teamsQualifyingPerGroup,
+      tournamentGroups: tournament.tournamentGroups,
+    });
+
+    if (groupMatches.length === 0) {
+      tournament.matches = generated.matches.filter((match) => isGroupLeagueMatch(match)) as any;
+      tournament.totalRounds = 1;
+      recordAudit(tournament, "Generated group stage fixtures", undefined);
+    } else {
+      const allGroupMatchesCompleted = groupMatches.every((match) => match.isCompleted);
+      if (!allGroupMatchesCompleted) {
+        return { error: "Complete all group matches before generating the knockout bracket", status: 400 as const };
+      }
+      if (knockoutMatches.length > 0) {
+        return { error: "Knockout bracket has already been generated", status: 400 as const };
+      }
+
+      tournament.matches = [
+        ...tournament.matches,
+        ...generated.matches.filter((match) => !isGroupLeagueMatch(match) && match.roundNumber >= 2),
+      ] as any;
+      tournament.totalRounds = generated.totalRounds;
+      recordAudit(tournament, "Generated knockout bracket from final group standings", undefined);
+    }
+  } else {
+    const { matches, totalRounds } =
+      format === "round_robin" ? buildRoundRobinMatches(tournament.teams) : buildBracketMatches(tournament.teams);
+    tournament.matches = matches as any;
+    tournament.totalRounds = totalRounds;
+  }
   tournament.championTeamId = null;
   tournament.finalScore = null;
   tournament.status = "ongoing";

@@ -1,0 +1,1652 @@
+{
+  "_id": "6a15be48b8df0c33cdd63400",
+  "name": "UBI Smashers Badminton Tournament 2026",
+  "date": "2026-06-14T00:00:00.000Z",
+  "time": "8:00 AM Onwards",
+  "location": "Block 306, UBI Avenue 1, Singapore - 400306",
+  "type": "doubles",
+  "format": "group_knockout",
+  "groupCount": 6,
+  "groupDistributionMode": "random",
+  "teamsQualifyingPerGroup": 1,
+  "enableManualGroupEditing": true,
+  "entryFee": 40,
+  "status": "upcoming",
+  "isVisibleToMembers": true,
+  "allowTeamRegistration": true,
+  "registrationDeadline": "2026-05-20T00:00:00.000Z",
+  "teams": [
+    {
+      "name": "Gopi+Kamal",
+      "players": [
+        "Gopi",
+        "Kamal"
+      ],
+      "_id": "6a15bea3b8df0c33cdd63414"
+    },
+    {
+      "name": "Raj+CP",
+      "players": [
+        "Raj",
+        "CP"
+      ],
+      "_id": "6a15beb1b8df0c33cdd63423"
+    },
+    {
+      "name": "Vijay+Bala",
+      "players": [
+        "Vijay",
+        "Bala"
+      ],
+      "_id": "6a15becbb8df0c33cdd6343a"
+    },
+    {
+      "name": "Rahman+Partner",
+      "players": [
+        "Rahman",
+        "Partner"
+      ],
+      "_id": "6a15bee2b8df0c33cdd6346c"
+    },
+    {
+      "name": "Naga+Ashwin",
+      "players": [
+        "Naga",
+        "Ashwin"
+      ],
+      "_id": "6a15beebb8df0c33cdd63489"
+    },
+    {
+      "name": "Sakthi+Partner",
+      "players": [
+        "Sakthi",
+        "Partner"
+      ],
+      "_id": "6a15bef6b8df0c33cdd634aa"
+    },
+    {
+      "name": "SDS/reserved",
+      "players": [
+        "SDS",
+        "reserved"
+      ],
+      "_id": "6a15bf18b8df0c33cdd634f5"
+    },
+    {
+      "name": "HOUGANG+Team",
+      "players": [
+        "HOUGANG",
+        "Team"
+      ],
+      "_id": "6a15bf28b8df0c33cdd6351e"
+    },
+    {
+      "name": "Octagons+Team1",
+      "players": [
+        "Octagons",
+        "Team1"
+      ],
+      "_id": "6a15bf3ab8df0c33cdd6354f"
+    },
+    {
+      "name": "Octagons+Team2",
+      "players": [
+        "Octagons",
+        "Team2"
+      ],
+      "_id": "6a15bf3eb8df0c33cdd63580"
+    },
+    {
+      "name": "Gauthem+Logesh",
+      "players": [
+        "Gauthem",
+        "Logesh"
+      ],
+      "_id": "6a15bf50b8df0c33cdd635b5"
+    },
+    {
+      "name": "Praveen+Sakthi(jurong west)",
+      "players": [
+        "Praveen",
+        "Sakthi(jurong west)"
+      ],
+      "_id": "6a15bf80b8df0c33cdd635fa"
+    },
+    {
+      "name": "Deepan+Partner",
+      "players": [
+        "Deepan",
+        "Partner"
+      ],
+      "_id": "6a15bf8fb8df0c33cdd6363d"
+    },
+    {
+      "name": "Dhanaraj+Partner",
+      "players": [
+        "Dhanaraj",
+        "Partner"
+      ],
+      "_id": "6a15bf99b8df0c33cdd63680"
+    },
+    {
+      "name": "Siva+Arun",
+      "players": [
+        "Siva",
+        "Arun"
+      ],
+      "_id": "6a15bfabb8df0c33cdd636c7"
+    },
+    {
+      "name": "Erusan+Elumalai(Boon Lay)",
+      "players": [
+        "Erusan",
+        "Elumalai(Boon Lay)"
+      ],
+      "_id": "6a15bfc8b8df0c33cdd63716"
+    },
+    {
+      "name": "Bala+Partner(The Shuttler)",
+      "players": [
+        "Bala",
+        "Partner(The Shuttler)"
+      ],
+      "_id": "6a15bfe1b8df0c33cdd6376d"
+    },
+    {
+      "name": "Naga+Siva(Pioneer Feathers)",
+      "players": [
+        "Naga",
+        "Siva(Pioneer Feathers)"
+      ],
+      "_id": "6a15bff7b8df0c33cdd637c6"
+    },
+    {
+      "name": "Vijay+Mani(woodlands)",
+      "players": [
+        "Vijay",
+        "Mani(woodlands)"
+      ],
+      "_id": "6a15c00bb8df0c33cdd63823"
+    },
+    {
+      "name": "Prasad+Bhuvan(Woodlands)",
+      "players": [
+        "Prasad",
+        "Bhuvan(Woodlands)"
+      ],
+      "_id": "6a15c029b8df0c33cdd63888"
+    },
+    {
+      "name": "Sachin+Nila",
+      "players": [
+        "Sachin",
+        "Nila"
+      ],
+      "_id": "6a15c04ab8df0c33cdd638f3"
+    },
+    {
+      "name": "Bharathi+Sohel",
+      "players": [
+        "Bharathi",
+        "Sohel"
+      ],
+      "_id": "6a15c05fb8df0c33cdd63960"
+    },
+    {
+      "name": "Jeeva+Arshath",
+      "players": [
+        "Jeeva",
+        "Arshath"
+      ],
+      "_id": "6a15c070b8df0c33cdd639d7"
+    },
+    {
+      "name": "Team a+Team B",
+      "players": [
+        "Team a",
+        "Team B"
+      ],
+      "_id": "6a193b868b2fcd6719cf7f10"
+    }
+  ],
+  "registrations": [
+    {
+      "teamName": "abi+mani",
+      "teamLeadName": "abi",
+      "contactMobileNumber": null,
+      "members": [
+        {
+          "name": "abi",
+          "mobileNumber": "",
+          "gender": "other",
+          "isAvailable": true
+        },
+        {
+          "name": "mani",
+          "mobileNumber": "",
+          "gender": "other",
+          "isAvailable": true
+        }
+      ],
+      "status": "rejected",
+      "reviewNote": null,
+      "reviewedAt": "2026-05-29T06:18:03.703Z",
+      "_id": "6a192f85f6561579f3232052",
+      "createdAt": "2026-05-29T06:17:41.843Z"
+    }
+  ],
+  "teamRegistry": [
+    {
+      "teamId": "6a15bea3b8df0c33cdd63414",
+      "teamName": "Gopi+Kamal",
+      "teamLeadName": "Gopi",
+      "members": [
+        {
+          "name": "Gopi",
+          "mobileNumber": "",
+          "gender": "other"
+        },
+        {
+          "name": "Kamal",
+          "mobileNumber": "",
+          "gender": "other"
+        }
+      ],
+      "entryFeePaid": 0,
+      "_id": "6a15bea3b8df0c33cdd63416",
+      "createdAt": "2026-05-26T15:39:15.402Z",
+      "updatedAt": "2026-05-26T15:39:15.402Z"
+    },
+    {
+      "teamId": "6a15beb1b8df0c33cdd63423",
+      "teamName": "Raj+CP",
+      "teamLeadName": "Raj",
+      "members": [
+        {
+          "name": "Raj",
+          "mobileNumber": "",
+          "gender": "other"
+        },
+        {
+          "name": "CP",
+          "mobileNumber": "",
+          "gender": "other"
+        }
+      ],
+      "entryFeePaid": 0,
+      "_id": "6a15beb1b8df0c33cdd63425",
+      "createdAt": "2026-05-26T15:39:29.177Z",
+      "updatedAt": "2026-05-26T15:39:29.177Z"
+    },
+    {
+      "teamId": "6a15becbb8df0c33cdd6343a",
+      "teamName": "Vijay+Bala",
+      "teamLeadName": "Vijay",
+      "members": [
+        {
+          "name": "Vijay",
+          "mobileNumber": "",
+          "gender": "other"
+        },
+        {
+          "name": "Bala",
+          "mobileNumber": "",
+          "gender": "other"
+        }
+      ],
+      "entryFeePaid": 40,
+      "_id": "6a15becbb8df0c33cdd6343c",
+      "createdAt": "2026-05-26T15:39:55.761Z",
+      "updatedAt": "2026-05-26T15:40:04.782Z"
+    },
+    {
+      "teamId": "6a15bee2b8df0c33cdd6346c",
+      "teamName": "Rahman+Partner",
+      "teamLeadName": "Rahman",
+      "members": [
+        {
+          "name": "Rahman",
+          "mobileNumber": "",
+          "gender": "other"
+        },
+        {
+          "name": "Partner",
+          "mobileNumber": "",
+          "gender": "other"
+        }
+      ],
+      "entryFeePaid": 0,
+      "_id": "6a15bee2b8df0c33cdd6346e",
+      "createdAt": "2026-05-26T15:40:18.923Z",
+      "updatedAt": "2026-05-26T15:40:18.923Z"
+    },
+    {
+      "teamId": "6a15beebb8df0c33cdd63489",
+      "teamName": "Naga+Ashwin",
+      "teamLeadName": "Naga",
+      "members": [
+        {
+          "name": "Naga",
+          "mobileNumber": "",
+          "gender": "other"
+        },
+        {
+          "name": "Ashwin",
+          "mobileNumber": "",
+          "gender": "other"
+        }
+      ],
+      "entryFeePaid": 0,
+      "_id": "6a15beebb8df0c33cdd6348b",
+      "createdAt": "2026-05-26T15:40:27.110Z",
+      "updatedAt": "2026-05-26T15:40:27.110Z"
+    },
+    {
+      "teamId": "6a15bef6b8df0c33cdd634aa",
+      "teamName": "Sakthi+Partner",
+      "teamLeadName": "Sakthi",
+      "members": [
+        {
+          "name": "Sakthi",
+          "mobileNumber": "",
+          "gender": "other"
+        },
+        {
+          "name": "Partner",
+          "mobileNumber": "",
+          "gender": "other"
+        }
+      ],
+      "entryFeePaid": 0,
+      "_id": "6a15bef6b8df0c33cdd634ac",
+      "createdAt": "2026-05-26T15:40:38.965Z",
+      "updatedAt": "2026-05-26T15:40:38.965Z"
+    },
+    {
+      "teamId": "6a15bf18b8df0c33cdd634f5",
+      "teamName": "SDS/reserved",
+      "teamLeadName": "SDS",
+      "members": [
+        {
+          "name": "SDS",
+          "mobileNumber": "",
+          "gender": "other"
+        },
+        {
+          "name": "reserved",
+          "mobileNumber": "",
+          "gender": "other"
+        }
+      ],
+      "entryFeePaid": 0,
+      "_id": "6a15bf18b8df0c33cdd634f7",
+      "createdAt": "2026-05-26T15:41:12.857Z",
+      "updatedAt": "2026-05-26T15:41:12.857Z"
+    },
+    {
+      "teamId": "6a15bf28b8df0c33cdd6351e",
+      "teamName": "HOUGANG+Team",
+      "teamLeadName": "HOUGANG",
+      "members": [
+        {
+          "name": "HOUGANG",
+          "mobileNumber": "",
+          "gender": "other"
+        },
+        {
+          "name": "Team",
+          "mobileNumber": "",
+          "gender": "other"
+        }
+      ],
+      "entryFeePaid": 0,
+      "_id": "6a15bf28b8df0c33cdd63520",
+      "createdAt": "2026-05-26T15:41:28.599Z",
+      "updatedAt": "2026-05-26T15:41:28.599Z"
+    },
+    {
+      "teamId": "6a15bf3ab8df0c33cdd6354f",
+      "teamName": "Octagons+Team1",
+      "teamLeadName": "Octagons",
+      "members": [
+        {
+          "name": "Octagons",
+          "mobileNumber": "",
+          "gender": "other"
+        },
+        {
+          "name": "Team1",
+          "mobileNumber": "",
+          "gender": "other"
+        }
+      ],
+      "entryFeePaid": 0,
+      "_id": "6a15bf3ab8df0c33cdd63551",
+      "createdAt": "2026-05-26T15:41:46.657Z",
+      "updatedAt": "2026-05-26T15:41:46.657Z"
+    },
+    {
+      "teamId": "6a15bf3eb8df0c33cdd63580",
+      "teamName": "Octagons+Team2",
+      "teamLeadName": "Octagons",
+      "members": [
+        {
+          "name": "Octagons",
+          "mobileNumber": "",
+          "gender": "other"
+        },
+        {
+          "name": "Team2",
+          "mobileNumber": "",
+          "gender": "other"
+        }
+      ],
+      "entryFeePaid": 0,
+      "_id": "6a15bf3eb8df0c33cdd63582",
+      "createdAt": "2026-05-26T15:41:50.917Z",
+      "updatedAt": "2026-05-26T15:41:50.917Z"
+    },
+    {
+      "teamId": "6a15bf50b8df0c33cdd635b5",
+      "teamName": "Gauthem+Logesh",
+      "teamLeadName": "Gauthem",
+      "members": [
+        {
+          "name": "Gauthem",
+          "mobileNumber": "",
+          "gender": "other"
+        },
+        {
+          "name": "Logesh",
+          "mobileNumber": "",
+          "gender": "other"
+        }
+      ],
+      "entryFeePaid": 40,
+      "_id": "6a15bf50b8df0c33cdd635b7",
+      "createdAt": "2026-05-26T15:42:08.054Z",
+      "updatedAt": "2026-05-26T15:42:08.054Z"
+    },
+    {
+      "teamId": "6a15bf80b8df0c33cdd635fa",
+      "teamName": "Praveen+Sakthi(jurong west)",
+      "teamLeadName": "Praveen",
+      "members": [
+        {
+          "name": "Praveen",
+          "mobileNumber": "",
+          "gender": "other"
+        },
+        {
+          "name": "Sakthi(jurong west)",
+          "mobileNumber": "",
+          "gender": "other"
+        }
+      ],
+      "entryFeePaid": 0,
+      "_id": "6a15bf80b8df0c33cdd635fc",
+      "createdAt": "2026-05-26T15:42:56.635Z",
+      "updatedAt": "2026-05-26T15:42:56.635Z"
+    },
+    {
+      "teamId": "6a15bf8fb8df0c33cdd6363d",
+      "teamName": "Deepan+Partner",
+      "teamLeadName": "Deepan",
+      "members": [
+        {
+          "name": "Deepan",
+          "mobileNumber": "",
+          "gender": "other"
+        },
+        {
+          "name": "Partner",
+          "mobileNumber": "",
+          "gender": "other"
+        }
+      ],
+      "entryFeePaid": 0,
+      "_id": "6a15bf8fb8df0c33cdd6363f",
+      "createdAt": "2026-05-26T15:43:11.758Z",
+      "updatedAt": "2026-05-26T15:43:11.758Z"
+    },
+    {
+      "teamId": "6a15bf99b8df0c33cdd63680",
+      "teamName": "Dhanaraj+Partner",
+      "teamLeadName": "Dhanaraj",
+      "members": [
+        {
+          "name": "Dhanaraj",
+          "mobileNumber": "",
+          "gender": "other"
+        },
+        {
+          "name": "Partner",
+          "mobileNumber": "",
+          "gender": "other"
+        }
+      ],
+      "entryFeePaid": 0,
+      "_id": "6a15bf99b8df0c33cdd63682",
+      "createdAt": "2026-05-26T15:43:21.889Z",
+      "updatedAt": "2026-05-26T15:43:21.889Z"
+    },
+    {
+      "teamId": "6a15bfabb8df0c33cdd636c7",
+      "teamName": "Siva+Arun",
+      "teamLeadName": "Siva",
+      "members": [
+        {
+          "name": "Siva",
+          "mobileNumber": "",
+          "gender": "other"
+        },
+        {
+          "name": "Arun",
+          "mobileNumber": "",
+          "gender": "other"
+        }
+      ],
+      "entryFeePaid": 0,
+      "_id": "6a15bfabb8df0c33cdd636c9",
+      "createdAt": "2026-05-26T15:43:39.037Z",
+      "updatedAt": "2026-05-26T15:43:39.037Z"
+    },
+    {
+      "teamId": "6a15bfc8b8df0c33cdd63716",
+      "teamName": "Erusan+Elumalai(Boon Lay)",
+      "teamLeadName": "Erusan",
+      "members": [
+        {
+          "name": "Erusan",
+          "mobileNumber": "",
+          "gender": "other"
+        },
+        {
+          "name": "Elumalai(Boon Lay)",
+          "mobileNumber": "",
+          "gender": "other"
+        }
+      ],
+      "entryFeePaid": 40,
+      "_id": "6a15bfc8b8df0c33cdd63718",
+      "createdAt": "2026-05-26T15:44:08.111Z",
+      "updatedAt": "2026-05-26T15:44:08.111Z"
+    },
+    {
+      "teamId": "6a15bfe1b8df0c33cdd6376d",
+      "teamName": "Bala+Partner(The Shuttler)",
+      "teamLeadName": "Bala",
+      "members": [
+        {
+          "name": "Bala",
+          "mobileNumber": "",
+          "gender": "other"
+        },
+        {
+          "name": "Partner(The Shuttler)",
+          "mobileNumber": "",
+          "gender": "other"
+        }
+      ],
+      "entryFeePaid": 0,
+      "_id": "6a15bfe1b8df0c33cdd6376f",
+      "createdAt": "2026-05-26T15:44:33.982Z",
+      "updatedAt": "2026-05-26T15:44:33.982Z"
+    },
+    {
+      "teamId": "6a15bff7b8df0c33cdd637c6",
+      "teamName": "Naga+Siva(Pioneer Feathers)",
+      "teamLeadName": "Naga",
+      "members": [
+        {
+          "name": "Naga",
+          "mobileNumber": "",
+          "gender": "other"
+        },
+        {
+          "name": "Siva(Pioneer Feathers)",
+          "mobileNumber": "",
+          "gender": "other"
+        }
+      ],
+      "entryFeePaid": 0,
+      "_id": "6a15bff7b8df0c33cdd637c8",
+      "createdAt": "2026-05-26T15:44:55.892Z",
+      "updatedAt": "2026-05-26T15:44:55.892Z"
+    },
+    {
+      "teamId": "6a15c00bb8df0c33cdd63823",
+      "teamName": "Vijay+Mani(woodlands)",
+      "teamLeadName": "Vijay",
+      "members": [
+        {
+          "name": "Vijay",
+          "mobileNumber": "",
+          "gender": "other"
+        },
+        {
+          "name": "Mani(woodlands)",
+          "mobileNumber": "",
+          "gender": "other"
+        }
+      ],
+      "entryFeePaid": 40,
+      "_id": "6a15c00bb8df0c33cdd63825",
+      "createdAt": "2026-05-26T15:45:15.955Z",
+      "updatedAt": "2026-05-26T15:45:15.955Z"
+    },
+    {
+      "teamId": "6a15c029b8df0c33cdd63888",
+      "teamName": "Prasad+Bhuvan(Woodlands)",
+      "teamLeadName": "Prasad",
+      "members": [
+        {
+          "name": "Prasad",
+          "mobileNumber": "",
+          "gender": "other"
+        },
+        {
+          "name": "Bhuvan(Woodlands)",
+          "mobileNumber": "",
+          "gender": "other"
+        }
+      ],
+      "entryFeePaid": 40,
+      "_id": "6a15c029b8df0c33cdd6388a",
+      "createdAt": "2026-05-26T15:45:45.842Z",
+      "updatedAt": "2026-05-26T15:45:45.842Z"
+    },
+    {
+      "teamId": "6a15c04ab8df0c33cdd638f3",
+      "teamName": "Sachin+Nila",
+      "teamLeadName": "Sachin",
+      "members": [
+        {
+          "name": "Sachin",
+          "mobileNumber": "",
+          "gender": "other"
+        },
+        {
+          "name": "Nila",
+          "mobileNumber": "",
+          "gender": "other"
+        }
+      ],
+      "entryFeePaid": 40,
+      "_id": "6a15c04ab8df0c33cdd638f5",
+      "createdAt": "2026-05-26T15:46:18.409Z",
+      "updatedAt": "2026-05-26T15:46:18.409Z"
+    },
+    {
+      "teamId": "6a15c05fb8df0c33cdd63960",
+      "teamName": "Bharathi+Sohel",
+      "teamLeadName": "Bharathi",
+      "members": [
+        {
+          "name": "Bharathi",
+          "mobileNumber": "",
+          "gender": "other"
+        },
+        {
+          "name": "Sohel",
+          "mobileNumber": "",
+          "gender": "other"
+        }
+      ],
+      "entryFeePaid": 40,
+      "_id": "6a15c05fb8df0c33cdd63962",
+      "createdAt": "2026-05-26T15:46:39.733Z",
+      "updatedAt": "2026-05-26T15:46:39.733Z"
+    },
+    {
+      "teamId": "6a15c070b8df0c33cdd639d7",
+      "teamName": "Jeeva+Arshath",
+      "teamLeadName": "Jeeva",
+      "members": [
+        {
+          "name": "Jeeva",
+          "mobileNumber": "",
+          "gender": "other"
+        },
+        {
+          "name": "Arshath",
+          "mobileNumber": "",
+          "gender": "other"
+        }
+      ],
+      "entryFeePaid": 0,
+      "_id": "6a15c070b8df0c33cdd639d9",
+      "createdAt": "2026-05-26T15:46:56.314Z",
+      "updatedAt": "2026-05-26T15:46:56.314Z"
+    },
+    {
+      "teamId": "6a193b868b2fcd6719cf7f10",
+      "teamName": "Team a+Team B",
+      "teamLeadName": "Team a",
+      "members": [
+        {
+          "name": "Team a",
+          "mobileNumber": "",
+          "gender": "other"
+        },
+        {
+          "name": "Team B",
+          "mobileNumber": "",
+          "gender": "other"
+        }
+      ],
+      "entryFeePaid": 0,
+      "_id": "6a193b868b2fcd6719cf7f12",
+      "createdAt": "2026-05-29T07:08:55.265Z",
+      "updatedAt": "2026-05-29T07:08:55.265Z"
+    }
+  ],
+  "tournamentGroups": [
+    {
+      "groupName": "Group A",
+      "groupOrder": 0,
+      "teamIds": [
+        "6a15beb1b8df0c33cdd63423",
+        "6a15beebb8df0c33cdd63489",
+        "6a15becbb8df0c33cdd6343a",
+        "6a15bfc8b8df0c33cdd63716"
+      ],
+      "isLocked": false,
+      "_id": "6a19aefea17a25e2a2b94343",
+      "createdAt": "2026-05-29T15:21:34.801Z",
+      "updatedAt": "2026-05-29T15:22:10.973Z"
+    },
+    {
+      "groupName": "Group B",
+      "groupOrder": 1,
+      "teamIds": [
+        "6a193b868b2fcd6719cf7f10",
+        "6a15bef6b8df0c33cdd634aa",
+        "6a15bf3eb8df0c33cdd63580",
+        "6a15bfabb8df0c33cdd636c7"
+      ],
+      "isLocked": false,
+      "_id": "6a19aefea17a25e2a2b94344",
+      "createdAt": "2026-05-29T15:21:34.802Z",
+      "updatedAt": "2026-05-29T15:22:00.100Z"
+    },
+    {
+      "groupName": "Group C",
+      "groupOrder": 2,
+      "teamIds": [
+        "6a15bf3ab8df0c33cdd6354f",
+        "6a15c070b8df0c33cdd639d7",
+        "6a15bfe1b8df0c33cdd6376d",
+        "6a15bf50b8df0c33cdd635b5"
+      ],
+      "isLocked": false,
+      "_id": "6a19aefea17a25e2a2b94345",
+      "createdAt": "2026-05-29T15:21:34.802Z",
+      "updatedAt": "2026-05-29T15:21:34.802Z"
+    },
+    {
+      "groupName": "Group D",
+      "groupOrder": 3,
+      "teamIds": [
+        "6a15bf18b8df0c33cdd634f5",
+        "6a15c05fb8df0c33cdd63960",
+        "6a15c00bb8df0c33cdd63823",
+        "6a15bf80b8df0c33cdd635fa"
+      ],
+      "isLocked": false,
+      "_id": "6a19aefea17a25e2a2b94346",
+      "createdAt": "2026-05-29T15:21:34.802Z",
+      "updatedAt": "2026-05-29T15:21:34.802Z"
+    },
+    {
+      "groupName": "Group E",
+      "groupOrder": 4,
+      "teamIds": [
+        "6a15bee2b8df0c33cdd6346c",
+        "6a15c04ab8df0c33cdd638f3",
+        "6a15bff7b8df0c33cdd637c6",
+        "6a15bf8fb8df0c33cdd6363d"
+      ],
+      "isLocked": false,
+      "_id": "6a19aefea17a25e2a2b94347",
+      "createdAt": "2026-05-29T15:21:34.802Z",
+      "updatedAt": "2026-05-29T15:21:34.802Z"
+    },
+    {
+      "groupName": "Group F",
+      "groupOrder": 5,
+      "teamIds": [
+        "6a15bea3b8df0c33cdd63414",
+        "6a15bf99b8df0c33cdd63680",
+        "6a15bf28b8df0c33cdd6351e",
+        "6a15c029b8df0c33cdd63888"
+      ],
+      "isLocked": false,
+      "_id": "6a19aefea17a25e2a2b94348",
+      "createdAt": "2026-05-29T15:21:34.802Z",
+      "updatedAt": "2026-05-29T15:21:34.802Z"
+    }
+  ],
+  "auditHistory": [
+    {
+      "action": "Regenerated groups; generated bracket was cleared",
+      "userId": "6954ce0649f1e6628a63daef",
+      "_id": "6a19aefea17a25e2a2b9434f",
+      "createdAt": "2026-05-29T15:21:34.769Z"
+    },
+    {
+      "action": "Generated 6 groups using random distribution",
+      "userId": "6954ce0649f1e6628a63daef",
+      "_id": "6a19aefea17a25e2a2b94351",
+      "createdAt": "2026-05-29T15:21:34.773Z"
+    },
+    {
+      "action": "Updated teams in Group A",
+      "userId": "6954ce0649f1e6628a63daef",
+      "_id": "6a19af0da17a25e2a2b943dc",
+      "createdAt": "2026-05-29T15:21:49.717Z"
+    },
+    {
+      "action": "Updated teams in Group A",
+      "userId": "6954ce0649f1e6628a63daef",
+      "_id": "6a19af11a17a25e2a2b94469",
+      "createdAt": "2026-05-29T15:21:53.612Z"
+    },
+    {
+      "action": "Updated teams in Group B",
+      "userId": "6954ce0649f1e6628a63daef",
+      "_id": "6a19af18a17a25e2a2b944fc",
+      "createdAt": "2026-05-29T15:22:00.066Z"
+    },
+    {
+      "action": "Updated teams in Group A",
+      "userId": "6954ce0649f1e6628a63daef",
+      "_id": "6a19af22a17a25e2a2b9458d",
+      "createdAt": "2026-05-29T15:22:10.920Z"
+    }
+  ],
+  "tournamentExpenses": [],
+  "tournamentIncomes": [],
+  "matches": [
+    {
+      "matchId": "GR-A-M1",
+      "roundNumber": 1,
+      "roundLabel": "Group A",
+      "matchNumber": 1,
+      "matchType": "league",
+      "isManual": false,
+      "manualOverrideTeams": false,
+      "scheduledAt": null,
+      "scheduledEndAt": null,
+      "court": null,
+      "teamAId": "6a15beb1b8df0c33cdd63423",
+      "teamBId": "6a15beebb8df0c33cdd63489",
+      "scoreA": null,
+      "scoreB": null,
+      "winnerTeamId": null,
+      "isCompleted": false
+    },
+    {
+      "matchId": "GR-A-M2",
+      "roundNumber": 1,
+      "roundLabel": "Group A",
+      "matchNumber": 2,
+      "matchType": "league",
+      "isManual": false,
+      "manualOverrideTeams": false,
+      "scheduledAt": null,
+      "scheduledEndAt": null,
+      "court": null,
+      "teamAId": "6a15beb1b8df0c33cdd63423",
+      "teamBId": "6a15becbb8df0c33cdd6343a",
+      "scoreA": null,
+      "scoreB": null,
+      "winnerTeamId": null,
+      "isCompleted": false
+    },
+    {
+      "matchId": "GR-A-M3",
+      "roundNumber": 1,
+      "roundLabel": "Group A",
+      "matchNumber": 3,
+      "matchType": "league",
+      "isManual": false,
+      "manualOverrideTeams": false,
+      "scheduledAt": null,
+      "scheduledEndAt": null,
+      "court": null,
+      "teamAId": "6a15beb1b8df0c33cdd63423",
+      "teamBId": "6a15bfc8b8df0c33cdd63716",
+      "scoreA": null,
+      "scoreB": null,
+      "winnerTeamId": null,
+      "isCompleted": false
+    },
+    {
+      "matchId": "GR-A-M4",
+      "roundNumber": 1,
+      "roundLabel": "Group A",
+      "matchNumber": 4,
+      "matchType": "league",
+      "isManual": false,
+      "manualOverrideTeams": false,
+      "scheduledAt": null,
+      "scheduledEndAt": null,
+      "court": null,
+      "teamAId": "6a15beebb8df0c33cdd63489",
+      "teamBId": "6a15becbb8df0c33cdd6343a",
+      "scoreA": null,
+      "scoreB": null,
+      "winnerTeamId": null,
+      "isCompleted": false
+    },
+    {
+      "matchId": "GR-A-M5",
+      "roundNumber": 1,
+      "roundLabel": "Group A",
+      "matchNumber": 5,
+      "matchType": "league",
+      "isManual": false,
+      "manualOverrideTeams": false,
+      "scheduledAt": null,
+      "scheduledEndAt": null,
+      "court": null,
+      "teamAId": "6a15beebb8df0c33cdd63489",
+      "teamBId": "6a15bfc8b8df0c33cdd63716",
+      "scoreA": null,
+      "scoreB": null,
+      "winnerTeamId": null,
+      "isCompleted": false
+    },
+    {
+      "matchId": "GR-A-M6",
+      "roundNumber": 1,
+      "roundLabel": "Group A",
+      "matchNumber": 6,
+      "matchType": "league",
+      "isManual": false,
+      "manualOverrideTeams": false,
+      "scheduledAt": null,
+      "scheduledEndAt": null,
+      "court": null,
+      "teamAId": "6a15becbb8df0c33cdd6343a",
+      "teamBId": "6a15bfc8b8df0c33cdd63716",
+      "scoreA": null,
+      "scoreB": null,
+      "winnerTeamId": null,
+      "isCompleted": false
+    },
+    {
+      "matchId": "GR-B-M7",
+      "roundNumber": 1,
+      "roundLabel": "Group B",
+      "matchNumber": 7,
+      "matchType": "league",
+      "isManual": false,
+      "manualOverrideTeams": false,
+      "scheduledAt": null,
+      "scheduledEndAt": null,
+      "court": null,
+      "teamAId": "6a193b868b2fcd6719cf7f10",
+      "teamBId": "6a15bef6b8df0c33cdd634aa",
+      "scoreA": null,
+      "scoreB": null,
+      "winnerTeamId": null,
+      "isCompleted": false
+    },
+    {
+      "matchId": "GR-B-M8",
+      "roundNumber": 1,
+      "roundLabel": "Group B",
+      "matchNumber": 8,
+      "matchType": "league",
+      "isManual": false,
+      "manualOverrideTeams": false,
+      "scheduledAt": null,
+      "scheduledEndAt": null,
+      "court": null,
+      "teamAId": "6a193b868b2fcd6719cf7f10",
+      "teamBId": "6a15bf3eb8df0c33cdd63580",
+      "scoreA": null,
+      "scoreB": null,
+      "winnerTeamId": null,
+      "isCompleted": false
+    },
+    {
+      "matchId": "GR-B-M9",
+      "roundNumber": 1,
+      "roundLabel": "Group B",
+      "matchNumber": 9,
+      "matchType": "league",
+      "isManual": false,
+      "manualOverrideTeams": false,
+      "scheduledAt": null,
+      "scheduledEndAt": null,
+      "court": null,
+      "teamAId": "6a193b868b2fcd6719cf7f10",
+      "teamBId": "6a15bfabb8df0c33cdd636c7",
+      "scoreA": null,
+      "scoreB": null,
+      "winnerTeamId": null,
+      "isCompleted": false
+    },
+    {
+      "matchId": "GR-B-M10",
+      "roundNumber": 1,
+      "roundLabel": "Group B",
+      "matchNumber": 10,
+      "matchType": "league",
+      "isManual": false,
+      "manualOverrideTeams": false,
+      "scheduledAt": null,
+      "scheduledEndAt": null,
+      "court": null,
+      "teamAId": "6a15bef6b8df0c33cdd634aa",
+      "teamBId": "6a15bf3eb8df0c33cdd63580",
+      "scoreA": null,
+      "scoreB": null,
+      "winnerTeamId": null,
+      "isCompleted": false
+    },
+    {
+      "matchId": "GR-B-M11",
+      "roundNumber": 1,
+      "roundLabel": "Group B",
+      "matchNumber": 11,
+      "matchType": "league",
+      "isManual": false,
+      "manualOverrideTeams": false,
+      "scheduledAt": null,
+      "scheduledEndAt": null,
+      "court": null,
+      "teamAId": "6a15bef6b8df0c33cdd634aa",
+      "teamBId": "6a15bfabb8df0c33cdd636c7",
+      "scoreA": null,
+      "scoreB": null,
+      "winnerTeamId": null,
+      "isCompleted": false
+    },
+    {
+      "matchId": "GR-B-M12",
+      "roundNumber": 1,
+      "roundLabel": "Group B",
+      "matchNumber": 12,
+      "matchType": "league",
+      "isManual": false,
+      "manualOverrideTeams": false,
+      "scheduledAt": null,
+      "scheduledEndAt": null,
+      "court": null,
+      "teamAId": "6a15bf3eb8df0c33cdd63580",
+      "teamBId": "6a15bfabb8df0c33cdd636c7",
+      "scoreA": null,
+      "scoreB": null,
+      "winnerTeamId": null,
+      "isCompleted": false
+    },
+    {
+      "matchId": "GR-C-M13",
+      "roundNumber": 1,
+      "roundLabel": "Group C",
+      "matchNumber": 13,
+      "matchType": "league",
+      "isManual": false,
+      "manualOverrideTeams": false,
+      "scheduledAt": null,
+      "scheduledEndAt": null,
+      "court": null,
+      "teamAId": "6a15bf3ab8df0c33cdd6354f",
+      "teamBId": "6a15c070b8df0c33cdd639d7",
+      "scoreA": null,
+      "scoreB": null,
+      "winnerTeamId": null,
+      "isCompleted": false
+    },
+    {
+      "matchId": "GR-C-M14",
+      "roundNumber": 1,
+      "roundLabel": "Group C",
+      "matchNumber": 14,
+      "matchType": "league",
+      "isManual": false,
+      "manualOverrideTeams": false,
+      "scheduledAt": null,
+      "scheduledEndAt": null,
+      "court": null,
+      "teamAId": "6a15bf3ab8df0c33cdd6354f",
+      "teamBId": "6a15bfe1b8df0c33cdd6376d",
+      "scoreA": null,
+      "scoreB": null,
+      "winnerTeamId": null,
+      "isCompleted": false
+    },
+    {
+      "matchId": "GR-C-M15",
+      "roundNumber": 1,
+      "roundLabel": "Group C",
+      "matchNumber": 15,
+      "matchType": "league",
+      "isManual": false,
+      "manualOverrideTeams": false,
+      "scheduledAt": null,
+      "scheduledEndAt": null,
+      "court": null,
+      "teamAId": "6a15bf3ab8df0c33cdd6354f",
+      "teamBId": "6a15bf50b8df0c33cdd635b5",
+      "scoreA": null,
+      "scoreB": null,
+      "winnerTeamId": null,
+      "isCompleted": false
+    },
+    {
+      "matchId": "GR-C-M16",
+      "roundNumber": 1,
+      "roundLabel": "Group C",
+      "matchNumber": 16,
+      "matchType": "league",
+      "isManual": false,
+      "manualOverrideTeams": false,
+      "scheduledAt": null,
+      "scheduledEndAt": null,
+      "court": null,
+      "teamAId": "6a15c070b8df0c33cdd639d7",
+      "teamBId": "6a15bfe1b8df0c33cdd6376d",
+      "scoreA": null,
+      "scoreB": null,
+      "winnerTeamId": null,
+      "isCompleted": false
+    },
+    {
+      "matchId": "GR-C-M17",
+      "roundNumber": 1,
+      "roundLabel": "Group C",
+      "matchNumber": 17,
+      "matchType": "league",
+      "isManual": false,
+      "manualOverrideTeams": false,
+      "scheduledAt": null,
+      "scheduledEndAt": null,
+      "court": null,
+      "teamAId": "6a15c070b8df0c33cdd639d7",
+      "teamBId": "6a15bf50b8df0c33cdd635b5",
+      "scoreA": null,
+      "scoreB": null,
+      "winnerTeamId": null,
+      "isCompleted": false
+    },
+    {
+      "matchId": "GR-C-M18",
+      "roundNumber": 1,
+      "roundLabel": "Group C",
+      "matchNumber": 18,
+      "matchType": "league",
+      "isManual": false,
+      "manualOverrideTeams": false,
+      "scheduledAt": null,
+      "scheduledEndAt": null,
+      "court": null,
+      "teamAId": "6a15bfe1b8df0c33cdd6376d",
+      "teamBId": "6a15bf50b8df0c33cdd635b5",
+      "scoreA": null,
+      "scoreB": null,
+      "winnerTeamId": null,
+      "isCompleted": false
+    },
+    {
+      "matchId": "GR-D-M19",
+      "roundNumber": 1,
+      "roundLabel": "Group D",
+      "matchNumber": 19,
+      "matchType": "league",
+      "isManual": false,
+      "manualOverrideTeams": false,
+      "scheduledAt": null,
+      "scheduledEndAt": null,
+      "court": null,
+      "teamAId": "6a15bf18b8df0c33cdd634f5",
+      "teamBId": "6a15c05fb8df0c33cdd63960",
+      "scoreA": null,
+      "scoreB": null,
+      "winnerTeamId": null,
+      "isCompleted": false
+    },
+    {
+      "matchId": "GR-D-M20",
+      "roundNumber": 1,
+      "roundLabel": "Group D",
+      "matchNumber": 20,
+      "matchType": "league",
+      "isManual": false,
+      "manualOverrideTeams": false,
+      "scheduledAt": null,
+      "scheduledEndAt": null,
+      "court": null,
+      "teamAId": "6a15bf18b8df0c33cdd634f5",
+      "teamBId": "6a15c00bb8df0c33cdd63823",
+      "scoreA": null,
+      "scoreB": null,
+      "winnerTeamId": null,
+      "isCompleted": false
+    },
+    {
+      "matchId": "GR-D-M21",
+      "roundNumber": 1,
+      "roundLabel": "Group D",
+      "matchNumber": 21,
+      "matchType": "league",
+      "isManual": false,
+      "manualOverrideTeams": false,
+      "scheduledAt": null,
+      "scheduledEndAt": null,
+      "court": null,
+      "teamAId": "6a15bf18b8df0c33cdd634f5",
+      "teamBId": "6a15bf80b8df0c33cdd635fa",
+      "scoreA": null,
+      "scoreB": null,
+      "winnerTeamId": null,
+      "isCompleted": false
+    },
+    {
+      "matchId": "GR-D-M22",
+      "roundNumber": 1,
+      "roundLabel": "Group D",
+      "matchNumber": 22,
+      "matchType": "league",
+      "isManual": false,
+      "manualOverrideTeams": false,
+      "scheduledAt": null,
+      "scheduledEndAt": null,
+      "court": null,
+      "teamAId": "6a15c05fb8df0c33cdd63960",
+      "teamBId": "6a15c00bb8df0c33cdd63823",
+      "scoreA": null,
+      "scoreB": null,
+      "winnerTeamId": null,
+      "isCompleted": false
+    },
+    {
+      "matchId": "GR-D-M23",
+      "roundNumber": 1,
+      "roundLabel": "Group D",
+      "matchNumber": 23,
+      "matchType": "league",
+      "isManual": false,
+      "manualOverrideTeams": false,
+      "scheduledAt": null,
+      "scheduledEndAt": null,
+      "court": null,
+      "teamAId": "6a15c05fb8df0c33cdd63960",
+      "teamBId": "6a15bf80b8df0c33cdd635fa",
+      "scoreA": null,
+      "scoreB": null,
+      "winnerTeamId": null,
+      "isCompleted": false
+    },
+    {
+      "matchId": "GR-D-M24",
+      "roundNumber": 1,
+      "roundLabel": "Group D",
+      "matchNumber": 24,
+      "matchType": "league",
+      "isManual": false,
+      "manualOverrideTeams": false,
+      "scheduledAt": null,
+      "scheduledEndAt": null,
+      "court": null,
+      "teamAId": "6a15c00bb8df0c33cdd63823",
+      "teamBId": "6a15bf80b8df0c33cdd635fa",
+      "scoreA": null,
+      "scoreB": null,
+      "winnerTeamId": null,
+      "isCompleted": false
+    },
+    {
+      "matchId": "GR-E-M25",
+      "roundNumber": 1,
+      "roundLabel": "Group E",
+      "matchNumber": 25,
+      "matchType": "league",
+      "isManual": false,
+      "manualOverrideTeams": false,
+      "scheduledAt": null,
+      "scheduledEndAt": null,
+      "court": null,
+      "teamAId": "6a15bee2b8df0c33cdd6346c",
+      "teamBId": "6a15c04ab8df0c33cdd638f3",
+      "scoreA": null,
+      "scoreB": null,
+      "winnerTeamId": null,
+      "isCompleted": false
+    },
+    {
+      "matchId": "GR-E-M26",
+      "roundNumber": 1,
+      "roundLabel": "Group E",
+      "matchNumber": 26,
+      "matchType": "league",
+      "isManual": false,
+      "manualOverrideTeams": false,
+      "scheduledAt": null,
+      "scheduledEndAt": null,
+      "court": null,
+      "teamAId": "6a15bee2b8df0c33cdd6346c",
+      "teamBId": "6a15bff7b8df0c33cdd637c6",
+      "scoreA": null,
+      "scoreB": null,
+      "winnerTeamId": null,
+      "isCompleted": false
+    },
+    {
+      "matchId": "GR-E-M27",
+      "roundNumber": 1,
+      "roundLabel": "Group E",
+      "matchNumber": 27,
+      "matchType": "league",
+      "isManual": false,
+      "manualOverrideTeams": false,
+      "scheduledAt": null,
+      "scheduledEndAt": null,
+      "court": null,
+      "teamAId": "6a15bee2b8df0c33cdd6346c",
+      "teamBId": "6a15bf8fb8df0c33cdd6363d",
+      "scoreA": null,
+      "scoreB": null,
+      "winnerTeamId": null,
+      "isCompleted": false
+    },
+    {
+      "matchId": "GR-E-M28",
+      "roundNumber": 1,
+      "roundLabel": "Group E",
+      "matchNumber": 28,
+      "matchType": "league",
+      "isManual": false,
+      "manualOverrideTeams": false,
+      "scheduledAt": null,
+      "scheduledEndAt": null,
+      "court": null,
+      "teamAId": "6a15c04ab8df0c33cdd638f3",
+      "teamBId": "6a15bff7b8df0c33cdd637c6",
+      "scoreA": null,
+      "scoreB": null,
+      "winnerTeamId": null,
+      "isCompleted": false
+    },
+    {
+      "matchId": "GR-E-M29",
+      "roundNumber": 1,
+      "roundLabel": "Group E",
+      "matchNumber": 29,
+      "matchType": "league",
+      "isManual": false,
+      "manualOverrideTeams": false,
+      "scheduledAt": null,
+      "scheduledEndAt": null,
+      "court": null,
+      "teamAId": "6a15c04ab8df0c33cdd638f3",
+      "teamBId": "6a15bf8fb8df0c33cdd6363d",
+      "scoreA": null,
+      "scoreB": null,
+      "winnerTeamId": null,
+      "isCompleted": false
+    },
+    {
+      "matchId": "GR-E-M30",
+      "roundNumber": 1,
+      "roundLabel": "Group E",
+      "matchNumber": 30,
+      "matchType": "league",
+      "isManual": false,
+      "manualOverrideTeams": false,
+      "scheduledAt": null,
+      "scheduledEndAt": null,
+      "court": null,
+      "teamAId": "6a15bff7b8df0c33cdd637c6",
+      "teamBId": "6a15bf8fb8df0c33cdd6363d",
+      "scoreA": null,
+      "scoreB": null,
+      "winnerTeamId": null,
+      "isCompleted": false
+    },
+    {
+      "matchId": "GR-F-M31",
+      "roundNumber": 1,
+      "roundLabel": "Group F",
+      "matchNumber": 31,
+      "matchType": "league",
+      "isManual": false,
+      "manualOverrideTeams": false,
+      "scheduledAt": null,
+      "scheduledEndAt": null,
+      "court": null,
+      "teamAId": "6a15bea3b8df0c33cdd63414",
+      "teamBId": "6a15bf99b8df0c33cdd63680",
+      "scoreA": null,
+      "scoreB": null,
+      "winnerTeamId": null,
+      "isCompleted": false
+    },
+    {
+      "matchId": "GR-F-M32",
+      "roundNumber": 1,
+      "roundLabel": "Group F",
+      "matchNumber": 32,
+      "matchType": "league",
+      "isManual": false,
+      "manualOverrideTeams": false,
+      "scheduledAt": null,
+      "scheduledEndAt": null,
+      "court": null,
+      "teamAId": "6a15bea3b8df0c33cdd63414",
+      "teamBId": "6a15bf28b8df0c33cdd6351e",
+      "scoreA": null,
+      "scoreB": null,
+      "winnerTeamId": null,
+      "isCompleted": false
+    },
+    {
+      "matchId": "GR-F-M33",
+      "roundNumber": 1,
+      "roundLabel": "Group F",
+      "matchNumber": 33,
+      "matchType": "league",
+      "isManual": false,
+      "manualOverrideTeams": false,
+      "scheduledAt": null,
+      "scheduledEndAt": null,
+      "court": null,
+      "teamAId": "6a15bea3b8df0c33cdd63414",
+      "teamBId": "6a15c029b8df0c33cdd63888",
+      "scoreA": null,
+      "scoreB": null,
+      "winnerTeamId": null,
+      "isCompleted": false
+    },
+    {
+      "matchId": "GR-F-M34",
+      "roundNumber": 1,
+      "roundLabel": "Group F",
+      "matchNumber": 34,
+      "matchType": "league",
+      "isManual": false,
+      "manualOverrideTeams": false,
+      "scheduledAt": null,
+      "scheduledEndAt": null,
+      "court": null,
+      "teamAId": "6a15bf99b8df0c33cdd63680",
+      "teamBId": "6a15bf28b8df0c33cdd6351e",
+      "scoreA": null,
+      "scoreB": null,
+      "winnerTeamId": null,
+      "isCompleted": false
+    },
+    {
+      "matchId": "GR-F-M35",
+      "roundNumber": 1,
+      "roundLabel": "Group F",
+      "matchNumber": 35,
+      "matchType": "league",
+      "isManual": false,
+      "manualOverrideTeams": false,
+      "scheduledAt": null,
+      "scheduledEndAt": null,
+      "court": null,
+      "teamAId": "6a15bf99b8df0c33cdd63680",
+      "teamBId": "6a15c029b8df0c33cdd63888",
+      "scoreA": null,
+      "scoreB": null,
+      "winnerTeamId": null,
+      "isCompleted": false
+    },
+    {
+      "matchId": "GR-F-M36",
+      "roundNumber": 1,
+      "roundLabel": "Group F",
+      "matchNumber": 36,
+      "matchType": "league",
+      "isManual": false,
+      "manualOverrideTeams": false,
+      "scheduledAt": null,
+      "scheduledEndAt": null,
+      "court": null,
+      "teamAId": "6a15bf28b8df0c33cdd6351e",
+      "teamBId": "6a15c029b8df0c33cdd63888",
+      "scoreA": null,
+      "scoreB": null,
+      "winnerTeamId": null,
+      "isCompleted": false
+    },
+    {
+      "matchId": "KO-R1-M1",
+      "roundNumber": 2,
+      "roundLabel": "Quarter Finals",
+      "matchNumber": 1,
+      "matchType": "league",
+      "isManual": false,
+      "manualOverrideTeams": false,
+      "scheduledAt": null,
+      "scheduledEndAt": null,
+      "court": null,
+      "teamAId": null,
+      "teamBId": null,
+      "scoreA": null,
+      "scoreB": null,
+      "winnerTeamId": null,
+      "isCompleted": false
+    },
+    {
+      "matchId": "KO-R1-M2",
+      "roundNumber": 2,
+      "roundLabel": "Quarter Finals",
+      "matchNumber": 2,
+      "matchType": "league",
+      "isManual": false,
+      "manualOverrideTeams": false,
+      "scheduledAt": null,
+      "scheduledEndAt": null,
+      "court": null,
+      "teamAId": null,
+      "teamBId": null,
+      "scoreA": null,
+      "scoreB": null,
+      "winnerTeamId": null,
+      "isCompleted": false
+    },
+    {
+      "matchId": "KO-R1-M3",
+      "roundNumber": 2,
+      "roundLabel": "Quarter Finals",
+      "matchNumber": 3,
+      "matchType": "league",
+      "isManual": false,
+      "manualOverrideTeams": false,
+      "scheduledAt": null,
+      "scheduledEndAt": null,
+      "court": null,
+      "teamAId": null,
+      "teamBId": null,
+      "scoreA": null,
+      "scoreB": null,
+      "winnerTeamId": null,
+      "isCompleted": false
+    },
+    {
+      "matchId": "KO-R1-M4",
+      "roundNumber": 2,
+      "roundLabel": "Quarter Finals",
+      "matchNumber": 4,
+      "matchType": "league",
+      "isManual": false,
+      "manualOverrideTeams": false,
+      "scheduledAt": null,
+      "scheduledEndAt": null,
+      "court": null,
+      "teamAId": null,
+      "teamBId": null,
+      "scoreA": null,
+      "scoreB": null,
+      "winnerTeamId": null,
+      "isCompleted": false
+    },
+    {
+      "matchId": "KO-R2-M1",
+      "roundNumber": 3,
+      "roundLabel": "Semi Finals",
+      "matchNumber": 1,
+      "matchType": "semifinal",
+      "isManual": false,
+      "manualOverrideTeams": false,
+      "scheduledAt": null,
+      "scheduledEndAt": null,
+      "court": null,
+      "teamAId": null,
+      "teamBId": null,
+      "scoreA": null,
+      "scoreB": null,
+      "winnerTeamId": null,
+      "isCompleted": false
+    },
+    {
+      "matchId": "KO-R2-M2",
+      "roundNumber": 3,
+      "roundLabel": "Semi Finals",
+      "matchNumber": 2,
+      "matchType": "semifinal",
+      "isManual": false,
+      "manualOverrideTeams": false,
+      "scheduledAt": null,
+      "scheduledEndAt": null,
+      "court": null,
+      "teamAId": null,
+      "teamBId": null,
+      "scoreA": null,
+      "scoreB": null,
+      "winnerTeamId": null,
+      "isCompleted": false
+    },
+    {
+      "matchId": "KO-FINAL",
+      "roundNumber": 4,
+      "roundLabel": "Final",
+      "matchNumber": 1,
+      "matchType": "final",
+      "isManual": false,
+      "manualOverrideTeams": false,
+      "scheduledAt": null,
+      "scheduledEndAt": null,
+      "court": null,
+      "teamAId": null,
+      "teamBId": null,
+      "scoreA": null,
+      "scoreB": null,
+      "winnerTeamId": null,
+      "isCompleted": false
+    }
+  ],
+  "totalRounds": 4,
+  "championTeamId": null,
+  "finalScore": null,
+  "createdAt": "2026-05-26T15:37:44.000Z",
+  "updatedAt": "2026-05-29T16:05:16.032Z",
+  "__v": 45
+}

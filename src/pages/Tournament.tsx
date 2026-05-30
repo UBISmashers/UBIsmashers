@@ -20,6 +20,43 @@ import type { PublicTournamentPayload, Tournament } from "@/types/tournament";
 
 const publicApi = createApiClient(() => null, () => {});
 
+const tournamentFormatLabel: Record<Tournament["format"], string> = {
+  knockout: "Knockout",
+  round_robin: "Round Robin",
+  group_knockout: "Group + Knockout",
+};
+
+const isGroupLeagueMatch = (match: Tournament["matches"][number]) =>
+  match.matchType === "league" && /^Group\s/i.test(match.roundLabel || "");
+
+const isKnockoutStageMatch = (match: Tournament["matches"][number]) =>
+  !isGroupLeagueMatch(match) &&
+  match.matchType !== "friendly" &&
+  match.matchType !== "practice" &&
+  (match.roundNumber >= 2 || match.matchType === "semifinal" || match.matchType === "final");
+
+const getPublicBracketMatches = (tournament: Tournament) => {
+  if (tournament.format === "knockout") return tournament.matches;
+
+  if (tournament.format === "round_robin") {
+    return tournament.matches.filter(isKnockoutStageMatch);
+  }
+
+  const groupMatches = tournament.matches.filter(isGroupLeagueMatch);
+  const allGroupsCompleted = groupMatches.length > 0 && groupMatches.every((match) => match.isCompleted);
+  const knockoutMatches = tournament.matches.filter(isKnockoutStageMatch);
+  const knockoutGenerated = knockoutMatches.some((match) => match.teamAId || match.teamBId);
+
+  return allGroupsCompleted && knockoutGenerated ? knockoutMatches : [];
+};
+
+const getPublicVisibleMatches = (tournament: Tournament) => {
+  if (tournament.format !== "group_knockout") return tournament.matches;
+
+  const bracketMatches = new Set(getPublicBracketMatches(tournament).map((match) => match.matchId));
+  return tournament.matches.filter((match) => isGroupLeagueMatch(match) || bracketMatches.has(match.matchId));
+};
+
 function TournamentSectionItem({
   value,
   title,
@@ -145,7 +182,10 @@ export default function TournamentPage() {
                 Boolean(deadline) &&
                 !isDeadlinePassed;
 
-              const sortedMatches = [...tournament.matches].sort((a, b) => {
+              const visibleMatches = getPublicVisibleMatches(tournament);
+              const bracketMatches = getPublicBracketMatches(tournament);
+              const bracketTournament = { ...tournament, matches: bracketMatches };
+              const sortedMatches = [...visibleMatches].sort((a, b) => {
                 const aTs = a.scheduledAt ? new Date(a.scheduledAt).getTime() : Number.MAX_SAFE_INTEGER;
                 const bTs = b.scheduledAt ? new Date(b.scheduledAt).getTime() : Number.MAX_SAFE_INTEGER;
                 if (aTs !== bTs) return aTs - bTs;
@@ -199,8 +239,11 @@ export default function TournamentPage() {
 
                   {isExpanded && (
                     <CardContent className="space-y-5">
-                      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
                         <div className="rounded-md border p-3 text-sm">Type: {tournament.type}</div>
+                        <div className="rounded-md border p-3 text-sm">
+                          Format: {tournamentFormatLabel[tournament.format]}
+                        </div>
                         <div className="rounded-md border p-3 text-sm">
                           Deadline: {deadline ? format(deadline, "dd MMM yyyy") : "Not set"}
                         </div>
@@ -208,6 +251,19 @@ export default function TournamentPage() {
                           Fee: {tournament.entryFee ? `$${tournament.entryFee}` : "Free"}
                         </div>
                         <div className="rounded-md border p-3 text-sm">Teams: {tournament.teams.length}</div>
+                        <div className="rounded-md border p-3 text-sm">
+                          {tournament.format === "group_knockout"
+                            ? `Groups: ${tournament.tournamentGroups.length || tournament.groupCount || 0}`
+                            : "Groups: Not used"}
+                        </div>
+                        <div className="rounded-md border p-3 text-sm sm:col-span-2 lg:col-span-6">
+                          Qualification Rule:{" "}
+                          {tournament.format === "group_knockout"
+                            ? `Top ${tournament.teamsQualifyingPerGroup || 2} teams per group advance to knockout`
+                            : tournament.format === "round_robin"
+                            ? "All teams share one overall standings table"
+                            : "Pure knockout bracket; standings are hidden"}
+                        </div>
                       </div>
 
                       <div className="flex flex-wrap items-center gap-2">
@@ -327,9 +383,9 @@ export default function TournamentPage() {
                           </TournamentSectionItem>
                         )}
 
-                        {tournament.matches.length > 0 && (
+                        {bracketMatches.length > 0 && (
                           <TournamentSectionItem value={`tournamentBracket-${tournament._id}`} title="Tournament Bracket">
-                            <TournamentBracket tournament={tournament} />
+                            <TournamentBracket tournament={bracketTournament} />
                           </TournamentSectionItem>
                         )}
 
