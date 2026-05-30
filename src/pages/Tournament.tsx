@@ -1,3 +1,4 @@
+import type * as React from "react";
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
@@ -11,12 +12,30 @@ import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
 import { TournamentBracket } from "@/components/tournament/TournamentBracket";
 import { TournamentPointsTable } from "@/components/tournament/TournamentPointsTable";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { createApiClient } from "@/lib/api";
 import { buildTournamentGroupView } from "@/lib/tournamentGroups";
 import { buildScheduleRows, formatScheduleDateTime } from "@/lib/tournamentSchedule";
 import type { PublicTournamentPayload, Tournament } from "@/types/tournament";
 
 const publicApi = createApiClient(() => null, () => {});
+
+function TournamentSectionItem({
+  value,
+  title,
+  children,
+}: {
+  value: string;
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <AccordionItem value={value}>
+      <AccordionTrigger className="px-4 text-base font-semibold">{title}</AccordionTrigger>
+      <AccordionContent className="px-4 pt-0 space-y-5">{children}</AccordionContent>
+    </AccordionItem>
+  );
+}
 
 export default function TournamentPage() {
   const queryClient = useQueryClient();
@@ -268,45 +287,54 @@ export default function TournamentPage() {
                       )}
 
                       <TournamentPointsTable tournament={tournament} />
-                      {groupView.length > 0 && (
-                        <Card>
-                          <CardHeader>
-                            <CardTitle className="text-base">Group Allocation</CardTitle>
-                          </CardHeader>
-                          <CardContent>
-                            <div className="grid gap-3 md:grid-cols-2">
-                              {groupView.map((group) => (
-                                <div key={group.label} className="rounded-md border">
-                                  <div className="border-b bg-secondary/30 px-3 py-2 text-sm font-semibold">
-                                    {group.label}
-                                  </div>
-                                  <div className="overflow-x-auto">
-                                    <table className="min-w-full text-sm">
-                                      <thead>
-                                        <tr className="border-b text-left">
-                                          <th className="px-3 py-2">Team</th>
-                                          <th className="px-3 py-2">Players</th>
-                                        </tr>
-                                      </thead>
-                                      <tbody>
-                                        {group.teams.map((team) => (
-                                          <tr key={`${group.label}-${team._id}`} className="border-b last:border-0">
-                                            <td className="px-3 py-2 font-medium">{team.name}</td>
-                                            <td className="px-3 py-2 text-muted-foreground">{team.players.join(" / ")}</td>
+                      <Accordion type="multiple" className="overflow-hidden rounded-lg border">
+                        {groupView.length > 0 && (
+                          <TournamentSectionItem value={`groupAllocation-${tournament._id}`} title="Group Allocation">
+                            <Card>
+                            <CardHeader>
+                              <CardTitle className="text-base">Group Allocation</CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                              <div className="grid gap-3 md:grid-cols-2">
+                                {groupView.map((group) => (
+                                  <div key={group.label} className="rounded-md border">
+                                    <div className="border-b bg-secondary/30 px-3 py-2 text-sm font-semibold">
+                                      {group.label}
+                                    </div>
+                                    <div className="overflow-x-auto">
+                                      <table className="min-w-full text-sm">
+                                        <thead>
+                                          <tr className="border-b text-left">
+                                            <th className="px-3 py-2">Team</th>
+                                            <th className="px-3 py-2">Players</th>
                                           </tr>
-                                        ))}
-                                      </tbody>
-                                    </table>
+                                        </thead>
+                                        <tbody>
+                                          {group.teams.map((team) => (
+                                            <tr key={`${group.label}-${team._id}`} className="border-b last:border-0">
+                                              <td className="px-3 py-2 font-medium">{team.name}</td>
+                                              <td className="px-3 py-2 text-muted-foreground">{team.players.join(" / ")}</td>
+                                            </tr>
+                                          ))}
+                                        </tbody>
+                                      </table>
+                                    </div>
                                   </div>
-                                </div>
-                              ))}
-                            </div>
-                          </CardContent>
-                        </Card>
-                      )}
-                      {tournament.matches.length > 0 && <TournamentBracket tournament={tournament} />}
+                                ))}
+                              </div>
+                            </CardContent>
+                            </Card>
+                          </TournamentSectionItem>
+                        )}
 
-                      <Card>
+                        {tournament.matches.length > 0 && (
+                          <TournamentSectionItem value={`tournamentBracket-${tournament._id}`} title="Tournament Bracket">
+                            <TournamentBracket tournament={tournament} />
+                          </TournamentSectionItem>
+                        )}
+
+                        <TournamentSectionItem value={`matchSchedule-${tournament._id}`} title="Match Schedule">
+                          <Card>
                         <CardHeader>
                           <CardTitle className="text-base">Match Schedule</CardTitle>
                         </CardHeader>
@@ -347,14 +375,15 @@ export default function TournamentPage() {
                             </div>
                           )}
                         </CardContent>
-                      </Card>
+                          </Card>
+                        </TournamentSectionItem>
 
-                      <div className="grid gap-4 lg:grid-cols-2">
-                        <Card>
-                          <CardHeader>
-                            <CardTitle className="text-base">Upcoming Matches</CardTitle>
-                          </CardHeader>
-                          <CardContent>
+                        <TournamentSectionItem value={`upcomingMatches-${tournament._id}`} title="Upcoming Matches">
+                          <Card>
+                            <CardHeader>
+                              <CardTitle className="text-base">Upcoming Matches</CardTitle>
+                            </CardHeader>
+                            <CardContent>
                             {upcomingMatches.length === 0 ? (
                               <p className="text-sm text-muted-foreground">No upcoming matches.</p>
                             ) : (
@@ -380,13 +409,15 @@ export default function TournamentPage() {
                               </div>
                             )}
                           </CardContent>
-                        </Card>
+                          </Card>
+                        </TournamentSectionItem>
 
-                        <Card>
-                          <CardHeader>
-                            <CardTitle className="text-base">Past Matches</CardTitle>
-                          </CardHeader>
-                          <CardContent>
+                        <TournamentSectionItem value={`pastMatches-${tournament._id}`} title="Past Matches">
+                          <Card>
+                            <CardHeader>
+                              <CardTitle className="text-base">Past Matches</CardTitle>
+                            </CardHeader>
+                            <CardContent>
                             {pastMatches.length === 0 ? (
                               <p className="text-sm text-muted-foreground">No completed matches yet.</p>
                             ) : (
@@ -414,7 +445,8 @@ export default function TournamentPage() {
                             )}
                           </CardContent>
                         </Card>
-                      </div>
+                      </TournamentSectionItem>
+                    </Accordion>
                     </CardContent>
                   )}
                 </Card>

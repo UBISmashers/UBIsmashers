@@ -1,3 +1,4 @@
+import type * as React from "react";
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronDown, ChevronUp, Download, Lock, Pencil, Plus, Trash2, Unlock, X } from "lucide-react";
@@ -11,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { TournamentBracket } from "@/components/tournament/TournamentBracket";
@@ -37,6 +39,23 @@ const groupDistributionOptions = [
   { label: "Balanced Distribution", value: "balanced" },
   { label: "Manual Distribution", value: "manual" },
 ] as const;
+
+function TournamentSectionItem({
+  value,
+  title,
+  children,
+}: {
+  value: string;
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <AccordionItem value={value}>
+      <AccordionTrigger className="px-4 text-base font-semibold">{title}</AccordionTrigger>
+      <AccordionContent className="px-4 pt-0 space-y-5">{children}</AccordionContent>
+    </AccordionItem>
+  );
+}
 
 const customMatchTypeOptions: Array<{ label: string; value: TournamentMatchType }> = [
   { label: "League Match", value: "league" },
@@ -1027,8 +1046,10 @@ export default function Tournaments() {
                 <div className="space-y-5">
                   <TournamentOverview tournament={selectedTournament} />
                   <TournamentPointsTable tournament={selectedTournament} />
-                  {groupView.length > 0 && (
-                    <Card>
+                  <Accordion type="multiple" className="overflow-hidden rounded-lg border">
+                    {groupView.length > 0 && (
+                    <TournamentSectionItem value={`groupAllocation-${selectedTournament._id}`} title="Group Allocation">
+                      <Card>
                       <CardHeader>
                         <CardTitle className="text-base">Group Allocation</CardTitle>
                       </CardHeader>
@@ -1062,10 +1083,12 @@ export default function Tournaments() {
                         </div>
                       </CardContent>
                     </Card>
+                    </TournamentSectionItem>
                   )}
 
                   {selectedTournament.format === "group_knockout" && (
-                    <Card>
+                    <TournamentSectionItem value={`groupManagement-${selectedTournament._id}`} title="Group Management">
+                      <Card>
                       <CardHeader>
                         <CardTitle className="text-base">Group Management</CardTitle>
                       </CardHeader>
@@ -1304,7 +1327,8 @@ export default function Tournaments() {
                           )}
                         </div>
                       </CardContent>
-                    </Card>
+                      </Card>
+                    </TournamentSectionItem>
                   )}
 
                   <div className="flex flex-wrap gap-2">
@@ -1338,10 +1362,11 @@ export default function Tournaments() {
                     </Button>
                   </div>
 
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-base">Edit Tournament</CardTitle>
-                    </CardHeader>
+                  <TournamentSectionItem value={`editTournament-${selectedTournament._id}`} title="Edit Tournament">
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-base">Edit Tournament</CardTitle>
+                      </CardHeader>
                     <CardContent className="space-y-3">
                       <div className="space-y-1">
                         <Label>Name</Label>
@@ -1544,12 +1569,14 @@ export default function Tournaments() {
                         Save Tournament Changes
                       </Button>
                     </CardContent>
-                  </Card>
+                    </Card>
+                  </TournamentSectionItem>
 
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-base">Teams</CardTitle>
-                    </CardHeader>
+                  <TournamentSectionItem value={`teams-${selectedTournament._id}`} title="Teams">
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-base">Teams</CardTitle>
+                      </CardHeader>
                     <CardContent className="space-y-3">
                       <div className="grid gap-2 sm:grid-cols-2">
                         <Input
@@ -1637,12 +1664,14 @@ export default function Tournaments() {
                         ))}
                       </div>
                     </CardContent>
-                  </Card>
+                    </Card>
+                  </TournamentSectionItem>
 
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-base">Team Registrations</CardTitle>
-                    </CardHeader>
+                  <TournamentSectionItem value={`teamRegistrations-${selectedTournament._id}`} title="Team Registrations">
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-base">Team Registrations</CardTitle>
+                      </CardHeader>
                     <CardContent>
                       {selectedTournament.registrations.length === 0 ? (
                         <p className="text-sm text-muted-foreground">No registrations yet.</p>
@@ -1741,12 +1770,14 @@ export default function Tournaments() {
                         </div>
                       )}
                     </CardContent>
-                  </Card>
+                    </Card>
+                  </TournamentSectionItem>
 
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-base">Team Registry</CardTitle>
-                    </CardHeader>
+                  <TournamentSectionItem value={`teamRegistry-${selectedTournament._id}`} title="Team Registry">
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-base">Team Registry</CardTitle>
+                      </CardHeader>
                     <CardContent>
                       {(selectedTournament.teamRegistry || []).length === 0 ? (
                         <p className="text-sm text-muted-foreground">No team registry entries yet.</p>
@@ -1804,12 +1835,14 @@ export default function Tournaments() {
                         </div>
                       )}
                     </CardContent>
-                  </Card>
+                    </Card>
+                  </TournamentSectionItem>
 
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-base">Tournament Finance</CardTitle>
-                    </CardHeader>
+                  <TournamentSectionItem value={`tournamentFinance-${selectedTournament._id}`} title="Tournament Finance">
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-base">Tournament Finance</CardTitle>
+                      </CardHeader>
                     <CardContent className="space-y-4">
                       <Tabs value={financeTab} onValueChange={(value) => setFinanceTab(value as "expenses" | "incoming")}>
                         <TabsList className="grid w-full grid-cols-2">
@@ -2037,12 +2070,14 @@ export default function Tournaments() {
                         </TabsContent>
                       </Tabs>
                     </CardContent>
-                  </Card>
+                    </Card>
+                  </TournamentSectionItem>
 
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-base">Add Custom Match (Admin)</CardTitle>
-                    </CardHeader>
+                  <TournamentSectionItem value={`addCustomMatch-${selectedTournament._id}`} title="Add Custom Match (Admin)">
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-base">Add Custom Match (Admin)</CardTitle>
+                      </CardHeader>
                     <CardContent className="space-y-3">
                       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                         <div className="space-y-1">
@@ -2143,12 +2178,14 @@ export default function Tournaments() {
 
                       <Button onClick={() => createCustomMatchMutation.mutate()}>Add Match</Button>
                     </CardContent>
-                  </Card>
+                    </Card>
+                  </TournamentSectionItem>
 
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-base">Tournament Schedule</CardTitle>
-                    </CardHeader>
+                  <TournamentSectionItem value={`tournamentSchedule-${selectedTournament._id}`} title="Tournament Schedule">
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-base">Tournament Schedule</CardTitle>
+                      </CardHeader>
                     <CardContent className="space-y-4">
                       <div className="grid gap-2 md:grid-cols-4">
                         <div className="space-y-1">
@@ -2427,17 +2464,21 @@ export default function Tournaments() {
                         </div>
                       )}
                     </CardContent>
-                  </Card>
+                    </Card>
+                  </TournamentSectionItem>
 
                   {selectedTournament.matches.length > 0 && (
-                    <TournamentBracket
-                      tournament={selectedTournament}
-                      editable
-                      onSubmitScore={(matchId, scoreA, scoreB) => {
-                        updateScoreMutation.mutate({ matchId, scoreA, scoreB });
-                      }}
-                    />
+                    <TournamentSectionItem value={`tournamentBracket-${selectedTournament._id}`} title="Tournament Bracket">
+                      <TournamentBracket
+                        tournament={selectedTournament}
+                        editable
+                        onSubmitScore={(matchId, scoreA, scoreB) => {
+                          updateScoreMutation.mutate({ matchId, scoreA, scoreB });
+                        }}
+                      />
+                    </TournamentSectionItem>
                   )}
+                  </Accordion>
                 </div>
               )}
             </CardContent>
