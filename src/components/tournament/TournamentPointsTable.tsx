@@ -90,7 +90,7 @@ const makeRows = (
   pointRules: ReturnType<typeof getPointRules>,
   qualifyingCount = 0,
   showFinalStatus = false
-) => {
+): PointsRow[] => {
   const byTeam = new Map<string, PointsRow>();
 
   teams.forEach((team) => {

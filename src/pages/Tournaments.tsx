@@ -398,7 +398,7 @@ export default function Tournaments() {
       setDeleteConfirmationName("");
       setSelectedTournamentId("");
       await refresh();
-      toast({ title: "Tournament deleted" });
+      toast({ title: "Tournament deleted successfully." });
     },
     onError: (error: Error) => toast({ title: "Failed", description: error.message, variant: "destructive" }),
   });
@@ -790,7 +790,7 @@ export default function Tournaments() {
   const confirmBracketReset = () =>
     !selectedTournament?.matches.length ||
     window.confirm("This change will delete the generated bracket and schedule. Generate a new bracket after saving?");
-  const downloadCsv = (filename: string, rows: string[][]) => {
+  const downloadCsv = (filename: string, rows: Array<Array<string | number>>) => {
     const csv = rows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
@@ -1438,16 +1438,25 @@ export default function Tournaments() {
                       </AlertDialogTrigger>
                       <AlertDialogContent>
                         <AlertDialogHeader>
-                          <AlertDialogTitle>Delete entire tournament?</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            This will permanently delete the tournament, teams, groups, matches, scores, registrations,
-                            expenses, incomes, audit history, and champion details. This action cannot be undone.
+                          <AlertDialogTitle>Delete Tournament</AlertDialogTitle>
+                          <AlertDialogDescription className="whitespace-pre-line">
+                            {`This action is permanent and cannot be undone. Deleting this tournament will permanently remove:
+• Tournament details
+• Registered teams
+• Group allocations
+• Match schedules
+• Match results
+• Standings
+• Knockout brackets
+• Financial records related to this tournament
+
+This data cannot be recovered.`}
                           </AlertDialogDescription>
                         </AlertDialogHeader>
 
                         <div className="space-y-2">
                           <Label htmlFor="delete-tournament-name">
-                            Type <span className="font-semibold text-foreground">{selectedTournament.name}</span> to confirm.
+                            Enter tournament name:
                           </Label>
                           <Input
                             id="delete-tournament-name"
@@ -1456,6 +1465,14 @@ export default function Tournaments() {
                             placeholder={selectedTournament.name}
                             autoComplete="off"
                           />
+                          {!canConfirmTournamentDelete && deleteConfirmationName.length > 0 && (
+                            <p className="text-sm text-destructive">
+                              Please enter the exact tournament name to continue.
+                            </p>
+                          )}
+                          <p className="text-xs text-muted-foreground">
+                            Type <span className="font-semibold text-foreground">{selectedTournament.name}</span> exactly.
+                          </p>
                         </div>
 
                         <AlertDialogFooter>

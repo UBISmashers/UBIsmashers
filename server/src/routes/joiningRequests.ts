@@ -10,6 +10,7 @@ const router = express.Router();
 
 const createJoiningRequestSchema = z.object({
   name: z.string().trim().min(2, 'Name is required'),
+  email: z.string().trim().email('Valid email is required'),
   mobileNumber: z
     .string()
     .trim()
@@ -20,7 +21,19 @@ const createJoiningRequestSchema = z.object({
 });
 
 const updateStatusSchema = z.object({
-  status: z.enum(['new', 'reviewed']),
+  status: z.enum(['pending', 'approved', 'rejected']),
+});
+
+const normalizeStatus = (status: string) => {
+  if (status === 'new') return 'pending';
+  if (status === 'reviewed') return 'approved';
+  return status;
+};
+
+const serializeRequest = (request: any) => ({
+  ...request.toObject(),
+  status: normalizeStatus(request.status),
+  phoneNumber: request.mobileNumber,
 });
 
 // Public endpoint: submit joining request
@@ -68,7 +81,7 @@ router.use(authenticate, authorize('admin'));
 router.get('/', async (_req: Request, res: Response) => {
   try {
     const requests = await JoiningRequest.find().sort({ createdAt: -1 });
-    return res.json(requests);
+    return res.json(requests.map(serializeRequest));
   } catch (error) {
     console.error('Get joining requests error:', error);
     return res.status(500).json({ error: 'Internal server error' });
@@ -85,11 +98,39 @@ router.patch('/:id/status', async (req: Request, res: Response) => {
     }
 
     request.status = status;
+
+    let member = null;
+    if (status === 'approved') {
+      const duplicateConditions = [];
+      if (request.email) duplicateConditions.push({ email: request.email });
+      if (request.mobileNumber) duplicateConditions.push({ phone: request.mobileNumber });
+
+      member = duplicateConditions.length
+        ? await Member.findOne({
+            isDeleted: { $ne: true },
+            $or: duplicateConditions,
+          })
+        : null;
+
+      if (!member) {
+        member = await Member.create({
+          name: request.name,
+          email: request.email,
+          phone: request.mobileNumber,
+          role: 'member',
+          status: 'active',
+          hiddenFromPublicBills: false,
+          userId: null,
+        });
+      }
+    }
+
     await request.save();
 
     return res.json({
       message: 'Joining request updated successfully',
-      request,
+      request: serializeRequest(request),
+      member,
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -101,4 +142,3 @@ router.patch('/:id/status', async (req: Request, res: Response) => {
 });
 
 export default router;
-

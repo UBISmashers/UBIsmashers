@@ -126,6 +126,7 @@ class ApiClient {
 
   async submitJoiningRequest(data: {
     name: string;
+    email: string;
     mobileNumber: string;
     address: string;
     availability: "weekly_twice" | "only_weekends" | "weekdays_only" | "flexible";
@@ -140,7 +141,7 @@ class ApiClient {
     return this.request<any[]>("/joining-requests");
   }
 
-  async updateJoiningRequestStatus(id: string, status: "new" | "reviewed") {
+  async updateJoiningRequestStatus(id: string, status: "pending" | "approved" | "rejected") {
     return this.request<{ message: string; request: any }>(`/joining-requests/${id}/status`, {
       method: "PATCH",
       body: JSON.stringify({ status }),

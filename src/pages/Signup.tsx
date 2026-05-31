@@ -40,6 +40,7 @@ export default function Signup() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
+    email: "",
     mobileNumber: "",
     address: "",
     availability: "weekly_twice" as AvailabilityOption,
@@ -48,7 +49,7 @@ export default function Signup() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!formData.name.trim() || !formData.mobileNumber.trim() || !formData.address.trim()) {
+    if (!formData.name.trim() || !formData.email.trim() || !formData.mobileNumber.trim() || !formData.address.trim()) {
       toast.error("Please fill all required fields");
       return;
     }
@@ -57,6 +58,7 @@ export default function Signup() {
       setIsSubmitting(true);
       await api.submitJoiningRequest({
         name: formData.name.trim(),
+        email: formData.email.trim(),
         mobileNumber: formData.mobileNumber.trim(),
         address: formData.address.trim(),
         availability: formData.availability,
@@ -68,6 +70,7 @@ export default function Signup() {
 
       setFormData({
         name: "",
+        email: "",
         mobileNumber: "",
         address: "",
         availability: "weekly_twice",
@@ -108,6 +111,19 @@ export default function Signup() {
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 placeholder="Enter your name"
+                required
+                disabled={isSubmitting}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                value={formData.email}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                placeholder="Enter email address"
                 required
                 disabled={isSubmitting}
               />

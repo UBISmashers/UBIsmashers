@@ -176,7 +176,6 @@ export default function TournamentPage() {
               const deadline = tournament.registrationDeadline ? new Date(tournament.registrationDeadline) : null;
               const isDeadlinePassed = Boolean(deadline && now > deadline);
               const canRegister =
-                tournament.isVisibleToMembers &&
                 tournament.allowTeamRegistration &&
                 tournament.status !== "completed" &&
                 Boolean(deadline) &&
@@ -239,6 +238,11 @@ export default function TournamentPage() {
 
                   {isExpanded && (
                     <CardContent className="space-y-5">
+                      <img
+                        src="/tournamentbanner.png"
+                        alt={`${tournament.name} poster`}
+                        className="max-h-[420px] w-full rounded-md border object-contain bg-black"
+                      />
                       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
                         <div className="rounded-md border p-3 text-sm">Type: {tournament.type}</div>
                         <div className="rounded-md border p-3 text-sm">
@@ -342,7 +346,28 @@ export default function TournamentPage() {
                         </Card>
                       )}
 
-                      <TournamentPointsTable tournament={tournament} />
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="text-base">Registered Teams</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          {tournament.teams.length === 0 ? (
+                            <p className="text-sm text-muted-foreground">No teams registered yet.</p>
+                          ) : (
+                            <div className="grid gap-2 sm:grid-cols-2">
+                              {tournament.teams.map((team) => (
+                                <div key={team._id} className="rounded-md border p-3 text-sm">
+                                  <p className="font-medium">{team.name}</p>
+                                  <p className="text-muted-foreground">{team.players.join(" / ")}</p>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+
+                      {tournament.isVisibleToMembers && <TournamentPointsTable tournament={tournament} />}
+                      {tournament.isVisibleToMembers && (
                       <Accordion type="multiple" className="overflow-hidden rounded-lg border">
                         {groupView.length > 0 && (
                           <TournamentSectionItem value={`groupAllocation-${tournament._id}`} title="Group Allocation">
@@ -503,6 +528,7 @@ export default function TournamentPage() {
                         </Card>
                       </TournamentSectionItem>
                     </Accordion>
+                      )}
                     </CardContent>
                   )}
                 </Card>

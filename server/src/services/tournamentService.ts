@@ -1020,6 +1020,33 @@ const serializeTournament = (tournament: ITournament) => {
   };
 };
 
+const serializePublicTournament = (tournament: ITournament) => {
+  const serialized = serializeTournament(tournament);
+
+  if (serialized.isVisibleToMembers) return serialized;
+
+  return {
+    ...serialized,
+    registrations: [],
+    tournamentGroups: [],
+    auditHistory: [],
+    tournamentExpenses: [],
+    tournamentIncomes: [],
+    financeSummary: {
+      totalExpenses: 0,
+      totalEntryRegistration: 0,
+      totalDonations: 0,
+      totalIncoming: 0,
+      netBalance: 0,
+    },
+    matches: [],
+    totalRounds: 0,
+    championTeamId: null,
+    finalScore: null,
+    championTeam: null,
+  };
+};
+
 export const getTournamentVisibility = async () => {
   const setting = await AppSetting.findOne({ key: TOURNAMENT_VISIBILITY_KEY });
   return Boolean(setting?.value);
@@ -1561,7 +1588,6 @@ export const registerTeam = async (tournamentId: string, input: RegisterTeamInpu
   if (!tournament) return { error: "Tournament not found", status: 404 as const };
   const isTournamentFeatureEnabled = await getTournamentVisibility();
   if (!isTournamentFeatureEnabled) return { error: "Tournament registration is closed", status: 400 as const };
-  if (!tournament.isVisibleToMembers) return { error: "Tournament registration is closed", status: 400 as const };
   if (!tournament.allowTeamRegistration) {
     return { error: "Admin has not opened team registration for this tournament", status: 400 as const };
   }
@@ -2357,8 +2383,8 @@ export const getPublicTournamentPayload = async () => {
     };
   }
 
-  const tournaments = await Tournament.find({ isVisibleToMembers: true }).sort({ date: -1, createdAt: -1 });
-  const serialized = tournaments.map(serializeTournament);
+  const tournaments = await Tournament.find().sort({ date: -1, createdAt: -1 });
+  const serialized = tournaments.map(serializePublicTournament);
   const currentTournament =
     serialized.find((tournament) => tournament.status !== "completed") || serialized[0] || null;
   const history = serialized
@@ -2384,10 +2410,10 @@ export const getPublicTournamentById = async (id: string) => {
   if (!isEnabled) return { isEnabled, tournament: null };
 
   const tournament = await Tournament.findById(id);
-  if (!tournament || !tournament.isVisibleToMembers) return { isEnabled, tournament: null };
+  if (!tournament) return { isEnabled, tournament: null };
 
   return {
     isEnabled,
-    tournament: serializeTournament(tournament),
+    tournament: serializePublicTournament(tournament),
   };
 };
