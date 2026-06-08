@@ -414,6 +414,51 @@ export default function TournamentPage() {
                           </TournamentSectionItem>
                         )}
 
+                        <TournamentSectionItem value={`matchResults-${tournament._id}`} title="Match Results">
+                          <Card>
+                            <CardHeader>
+                              <CardTitle className="text-base">Match Results</CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                              {sortedMatches.length === 0 ? (
+                                <p className="text-sm text-muted-foreground">No matches available yet.</p>
+                              ) : (
+                                <div className="space-y-2">
+                                  {sortedMatches.map((match) => {
+                                    const hasScore = match.scoreA !== null && match.scoreB !== null;
+
+                                    return (
+                                      <div key={`result-${match.matchId}`} className="rounded-md border p-3 text-sm">
+                                        <div className="flex flex-wrap items-center justify-between gap-2">
+                                          <p className="font-medium">{match.roundLabel}</p>
+                                          <div className="flex items-center gap-2">
+                                            {match.isManual && <Badge variant="outline">Manual</Badge>}
+                                            <Badge variant="secondary">{match.matchType}</Badge>
+                                            {hasScore ? (
+                                              <Badge className="bg-emerald-600 text-white">Completed</Badge>
+                                            ) : (
+                                              <Badge variant="outline">Pending</Badge>
+                                            )}
+                                          </div>
+                                        </div>
+                                        <p className="text-muted-foreground">
+                                          {match.teamA?.name || "TBD"} {hasScore ? match.scoreA : "-"} -{" "}
+                                          {hasScore ? match.scoreB : "-"} {match.teamB?.name || "TBD"}
+                                        </p>
+                                        <p className="text-xs text-muted-foreground">
+                                          {formatScheduleDateTime(match.scheduledAt)}
+                                          {match.court ? ` • Court: ${match.court}` : ""}
+                                          {match.winnerTeam ? ` • Winner: ${match.winnerTeam.name}` : ""}
+                                        </p>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </CardContent>
+                          </Card>
+                        </TournamentSectionItem>
+
                         <TournamentSectionItem value={`matchSchedule-${tournament._id}`} title="Match Schedule">
                           <Card>
                         <CardHeader>

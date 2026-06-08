@@ -189,6 +189,9 @@ export default function Tournaments() {
   const [scheduleDraftByMatch, setScheduleDraftByMatch] = useState<
     Record<string, { teamAId: string; teamBId: string; date: string; time: string; court: string }>
   >({});
+  const [scoreDraftByMatch, setScoreDraftByMatch] = useState<
+    Record<string, { scoreA: string; scoreB: string }>
+  >({});
   const [scheduleConfig, setScheduleConfig] = useState({
     courtCount: 2,
     startTime: "18:00",
@@ -294,6 +297,21 @@ export default function Tournaments() {
     });
     setScheduleDraftByMatch(next);
     setEditingMatchId("");
+  }, [selectedTournament]);
+
+  useEffect(() => {
+    if (!selectedTournament) return;
+    setScoreDraftByMatch(
+      Object.fromEntries(
+        selectedTournament.matches.map((match) => [
+          match.matchId,
+          {
+            scoreA: match.scoreA?.toString() || "",
+            scoreB: match.scoreB?.toString() || "",
+          },
+        ])
+      )
+    );
   }, [selectedTournament]);
 
   useEffect(() => {
@@ -712,6 +730,7 @@ export default function Tournaments() {
     if (a.roundNumber !== b.roundNumber) return a.roundNumber - b.roundNumber;
     return a.matchNumber - b.matchNumber;
   });
+  const resultMatches = scheduleMatches;
   const scheduleRows = useMemo(() => buildScheduleRows(scheduleMatches), [scheduleMatches]);
   const scheduleGroups = useMemo(() => {
     const grouped = new Map<string, { slotLabel: string; rows: typeof scheduleRows }>();
@@ -2305,6 +2324,114 @@ This data cannot be recovered.`}
 
                       <Button onClick={() => createCustomMatchMutation.mutate()}>Add Match</Button>
                     </CardContent>
+                    </Card>
+                  </TournamentSectionItem>
+
+                  <TournamentSectionItem value={`matchResults-${selectedTournament._id}`} title="Enter Match Scores">
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-base">Enter Match Scores</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        {resultMatches.length === 0 ? (
+                          <p className="text-sm text-muted-foreground">No matches available yet.</p>
+                        ) : (
+                          <div className="space-y-2">
+                            {resultMatches.map((match) => {
+                              const scoreDraft = scoreDraftByMatch[match.matchId] || {
+                                scoreA: match.scoreA?.toString() || "",
+                                scoreB: match.scoreB?.toString() || "",
+                              };
+                              const canSaveScore = Boolean(match.teamAId && match.teamBId);
+                              const hasScore = match.scoreA !== null && match.scoreB !== null;
+
+                              return (
+                                <div key={`score-${match.matchId}`} className="rounded-md border px-3 py-3 text-sm">
+                                  <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                                    <div className="min-w-0 space-y-1">
+                                      <div className="flex flex-wrap items-center gap-2">
+                                        <p className="font-medium">{match.roundLabel}</p>
+                                        {match.isManual && <Badge variant="outline">Manual</Badge>}
+                                        <Badge variant="secondary">{match.matchType}</Badge>
+                                        {hasScore && <Badge className="bg-emerald-600 text-white">Completed</Badge>}
+                                      </div>
+                                      <p className="text-muted-foreground">
+                                        {match.teamA?.name || "TBD"} vs {match.teamB?.name || "TBD"}
+                                      </p>
+                                      <p className="text-xs text-muted-foreground">
+                                        {formatScheduleDateTime(match.scheduledAt)}
+                                        {match.court ? ` • Court: ${match.court}` : ""}
+                                        {match.winnerTeam ? ` • Winner: ${match.winnerTeam.name}` : ""}
+                                      </p>
+                                    </div>
+
+                                    <div className="grid w-full gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] lg:w-auto lg:min-w-[360px]">
+                                      <div className="space-y-1">
+                                        <Label className="text-xs">{match.teamA?.name || "Team A"}</Label>
+                                        <Input
+                                          type="number"
+                                          min={0}
+                                          className="h-9"
+                                          value={scoreDraft.scoreA}
+                                          onChange={(event) =>
+                                            setScoreDraftByMatch((prev) => ({
+                                              ...prev,
+                                              [match.matchId]: {
+                                                ...scoreDraft,
+                                                scoreA: event.target.value,
+                                              },
+                                            }))
+                                          }
+                                          disabled={!canSaveScore}
+                                        />
+                                      </div>
+                                      <div className="space-y-1">
+                                        <Label className="text-xs">{match.teamB?.name || "Team B"}</Label>
+                                        <Input
+                                          type="number"
+                                          min={0}
+                                          className="h-9"
+                                          value={scoreDraft.scoreB}
+                                          onChange={(event) =>
+                                            setScoreDraftByMatch((prev) => ({
+                                              ...prev,
+                                              [match.matchId]: {
+                                                ...scoreDraft,
+                                                scoreB: event.target.value,
+                                              },
+                                            }))
+                                          }
+                                          disabled={!canSaveScore}
+                                        />
+                                      </div>
+                                      <div className="flex items-end">
+                                        <Button
+                                          className="w-full"
+                                          onClick={() =>
+                                            updateScoreMutation.mutate({
+                                              matchId: match.matchId,
+                                              scoreA: Number(scoreDraft.scoreA),
+                                              scoreB: Number(scoreDraft.scoreB),
+                                            })
+                                          }
+                                          disabled={
+                                            !canSaveScore ||
+                                            scoreDraft.scoreA === "" ||
+                                            scoreDraft.scoreB === "" ||
+                                            updateScoreMutation.isPending
+                                          }
+                                        >
+                                          Save Score
+                                        </Button>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </CardContent>
                     </Card>
                   </TournamentSectionItem>
 
