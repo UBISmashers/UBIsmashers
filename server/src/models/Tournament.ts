@@ -102,6 +102,8 @@ export interface ITournamentMatch {
   scheduledAt: Date | null;
   scheduledEndAt: Date | null;
   court: string | null;
+  court_id?: string | null;
+  court_name?: string | null;
   teamAId: mongoose.Types.ObjectId | null;
   teamBId: mongoose.Types.ObjectId | null;
   scoreA: number | null;
@@ -256,6 +258,8 @@ const matchSchema = new Schema<ITournamentMatch>(
     scheduledAt: { type: Date, default: null },
     scheduledEndAt: { type: Date, default: null },
     court: { type: String, trim: true, default: null },
+    court_id: { type: String, trim: true, default: null },
+    court_name: { type: String, trim: true, default: null },
     teamAId: { type: Schema.Types.ObjectId, default: null },
     teamBId: { type: Schema.Types.ObjectId, default: null },
     scoreA: { type: Number, default: null },

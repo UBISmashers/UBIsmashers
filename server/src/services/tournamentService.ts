@@ -1772,6 +1772,7 @@ export const generateBracket = async (tournamentId: string) => {
 
 type GenerateScheduleInput = {
   courtCount: number;
+  courtNames?: string[];
   startTime: string;
   matchDurationMinutes: number;
 };
@@ -1855,6 +1856,50 @@ const buildCourtName = (index: number) => {
   return `Court ${index + 1}`;
 };
 
+const getGroupSortValue = (label: string) => label.replace(/^Group\s+/i, "").trim() || label;
+
+const buildBergerTeamPairs = (teamIds: string[]) => {
+  if (teamIds.length < 2) return [] as Array<[string, string]>;
+  const entries: Array<string | null> = teamIds.length % 2 === 1 ? [...teamIds, null] : [...teamIds];
+  const pairs: Array<[string, string]> = [];
+  const roundCount = entries.length - 1;
+  const half = entries.length / 2;
+
+  for (let round = 0; round < roundCount; round += 1) {
+    for (let i = 0; i < half; i += 1) {
+      const left = entries[i];
+      const right = entries[entries.length - 1 - i];
+      if (left && right) pairs.push(round % 2 === 0 ? [left, right] : [right, left]);
+    }
+    const fixed = entries[0];
+    const rotated = [fixed, entries[entries.length - 1], ...entries.slice(1, -1)];
+    entries.splice(0, entries.length, ...rotated);
+  }
+
+  return pairs;
+};
+
+const orderGroupMatchesByBerger = (matches: ITournamentMatch[]) => {
+  const teams = Array.from(
+    new Set(
+      matches.flatMap((match) =>
+        getMatchTeamIds(match)
+      )
+    )
+  ).sort();
+  const pairRank = new Map<string, number>();
+  buildBergerTeamPairs(teams).forEach(([teamA, teamB], index) => {
+    pairRank.set([teamA, teamB].sort().join(":"), index);
+  });
+
+  return [...matches].sort((a, b) => {
+    const aRank = pairRank.get(getMatchTeamIds(a).sort().join(":")) ?? Number.MAX_SAFE_INTEGER;
+    const bRank = pairRank.get(getMatchTeamIds(b).sort().join(":")) ?? Number.MAX_SAFE_INTEGER;
+    if (aRank !== bRank) return aRank - bRank;
+    return a.matchNumber - b.matchNumber;
+  });
+};
+
 const buildTournamentSlotStart = (baseDate: Date, startTime: string) => {
   const [hourPart, minutePart] = startTime.split(":");
   const hours = Number(hourPart);
@@ -1890,7 +1935,10 @@ export const generateMatchSchedule = async (tournamentId: string, input: Generat
     return { error: "Invalid schedule start time", status: 400 as const };
   }
 
-  const courtNames = Array.from({ length: input.courtCount }, (_, index) => buildCourtName(index));
+  const courtNames = Array.from({ length: input.courtCount }, (_, index) => {
+    const customName = input.courtNames?.[index]?.trim();
+    return customName || buildCourtName(index);
+  });
   const sorted = [...tournament.matches].sort((a, b) => {
     const rankDelta = getMatchSchedulingRank(a) - getMatchSchedulingRank(b);
     if (rankDelta !== 0) return rankDelta;
@@ -1902,64 +1950,50 @@ export const generateMatchSchedule = async (tournamentId: string, input: Generat
     match.scheduledAt = null;
     match.scheduledEndAt = null;
     match.court = null;
+    match.court_id = null;
+    match.court_name = null;
   });
-  const queue = sorted.filter((match) => isMatchReadyForScheduling(tournament, match));
-
-  let slotIndex = 0;
-  const lastSlotByTeam = new Map<string, number>();
   const durationMs = input.matchDurationMinutes * 60 * 1000;
+  const readyMatches = sorted.filter((match) => isMatchReadyForScheduling(tournament, match));
+  const groupMatches = readyMatches.filter((match) => isGroupLeagueMatch(match));
+  const otherMatches = readyMatches.filter((match) => !isGroupLeagueMatch(match));
+  const groups = Array.from(new Set(groupMatches.map((match) => match.roundLabel))).sort((a, b) =>
+    getGroupSortValue(a).localeCompare(getGroupSortValue(b), undefined, { numeric: true })
+  );
+  const courtSlotIndexes = new Map(courtNames.map((courtName) => [courtName, 0]));
 
-  while (queue.length > 0) {
-    const slotMatches: ITournamentMatch[] = [];
-    const teamsInCurrentSlot = new Set<string>();
+  groups.forEach((groupLabel, groupIndex) => {
+    const courtIndex = groupIndex % courtNames.length;
+    const courtName = courtNames[courtIndex] || buildCourtName(courtIndex);
+    const courtId = `court-${courtIndex + 1}`;
+    const orderedMatches = orderGroupMatchesByBerger(groupMatches.filter((match) => match.roundLabel === groupLabel));
 
-    for (let courtIndex = 0; courtIndex < courtNames.length && queue.length > 0; courtIndex += 1) {
-      const strictIndex = queue.findIndex((match) => {
-        const teams = getMatchTeamIds(match);
-        if (teams.some((teamId) => teamsInCurrentSlot.has(teamId))) return false;
-        return teams.every((teamId) => {
-          const lastSlot = lastSlotByTeam.get(teamId);
-          if (lastSlot === undefined) return true;
-          return slotIndex - lastSlot >= 2;
-        });
-      });
+    orderedMatches.forEach((match) => {
+      const slotIndex = courtSlotIndexes.get(courtName) || 0;
+      const slotStart = new Date(scheduleStart.getTime() + slotIndex * durationMs);
+      const slotEnd = new Date(slotStart.getTime() + durationMs);
+      match.scheduledAt = slotStart;
+      match.scheduledEndAt = slotEnd;
+      match.court = courtName;
+      match.court_id = courtId;
+      match.court_name = courtName;
+      courtSlotIndexes.set(courtName, slotIndex + 1);
+    });
+  });
 
-      const relaxedIndex =
-        strictIndex !== -1
-          ? strictIndex
-          : queue.findIndex((match) => {
-              const teams = getMatchTeamIds(match);
-              return !teams.some((teamId) => teamsInCurrentSlot.has(teamId));
-            });
-
-      if (relaxedIndex === -1) continue;
-
-      const [pickedMatch] = queue.splice(relaxedIndex, 1);
-      if (!pickedMatch) break;
-
-      slotMatches.push(pickedMatch);
-      getMatchTeamIds(pickedMatch).forEach((teamId) => teamsInCurrentSlot.add(teamId));
-    }
-
-    if (slotMatches.length === 0) {
-      slotIndex += 1;
-      continue;
-    }
-
+  otherMatches.forEach((match, index) => {
+    const courtIndex = index % courtNames.length;
+    const courtName = courtNames[courtIndex] || buildCourtName(courtIndex);
+    const slotIndex = courtSlotIndexes.get(courtName) || 0;
     const slotStart = new Date(scheduleStart.getTime() + slotIndex * durationMs);
     const slotEnd = new Date(slotStart.getTime() + durationMs);
-
-    slotMatches.forEach((match, courtIndex) => {
-      match.scheduledAt = new Date(slotStart);
-      match.scheduledEndAt = new Date(slotEnd);
-      match.court = courtNames[courtIndex] || buildCourtName(courtIndex);
-    });
-
-    slotMatches.forEach((match) => {
-      getMatchTeamIds(match).forEach((teamId) => lastSlotByTeam.set(teamId, slotIndex));
-    });
-    slotIndex += 1;
-  }
+    match.scheduledAt = slotStart;
+    match.scheduledEndAt = slotEnd;
+    match.court = courtName;
+    match.court_id = `court-${courtIndex + 1}`;
+    match.court_name = courtName;
+    courtSlotIndexes.set(courtName, slotIndex + 1);
+  });
 
   await tournament.save();
   return { tournament: serializeTournament(tournament) };

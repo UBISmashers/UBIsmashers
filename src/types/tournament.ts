@@ -40,6 +40,8 @@ export interface TournamentMatch {
   scheduledAt: string | null;
   scheduledEndAt: string | null;
   court: string | null;
+  court_id?: string | null;
+  court_name?: string | null;
   teamAId: string | null;
   teamBId: string | null;
   scoreA: number | null;

@@ -1,7 +1,7 @@
 import type * as React from "react";
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronDown, ChevronUp, Download, Lock, Pencil, Plus, Trash2, Unlock, X } from "lucide-react";
+import { AlertTriangle, ChevronDown, ChevronUp, Download, Lock, Pencil, Plus, Trash2, Unlock, X } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -29,7 +29,7 @@ import { TournamentBracket } from "@/components/tournament/TournamentBracket";
 import { TournamentOverview } from "@/components/tournament/TournamentOverview";
 import { TournamentPointsTable } from "@/components/tournament/TournamentPointsTable";
 import { buildTournamentGroupView } from "@/lib/tournamentGroups";
-import { buildScheduleRows, formatScheduleDateTime } from "@/lib/tournamentSchedule";
+import { buildCourtScheduleGroups, buildScheduleRows, formatScheduleDateTime } from "@/lib/tournamentSchedule";
 import type { Tournament, TournamentIncomingType, TournamentMatchType } from "@/types/tournament";
 
 const statusOptions = [
@@ -194,6 +194,7 @@ export default function Tournaments() {
   >({});
   const [scheduleConfig, setScheduleConfig] = useState({
     courtCount: 2,
+    courtNames: ["Court A", "Court B"],
     startTime: "18:00",
     matchDurationMinutes: 10,
   });
@@ -526,6 +527,7 @@ export default function Tournaments() {
     mutationFn: () =>
       api.generateTournamentSchedule(selectedTournament!._id, {
         courtCount: scheduleConfig.courtCount,
+        courtNames: scheduleConfig.courtNames.slice(0, scheduleConfig.courtCount),
         startTime: scheduleConfig.startTime,
         matchDurationMinutes: scheduleConfig.matchDurationMinutes,
       }),
@@ -732,6 +734,7 @@ export default function Tournaments() {
   });
   const resultMatches = scheduleMatches;
   const scheduleRows = useMemo(() => buildScheduleRows(scheduleMatches), [scheduleMatches]);
+  const courtScheduleGroups = useMemo(() => buildCourtScheduleGroups(scheduleMatches), [scheduleMatches]);
   const scheduleGroups = useMemo(() => {
     const grouped = new Map<string, { slotLabel: string; rows: typeof scheduleRows }>();
     scheduleRows.forEach((row) => {
@@ -2441,19 +2444,30 @@ This data cannot be recovered.`}
                         <CardTitle className="text-base">Tournament Schedule</CardTitle>
                       </CardHeader>
                     <CardContent className="space-y-4">
+                      <div className="space-y-3 rounded-md border p-3">
+                        <div>
+                          <h3 className="text-sm font-semibold">Court Settings</h3>
+                          <p className="text-xs text-muted-foreground">
+                            Groups are assigned by order: Group A to the first court, Group B to the second, then the pattern repeats.
+                          </p>
+                        </div>
                       <div className="grid gap-2 md:grid-cols-4">
                         <div className="space-y-1">
-                          <Label>Courts Available</Label>
+                          <Label>Total Courts</Label>
                           <Input
                             type="number"
                             min={1}
-                            max={12}
+                            max={10}
                             value={scheduleConfig.courtCount}
                             onChange={(event) =>
-                              setScheduleConfig((prev) => ({
-                                ...prev,
-                                courtCount: Number(event.target.value || 1),
-                              }))
+                              setScheduleConfig((prev) => {
+                                const courtCount = Math.min(10, Math.max(1, Number(event.target.value || 1)));
+                                const courtNames = Array.from(
+                                  { length: courtCount },
+                                  (_, index) => prev.courtNames[index] || `Court ${String.fromCharCode(65 + index)}`
+                                );
+                                return { ...prev, courtCount, courtNames };
+                              })
                             }
                           />
                         </div>
@@ -2485,43 +2499,89 @@ This data cannot be recovered.`}
                         <div className="flex items-end">
                           <Button
                             className="w-full"
-                            onClick={() => generateScheduleMutation.mutate()}
+                            onClick={() => {
+                              if (
+                                !window.confirm(
+                                  "This will reset all unplayed matches. Played matches will be preserved. Continue?"
+                                )
+                              ) {
+                                return;
+                              }
+                              generateScheduleMutation.mutate();
+                            }}
                             disabled={!selectedTournament || selectedTournament.matches.length === 0}
                           >
-                            Generate Match Schedule
+                            Re-generate Schedule
                           </Button>
                         </div>
                       </div>
+                        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                          {scheduleConfig.courtNames.map((courtName, index) => (
+                            <div key={`court-name-${index}`} className="space-y-1">
+                              <Label>{`Court ${index + 1} Name`}</Label>
+                              <Input
+                                value={courtName}
+                                onChange={(event) =>
+                                  setScheduleConfig((prev) => ({
+                                    ...prev,
+                                    courtNames: prev.courtNames.map((item, itemIndex) =>
+                                      itemIndex === index ? event.target.value : item
+                                    ),
+                                  }))
+                                }
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
 
-                      {scheduleGroups.length > 0 && (
-                        <div className="space-y-2 rounded-md border p-3">
-                          <p className="text-sm font-medium">Time Slot View</p>
-                          {scheduleGroups.map((group) => (
-                            <div key={group.slotKey} className="rounded-md border">
-                              <div className="border-b bg-secondary/30 px-3 py-2 text-sm font-semibold">
-                                {group.slotLabel}
+                      {courtScheduleGroups.length > 0 && (
+                        <div className="space-y-3">
+                          {courtScheduleGroups.map((court) => (
+                            <div key={court.courtName} className="rounded-md border">
+                              <div className="border-b bg-slate-900 px-4 py-3 text-sm font-semibold text-white">
+                                {court.courtName}
                               </div>
-                              <div className="overflow-x-auto">
-                                <table className="min-w-full text-sm">
-                                  <thead>
-                                    <tr className="border-b text-left">
-                                      <th className="px-3 py-2">Time</th>
-                                      <th className="px-3 py-2">Court</th>
-                                      <th className="px-3 py-2">Team A</th>
-                                      <th className="px-3 py-2">Team B</th>
-                                    </tr>
-                                  </thead>
-                                  <tbody>
-                                    {group.rows.map((row) => (
-                                      <tr key={`${group.slotKey}-${row.matchId}`} className="border-b last:border-0">
-                                        <td className="px-3 py-2">{group.slotLabel}</td>
-                                        <td className="px-3 py-2">{row.court}</td>
-                                        <td className="px-3 py-2">{row.teamAName}</td>
-                                        <td className="px-3 py-2">{row.teamBName}</td>
-                                      </tr>
-                                    ))}
-                                  </tbody>
-                                </table>
+                              <div className="space-y-3 p-3">
+                                {court.groups.map((group) => (
+                                  <div key={`${court.courtName}-${group.groupLabel}`} className="rounded-md border bg-card">
+                                    <div className="border-b bg-secondary/30 px-3 py-2 text-sm font-semibold">
+                                      {group.groupLabel} Matches ({group.rows.length})
+                                    </div>
+                                    <div className="grid gap-2 p-3">
+                                      {group.rows.map((row) => (
+                                        <div
+                                          key={`${court.courtName}-${row.matchId}`}
+                                          className="rounded-md border px-3 py-2 text-sm transition hover:shadow-sm"
+                                        >
+                                          <div className="flex flex-wrap items-center justify-between gap-2">
+                                            <p className="font-medium">
+                                              Match {row.matchId}: {row.teamAName} vs {row.teamBName}
+                                            </p>
+                                            <Badge
+                                              className={
+                                                row.status === "Done"
+                                                  ? "bg-emerald-600 text-white"
+                                                  : "bg-amber-500 text-black"
+                                              }
+                                            >
+                                              {row.status}
+                                            </Badge>
+                                          </div>
+                                          <p className="mt-1 text-xs text-muted-foreground">
+                                            {row.slotLabel} · {row.court} · Score: {row.scoreLabel}
+                                          </p>
+                                          {row.backToBackTeams.length > 0 && (
+                                            <Badge variant="outline" className="mt-2 gap-1 border-amber-500/40 text-amber-700">
+                                              <AlertTriangle className="h-3.5 w-3.5" />
+                                              Back-to-back for {row.backToBackTeams.join(", ")}
+                                            </Badge>
+                                          )}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                ))}
                               </div>
                             </div>
                           ))}

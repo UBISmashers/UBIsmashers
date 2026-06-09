@@ -653,7 +653,7 @@ class ApiClient {
 
   async generateTournamentSchedule(
     id: string,
-    data: { courtCount: number; startTime: string; matchDurationMinutes: number }
+    data: { courtCount: number; courtNames?: string[]; startTime: string; matchDurationMinutes: number }
   ) {
     return this.request<Tournament>(`/tournaments/${id}/generate-schedule`, {
       method: "POST",

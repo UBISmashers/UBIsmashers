@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { CheckCircle2, CircleX } from "lucide-react";
+import { CheckCircle2, CircleX, Medal } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -264,10 +264,12 @@ function StandingsTable({
   rows,
   showQualification,
   schedulingMode,
+  onTeamClick,
 }: {
   rows: PointsRow[];
   showQualification: boolean;
   schedulingMode: "points" | "league";
+  onTeamClick?: (teamId: string) => void;
 }) {
   const scoreForLabel = schedulingMode === "league" ? "GF" : "PF";
   const scoreAgainstLabel = schedulingMode === "league" ? "GA" : "PA";
@@ -282,7 +284,7 @@ function StandingsTable({
       <Table className="min-w-[760px]">
         <TableHeader>
           <TableRow>
-            <TableHead className="w-14">Rank</TableHead>
+            <TableHead className="w-16">Rank</TableHead>
             <TableHead>Team</TableHead>
             <TableHead className="text-right">Played</TableHead>
             <TableHead className="text-right">Won</TableHead>
@@ -297,16 +299,38 @@ function StandingsTable({
         </TableHeader>
         <TableBody>
           {rows.map((row, index) => (
-            <TableRow key={row.teamId}>
-              <TableCell className="font-medium">{index + 1}</TableCell>
-              <TableCell className="min-w-44 font-medium">{row.teamName}</TableCell>
+            <TableRow
+              key={row.teamId}
+              className={row.status === "qualified" ? "border-l-4 border-l-emerald-500 bg-emerald-500/5" : ""}
+            >
+              <TableCell className="font-medium">
+                <span className="inline-flex items-center gap-1">
+                  {index < 3 ? <Medal className="h-4 w-4 text-amber-500" /> : null}
+                  {index + 1}
+                </span>
+              </TableCell>
+              <TableCell className="sticky left-0 z-[1] min-w-44 bg-inherit font-medium">
+                {onTeamClick ? (
+                  <button
+                    type="button"
+                    onClick={() => onTeamClick(row.teamId)}
+                    className="text-left underline-offset-4 hover:text-emerald-700 hover:underline"
+                  >
+                    {row.teamName}
+                  </button>
+                ) : (
+                  row.teamName
+                )}
+              </TableCell>
               <TableCell className="text-right">{row.played}</TableCell>
               <TableCell className="text-right">{row.won}</TableCell>
               {schedulingMode === "league" && <TableCell className="text-right">{row.draw}</TableCell>}
               <TableCell className="text-right">{row.lost}</TableCell>
               <TableCell className="text-right">{row.pointsFor}</TableCell>
               <TableCell className="text-right">{row.pointsAgainst}</TableCell>
-              <TableCell className="text-right">{row.pointsDiff}</TableCell>
+              <TableCell className={`text-right font-medium ${row.pointsDiff >= 0 ? "text-emerald-700" : "text-red-700"}`}>
+                {row.pointsDiff}
+              </TableCell>
               <TableCell className="text-right font-semibold">{row.points}</TableCell>
               {showQualification && (
                 <TableCell>
@@ -379,7 +403,13 @@ function QualifiedTeamsPreview({ groups }: { groups: StandingsGroup[] }) {
   );
 }
 
-export function TournamentPointsTable({ tournament }: { tournament: Tournament }) {
+export function TournamentPointsTable({
+  tournament,
+  onTeamClick,
+}: {
+  tournament: Tournament;
+  onTeamClick?: (teamId: string) => void;
+}) {
   const standingsGroups = useMemo(() => buildStandingsGroups(tournament), [tournament]);
   const schedulingMode = getSchedulingMode(tournament);
 
@@ -426,6 +456,7 @@ export function TournamentPointsTable({ tournament }: { tournament: Tournament }
                       rows={group.rows}
                       showQualification={groupStageComplete}
                       schedulingMode={schedulingMode}
+                      onTeamClick={onTeamClick}
                     />
                   </TabsContent>
                 ))}
@@ -459,7 +490,12 @@ export function TournamentPointsTable({ tournament }: { tournament: Tournament }
         <CardTitle className="text-base">Overall Tournament Standings</CardTitle>
       </CardHeader>
       <CardContent>
-        <StandingsTable rows={overall?.rows || []} showQualification={false} schedulingMode={schedulingMode} />
+        <StandingsTable
+          rows={overall?.rows || []}
+          showQualification={false}
+          schedulingMode={schedulingMode}
+          onTeamClick={onTeamClick}
+        />
       </CardContent>
     </Card>
   );

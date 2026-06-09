@@ -148,6 +148,7 @@ const matchDetailsSchema = z.object({
 
 const generateScheduleSchema = z.object({
   courtCount: z.number().int().min(1).max(12),
+  courtNames: z.array(z.string().trim().min(1)).optional(),
   startTime: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Start time must be in HH:mm format"),
   matchDurationMinutes: z.number().int().min(1).max(240),
 });
