@@ -73,7 +73,7 @@ function TeamButton({ team, onClick }: { team: TournamentTeam | null; onClick: (
     <button
       type="button"
       onClick={() => onClick(team._id)}
-      className="font-semibold text-slate-950 underline-offset-4 transition hover:text-emerald-700 hover:underline"
+      className="inline-flex min-h-11 max-w-full items-center break-words text-left font-semibold text-slate-950 underline-offset-4 transition hover:text-emerald-700 hover:underline"
     >
       {team.name}
     </button>
@@ -111,9 +111,9 @@ function TeamProfileDrawer({
 
   return (
     <Sheet open={Boolean(team)} onOpenChange={(open) => !open && onClose()}>
-      <SheetContent className="w-full overflow-y-auto bg-slate-950 text-white sm:max-w-xl">
+      <SheetContent className="h-[92dvh] w-full max-w-full overflow-y-auto bg-slate-950 p-4 text-white sm:h-full sm:max-w-xl sm:p-6">
         <SheetHeader className="pr-8">
-          <SheetTitle className="text-2xl text-white">{team?.name}</SheetTitle>
+          <SheetTitle className="break-words text-left text-xl text-white sm:text-2xl">{team?.name}</SheetTitle>
           <div className="flex flex-wrap gap-2 text-sm text-slate-300">
             {team?.players.map((player) => (
               <span key={player} className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1">
@@ -133,7 +133,7 @@ function TeamProfileDrawer({
         </SheetHeader>
 
         <Tabs defaultValue="recent" className="mt-6">
-          <TabsList className="grid w-full grid-cols-3 bg-white/10">
+          <TabsList className="grid h-auto min-h-11 w-full grid-cols-3 bg-white/10">
             <TabsTrigger value="recent">Recent</TabsTrigger>
             <TabsTrigger value="upcoming">Upcoming</TabsTrigger>
             <TabsTrigger value="stats">Stats</TabsTrigger>
@@ -147,8 +147,8 @@ function TeamProfileDrawer({
                 const won = match.winnerTeamId === teamId;
                 return (
                   <div key={match.matchId} className="rounded-md border border-white/10 bg-white/10 p-4">
-                    <div className="flex items-center justify-between gap-3">
-                      <p className="font-semibold">vs {opponent?.name || "TBD"}</p>
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      <p className="break-words font-semibold">vs {opponent?.name || "TBD"}</p>
                       <Badge className={won ? "bg-emerald-500 text-slate-950" : "bg-red-600 text-white"}>
                         {won ? "WON" : "LOST"}
                       </Badge>
@@ -170,8 +170,8 @@ function TeamProfileDrawer({
                 const opponent = match.teamAId === teamId ? match.teamB : match.teamA;
                 return (
                   <div key={match.matchId} className="rounded-md border border-white/10 bg-white/10 p-4">
-                    <div className="flex items-center justify-between gap-3">
-                      <p className="font-semibold">vs {opponent?.name || "TBD"}</p>
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      <p className="break-words font-semibold">vs {opponent?.name || "TBD"}</p>
                       {index === 0 && <Badge className="gap-1 bg-emerald-500 text-slate-950"><Circle className="h-2 w-2 fill-current" />Next Match</Badge>}
                     </div>
                     <p className="text-sm text-slate-300">{formatScheduleDateTime(match.scheduledAt)} · {match.court_name || match.court || "Court TBD"}</p>
@@ -296,14 +296,14 @@ export default function TournamentPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-emerald-50 via-background to-background px-4 py-8 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-6xl space-y-6">
+    <div className="min-h-screen overflow-x-hidden bg-gradient-to-b from-emerald-50 via-background to-background px-3 py-5 sm:px-6 sm:py-8 lg:px-8">
+      <div className="mx-auto w-full max-w-6xl space-y-5">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div>
-            <h1 className="text-3xl font-bold">UBISmashers Tournament</h1>
+          <div className="min-w-0">
+            <h1 className="break-words text-2xl font-bold sm:text-3xl">UBISmashers Tournament</h1>
             <p className="text-sm text-muted-foreground">Click a tournament to view details and register your team.</p>
           </div>
-          <Button asChild variant="outline">
+          <Button asChild variant="outline" className="min-h-11 w-full sm:w-auto">
             <Link to="/">
               Back to Home
               <ChevronRight className="ml-2 h-4 w-4" />
@@ -346,16 +346,16 @@ export default function TournamentPage() {
               const isFormOpen = registrationTournamentId === tournament._id;
 
               return (
-                <Card key={tournament._id}>
-                  <CardHeader className="cursor-pointer" onClick={() => setExpandedTournamentId(isExpanded ? "" : tournament._id)}>
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <CardTitle className="text-lg">{tournament.name}</CardTitle>
+                <Card key={tournament._id} className="max-w-full overflow-hidden">
+                  <CardHeader className="cursor-pointer px-3 py-4 sm:px-6" onClick={() => setExpandedTournamentId(isExpanded ? "" : tournament._id)}>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <CardTitle className="break-words text-base sm:text-lg">{tournament.name}</CardTitle>
                         <p className="text-sm text-muted-foreground">
                           {format(new Date(tournament.date), "dd MMM yyyy")} • {tournament.location}
                         </p>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex shrink-0 items-center gap-2">
                         <Badge
                           className={
                             tournament.status === "completed"
@@ -373,7 +373,7 @@ export default function TournamentPage() {
                   </CardHeader>
 
                   {isExpanded && (
-                    <CardContent className="space-y-5">
+                    <CardContent className="space-y-5 px-3 pb-4 sm:px-6">
                       <img
                         src="/tournamentbanner.png"
                         alt={`${tournament.name} poster`}
@@ -406,8 +406,9 @@ export default function TournamentPage() {
                         </div>
                       </div>
 
-                      <div className="flex flex-wrap items-center gap-2">
+                      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
                         <Button
+                          className="min-h-11 w-full sm:w-auto"
                           onClick={() => {
                             if (isFormOpen) {
                               setRegistrationTournamentId("");
@@ -475,7 +476,7 @@ export default function TournamentPage() {
                               Team name will be created internally as <span className="font-medium">Player1+Player2</span>.
                             </p>
 
-                            <Button onClick={() => registerMutation.mutate()} disabled={!canSubmitRegistration}>
+                            <Button className="min-h-11 w-full sm:w-auto" onClick={() => registerMutation.mutate()} disabled={!canSubmitRegistration}>
                               Submit Team Registration
                             </Button>
                           </CardContent>
@@ -496,9 +497,9 @@ export default function TournamentPage() {
                                   key={team._id}
                                   type="button"
                                   onClick={() => openTeamProfile(team._id)}
-                                  className="rounded-md border p-3 text-left text-sm transition hover:border-emerald-500 hover:shadow-sm"
+                                  className="min-h-16 rounded-md border p-3 text-left text-sm transition hover:border-emerald-500 hover:shadow-sm"
                                 >
-                                  <p className="font-medium">{team.name}</p>
+                                  <p className="break-words font-medium">{team.name}</p>
                                   <p className="text-muted-foreground">{team.players.join(" / ")}</p>
                                 </button>
                               ))}
@@ -574,9 +575,9 @@ export default function TournamentPage() {
 
                                     return (
                                       <div key={`result-${match.matchId}`} className="rounded-md border p-3 text-sm">
-                                        <div className="flex flex-wrap items-center justify-between gap-2">
-                                          <p className="font-medium">{match.roundLabel}</p>
-                                          <div className="flex items-center gap-2">
+                                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                                          <p className="break-words font-medium">{match.roundLabel}</p>
+                                          <div className="flex flex-wrap items-center gap-2">
                                             {match.isManual && <Badge variant="outline">Manual</Badge>}
                                             <Badge variant="secondary">{match.matchType}</Badge>
                                             {hasScore ? (
@@ -586,9 +587,9 @@ export default function TournamentPage() {
                                             )}
                                           </div>
                                         </div>
-                                        <p className="text-muted-foreground">
-                                          {match.teamA?.name || "TBD"} {hasScore ? match.scoreA : "-"} -{" "}
-                                          {hasScore ? match.scoreB : "-"} {match.teamB?.name || "TBD"}
+                                        <p className="break-words text-muted-foreground">
+                                          <TeamButton team={match.teamA} onClick={openTeamProfile} /> {hasScore ? match.scoreA : "-"} -{" "}
+                                          {hasScore ? match.scoreB : "-"} <TeamButton team={match.teamB} onClick={openTeamProfile} />
                                         </p>
                                         <p className="text-xs text-muted-foreground">
                                           {formatScheduleDateTime(match.scheduledAt)}
@@ -628,8 +629,8 @@ export default function TournamentPage() {
                                         <div className="grid gap-2 p-3">
                                           {group.rows.map((row) => (
                                             <div key={`${court.courtName}-${row.matchId}`} className="rounded-md border px-3 py-2 text-sm">
-                                              <div className="flex flex-wrap items-center justify-between gap-2">
-                                                <p className="font-medium">
+                                              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                                                <p className="break-words font-medium">
                                                   {row.teamAName} vs {row.teamBName}
                                                 </p>
                                                 <Badge className={row.status === "Done" ? "bg-emerald-600 text-white" : "bg-amber-500 text-black"}>
@@ -672,14 +673,15 @@ export default function TournamentPage() {
                                 {upcomingMatches.map((match) => (
                                   <div key={match.matchId} className="rounded-md border p-3 text-sm">
                                     <div className="flex flex-wrap items-center justify-between gap-2">
-                                      <p className="font-medium">{match.roundLabel}</p>
-                                      <div className="flex items-center gap-2">
+                                      <p className="break-words font-medium">{match.roundLabel}</p>
+                                        <div className="flex flex-wrap items-center gap-2">
                                         {match.isManual && <Badge variant="outline">Manual</Badge>}
                                         <Badge variant="secondary">{match.matchType}</Badge>
                                       </div>
                                     </div>
-                                    <p className="text-muted-foreground">
-                                      {match.teamA?.name || "TBD"} vs {match.teamB?.name || "TBD"}
+                                    <p className="break-words text-muted-foreground">
+                                      <TeamButton team={match.teamA} onClick={openTeamProfile} /> vs{" "}
+                                      <TeamButton team={match.teamB} onClick={openTeamProfile} />
                                     </p>
                                     <p className="text-xs text-muted-foreground">
                                       {formatScheduleDateTime(match.scheduledAt)}
@@ -706,15 +708,15 @@ export default function TournamentPage() {
                                 {pastMatches.map((match) => (
                                   <div key={match.matchId} className="rounded-md border p-3 text-sm">
                                     <div className="flex flex-wrap items-center justify-between gap-2">
-                                      <p className="font-medium">{match.roundLabel}</p>
-                                      <div className="flex items-center gap-2">
+                                      <p className="break-words font-medium">{match.roundLabel}</p>
+                                        <div className="flex flex-wrap items-center gap-2">
                                         {match.isManual && <Badge variant="outline">Manual</Badge>}
                                         <Badge variant="secondary">{match.matchType}</Badge>
                                       </div>
                                     </div>
-                                    <p className="text-muted-foreground">
-                                      {match.teamA?.name || "TBD"} {match.scoreA ?? "-"} - {match.scoreB ?? "-"}{" "}
-                                      {match.teamB?.name || "TBD"}
+                                    <p className="break-words text-muted-foreground">
+                                      <TeamButton team={match.teamA} onClick={openTeamProfile} /> {match.scoreA ?? "-"} -{" "}
+                                      {match.scoreB ?? "-"} <TeamButton team={match.teamB} onClick={openTeamProfile} />
                                     </p>
                                     <p className="text-xs text-muted-foreground">
                                       {formatScheduleDateTime(match.scheduledAt)}
@@ -737,7 +739,7 @@ export default function TournamentPage() {
           </div>
         )}
 
-        <Card>
+        <Card className="max-w-full overflow-hidden">
           <CardHeader>
             <CardTitle>Tournament History</CardTitle>
           </CardHeader>
@@ -747,12 +749,12 @@ export default function TournamentPage() {
             ) : (
               <div className="space-y-2">
                 {data.history.map((item) => (
-                  <div key={item._id} className="flex items-center justify-between rounded-lg border bg-card px-4 py-3">
-                    <div>
-                      <p className="font-medium">{item.name}</p>
+                  <div key={item._id} className="flex flex-col gap-3 rounded-lg border bg-card px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="min-w-0">
+                      <p className="break-words font-medium">{item.name}</p>
                       <p className="text-xs text-muted-foreground">{format(new Date(item.date), "dd MMM yyyy")}</p>
                     </div>
-                    <div className="text-right">
+                    <div className="shrink-0 text-left sm:text-right">
                       <Badge className="bg-emerald-600 text-white">
                         <Trophy className="mr-1 h-3.5 w-3.5" />
                         {item.championTeam?.name || "Champion"}

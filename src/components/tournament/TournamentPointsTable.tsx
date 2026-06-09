@@ -280,8 +280,8 @@ function StandingsTable({
   }
 
   return (
-    <div className="overflow-x-auto rounded-md border">
-      <Table className="min-w-[760px]">
+    <div className="max-w-[calc(100vw-2rem)] overflow-x-auto rounded-md border sm:max-w-full">
+      <Table className="min-w-[640px] sm:min-w-[760px]">
         <TableHeader>
           <TableRow>
             <TableHead className="w-16">Rank</TableHead>
@@ -309,12 +309,12 @@ function StandingsTable({
                   {index + 1}
                 </span>
               </TableCell>
-              <TableCell className="sticky left-0 z-[1] min-w-44 bg-inherit font-medium">
+              <TableCell className="sticky left-0 z-[1] min-w-36 max-w-44 bg-inherit font-medium sm:min-w-44">
                 {onTeamClick ? (
                   <button
                     type="button"
                     onClick={() => onTeamClick(row.teamId)}
-                    className="text-left underline-offset-4 hover:text-emerald-700 hover:underline"
+                    className="inline-flex min-h-11 max-w-full items-center break-words text-left underline-offset-4 hover:text-emerald-700 hover:underline"
                   >
                     {row.teamName}
                   </button>
@@ -433,8 +433,8 @@ export function TournamentPointsTable({
               <p className="text-sm text-muted-foreground">Generate groups to show standings.</p>
             ) : (
               <Tabs defaultValue={standingsGroups[0]?.key} className="space-y-4">
-                <div className="overflow-x-auto pb-1">
-                  <TabsList className="w-max justify-start">
+                <div className="max-w-[calc(100vw-2rem)] overflow-x-auto pb-1 sm:max-w-full">
+                  <TabsList className="h-auto min-h-11 w-max justify-start">
                     {standingsGroups.map((group) => (
                       <TabsTrigger key={group.key} value={group.key}>
                         {group.label}
