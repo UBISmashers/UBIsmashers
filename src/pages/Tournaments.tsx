@@ -192,6 +192,7 @@ export default function Tournaments() {
   const [scoreDraftByMatch, setScoreDraftByMatch] = useState<
     Record<string, { scoreA: string; scoreB: string }>
   >({});
+  const [editingScoreByMatch, setEditingScoreByMatch] = useState<Record<string, boolean>>({});
   const [scheduleConfig, setScheduleConfig] = useState({
     courtCount: 2,
     courtNames: ["Court A", "Court B"],
@@ -313,6 +314,7 @@ export default function Tournaments() {
         ])
       )
     );
+    setEditingScoreByMatch({});
   }, [selectedTournament]);
 
   useEffect(() => {
@@ -541,7 +543,12 @@ export default function Tournaments() {
   const updateScoreMutation = useMutation({
     mutationFn: ({ matchId, scoreA, scoreB }: { matchId: string; scoreA: number; scoreB: number }) =>
       api.updateTournamentMatchScore(selectedTournament!._id, matchId, { scoreA, scoreB }),
-    onSuccess: async () => {
+    onSuccess: async (_updatedTournament, variables) => {
+      setEditingScoreByMatch((prev) => {
+        const next = { ...prev };
+        delete next[variables.matchId];
+        return next;
+      });
       await refresh();
       toast({ title: "Score updated" });
     },
@@ -2347,6 +2354,7 @@ This data cannot be recovered.`}
                               };
                               const canSaveScore = Boolean(match.teamAId && match.teamBId);
                               const hasScore = match.scoreA !== null && match.scoreB !== null;
+                              const isEditingScore = !hasScore || Boolean(editingScoreByMatch[match.matchId]);
 
                               return (
                                 <div key={`score-${match.matchId}`} className="rounded-md border px-3 py-3 text-sm">
@@ -2368,66 +2376,120 @@ This data cannot be recovered.`}
                                       </p>
                                     </div>
 
-                                    <div className="grid w-full gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] lg:w-auto lg:min-w-[360px]">
-                                      <div className="space-y-1">
-                                        <Label className="text-xs">{match.teamA?.name || "Team A"}</Label>
-                                        <Input
-                                          type="number"
-                                          min={0}
-                                          className="h-9"
-                                          value={scoreDraft.scoreA}
-                                          onChange={(event) =>
-                                            setScoreDraftByMatch((prev) => ({
-                                              ...prev,
-                                              [match.matchId]: {
-                                                ...scoreDraft,
-                                                scoreA: event.target.value,
-                                              },
-                                            }))
-                                          }
-                                          disabled={!canSaveScore}
-                                        />
+                                    {isEditingScore ? (
+                                      <div className="grid w-full gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] lg:w-auto lg:min-w-[360px]">
+                                        <div className="space-y-1">
+                                          <Label className="text-xs">{match.teamA?.name || "Team A"}</Label>
+                                          <Input
+                                            type="number"
+                                            min={0}
+                                            className="h-9"
+                                            value={scoreDraft.scoreA}
+                                            onChange={(event) =>
+                                              setScoreDraftByMatch((prev) => ({
+                                                ...prev,
+                                                [match.matchId]: {
+                                                  ...scoreDraft,
+                                                  scoreA: event.target.value,
+                                                },
+                                              }))
+                                            }
+                                            disabled={!canSaveScore}
+                                          />
+                                        </div>
+                                        <div className="space-y-1">
+                                          <Label className="text-xs">{match.teamB?.name || "Team B"}</Label>
+                                          <Input
+                                            type="number"
+                                            min={0}
+                                            className="h-9"
+                                            value={scoreDraft.scoreB}
+                                            onChange={(event) =>
+                                              setScoreDraftByMatch((prev) => ({
+                                                ...prev,
+                                                [match.matchId]: {
+                                                  ...scoreDraft,
+                                                  scoreB: event.target.value,
+                                                },
+                                              }))
+                                            }
+                                            disabled={!canSaveScore}
+                                          />
+                                        </div>
+                                        <div className="flex items-end gap-2">
+                                          <Button
+                                            className="w-full"
+                                            onClick={() =>
+                                              updateScoreMutation.mutate({
+                                                matchId: match.matchId,
+                                                scoreA: Number(scoreDraft.scoreA),
+                                                scoreB: Number(scoreDraft.scoreB),
+                                              })
+                                            }
+                                            disabled={
+                                              !canSaveScore ||
+                                              scoreDraft.scoreA === "" ||
+                                              scoreDraft.scoreB === "" ||
+                                              updateScoreMutation.isPending
+                                            }
+                                          >
+                                            Save Score
+                                          </Button>
+                                          {hasScore && (
+                                            <Button
+                                              type="button"
+                                              variant="outline"
+                                              size="icon"
+                                              onClick={() => {
+                                                setScoreDraftByMatch((prev) => ({
+                                                  ...prev,
+                                                  [match.matchId]: {
+                                                    scoreA: match.scoreA?.toString() || "",
+                                                    scoreB: match.scoreB?.toString() || "",
+                                                  },
+                                                }));
+                                                setEditingScoreByMatch((prev) => {
+                                                  const next = { ...prev };
+                                                  delete next[match.matchId];
+                                                  return next;
+                                                });
+                                              }}
+                                              aria-label={`Cancel score edit for ${match.roundLabel}`}
+                                            >
+                                              <X className="h-4 w-4" />
+                                            </Button>
+                                          )}
+                                        </div>
                                       </div>
-                                      <div className="space-y-1">
-                                        <Label className="text-xs">{match.teamB?.name || "Team B"}</Label>
-                                        <Input
-                                          type="number"
-                                          min={0}
-                                          className="h-9"
-                                          value={scoreDraft.scoreB}
-                                          onChange={(event) =>
-                                            setScoreDraftByMatch((prev) => ({
-                                              ...prev,
-                                              [match.matchId]: {
-                                                ...scoreDraft,
-                                                scoreB: event.target.value,
-                                              },
-                                            }))
-                                          }
-                                          disabled={!canSaveScore}
-                                        />
-                                      </div>
-                                      <div className="flex items-end">
+                                    ) : (
+                                      <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-end">
+                                        <div className="rounded-md border bg-secondary/30 px-4 py-2">
+                                          <p className="text-xs text-muted-foreground">Score</p>
+                                          <p className="text-base font-semibold">
+                                            {match.teamA?.name || "Team A"} {match.scoreA} - {match.scoreB}{" "}
+                                            {match.teamB?.name || "Team B"}
+                                          </p>
+                                        </div>
                                         <Button
-                                          className="w-full"
-                                          onClick={() =>
-                                            updateScoreMutation.mutate({
-                                              matchId: match.matchId,
-                                              scoreA: Number(scoreDraft.scoreA),
-                                              scoreB: Number(scoreDraft.scoreB),
-                                            })
-                                          }
-                                          disabled={
-                                            !canSaveScore ||
-                                            scoreDraft.scoreA === "" ||
-                                            scoreDraft.scoreB === "" ||
-                                            updateScoreMutation.isPending
-                                          }
+                                          type="button"
+                                          variant="outline"
+                                          onClick={() => {
+                                            setScoreDraftByMatch((prev) => ({
+                                              ...prev,
+                                              [match.matchId]: {
+                                                scoreA: match.scoreA?.toString() || "",
+                                                scoreB: match.scoreB?.toString() || "",
+                                              },
+                                            }));
+                                            setEditingScoreByMatch((prev) => ({ ...prev, [match.matchId]: true }));
+                                          }}
+                                          disabled={!canSaveScore || updateScoreMutation.isPending}
                                         >
-                                          Save Score
+                                          <Pencil className="mr-2 h-4 w-4" />
+                                          Edit
                                         </Button>
                                       </div>
-                                    </div>
+                                    )}
                                   </div>
                                 </div>
                               );
