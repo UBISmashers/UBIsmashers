@@ -541,7 +541,7 @@ export default function Tournaments() {
   });
 
   const updateScoreMutation = useMutation({
-    mutationFn: ({ matchId, scoreA, scoreB }: { matchId: string; scoreA: number; scoreB: number }) =>
+    mutationFn: ({ matchId, scoreA, scoreB }: { matchId: string; scoreA: number | null; scoreB: number | null }) =>
       api.updateTournamentMatchScore(selectedTournament!._id, matchId, { scoreA, scoreB }),
     onSuccess: async (_updatedTournament, variables) => {
       setEditingScoreByMatch((prev) => {
@@ -549,8 +549,14 @@ export default function Tournaments() {
         delete next[variables.matchId];
         return next;
       });
+      if (variables.scoreA === null && variables.scoreB === null) {
+        setScoreDraftByMatch((prev) => ({
+          ...prev,
+          [variables.matchId]: { scoreA: "", scoreB: "" },
+        }));
+      }
       await refresh();
-      toast({ title: "Score updated" });
+      toast({ title: variables.scoreA === null ? "Match marked as not played" : "Score updated" });
     },
     onError: (error: Error) => toast({ title: "Failed", description: error.message, variant: "destructive" }),
   });
@@ -2487,6 +2493,20 @@ This data cannot be recovered.`}
                                         >
                                           <Pencil className="mr-2 h-4 w-4" />
                                           Edit
+                                        </Button>
+                                        <Button
+                                          type="button"
+                                          variant="outline"
+                                          onClick={() =>
+                                            updateScoreMutation.mutate({
+                                              matchId: match.matchId,
+                                              scoreA: null,
+                                              scoreB: null,
+                                            })
+                                          }
+                                          disabled={updateScoreMutation.isPending}
+                                        >
+                                          Not Played
                                         </Button>
                                       </div>
                                     )}

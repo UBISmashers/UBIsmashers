@@ -2002,13 +2002,30 @@ export const generateMatchSchedule = async (tournamentId: string, input: Generat
 export const updateMatchScore = async (
   tournamentId: string,
   matchId: string,
-  scoreA: number,
-  scoreB: number
+  scoreA: number | null,
+  scoreB: number | null
 ) => {
   const tournament = await Tournament.findById(tournamentId);
   if (!tournament) return { error: "Tournament not found", status: 404 as const };
   const match = tournament.matches.find((item) => item.matchId === matchId);
   if (!match) return { error: "Match not found", status: 404 as const };
+
+  if (scoreA === null || scoreB === null) {
+    if (scoreA !== null || scoreB !== null) {
+      return { error: "Both scores must be cleared together", status: 400 as const };
+    }
+
+    match.scoreA = null;
+    match.scoreB = null;
+    match.winnerTeamId = null;
+    match.isCompleted = false;
+
+    reconcileTournamentState(tournament);
+    await tournament.save();
+
+    return { tournament: serializeTournament(tournament) };
+  }
+
   if (!match.teamAId || !match.teamBId) {
     return { error: "Cannot score a match until both teams are available", status: 400 as const };
   }

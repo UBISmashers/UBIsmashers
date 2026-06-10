@@ -672,7 +672,7 @@ class ApiClient {
     });
   }
 
-  async updateTournamentMatchScore(id: string, matchId: string, data: { scoreA: number; scoreB: number }) {
+  async updateTournamentMatchScore(id: string, matchId: string, data: { scoreA: number | null; scoreB: number | null }) {
     return this.request<Tournament>(`/tournaments/${id}/matches/${matchId}`, {
       method: "PATCH",
       body: JSON.stringify(data),

@@ -118,8 +118,8 @@ const visibilitySchema = z.object({
 });
 
 const scoreSchema = z.object({
-  scoreA: z.number().min(0),
-  scoreB: z.number().min(0),
+  scoreA: z.number().min(0).nullable(),
+  scoreB: z.number().min(0).nullable(),
 });
 
 const winnerSchema = z.object({
