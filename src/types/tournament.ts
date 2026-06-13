@@ -121,6 +121,27 @@ export interface TournamentFinanceSummary {
   netBalance: number;
 }
 
+export interface TournamentFeedbackSubmission {
+  _id: string;
+  userId: string;
+  organizationRating: number;
+  courtFacilitiesRating: number;
+  refreshmentsRating: number;
+  schedulingRating: number;
+  returnLikelihoodRating: number;
+  comments: string | null;
+  submittedAt: string;
+}
+
+export interface TournamentFeedbackSummary {
+  totalResponses: number;
+  organizationRating: number | null;
+  courtFacilitiesRating: number | null;
+  refreshmentsRating: number | null;
+  schedulingRating: number | null;
+  returnLikelihoodRating: number | null;
+}
+
 export interface Tournament {
   _id: string;
   name: string;
@@ -137,6 +158,7 @@ export interface Tournament {
   status: TournamentStatus;
   isVisibleToMembers: boolean;
   allowTeamRegistration: boolean;
+  feedbackEnabled: boolean;
   registrationDeadline: string | null;
   teams: TournamentTeam[];
   registrations: TournamentRegistration[];
@@ -146,6 +168,8 @@ export interface Tournament {
   tournamentExpenses: TournamentExpenseEntry[];
   tournamentIncomes: TournamentIncomingEntry[];
   financeSummary?: TournamentFinanceSummary;
+  feedbackSubmissions: TournamentFeedbackSubmission[];
+  feedbackSummary?: TournamentFeedbackSummary;
   matches: TournamentMatch[];
   totalRounds: number;
   championTeamId: string | null;

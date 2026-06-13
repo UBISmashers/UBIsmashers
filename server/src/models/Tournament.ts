@@ -91,6 +91,18 @@ export interface ITournamentIncomeEntry {
   updatedAt: Date;
 }
 
+export interface ITournamentFeedbackSubmission {
+  _id: mongoose.Types.ObjectId;
+  userId: string;
+  organizationRating: number;
+  courtFacilitiesRating: number;
+  refreshmentsRating: number;
+  schedulingRating: number;
+  returnLikelihoodRating: number;
+  comments: string | null;
+  submittedAt: Date;
+}
+
 export interface ITournamentMatch {
   matchId: string;
   roundNumber: number;
@@ -127,6 +139,7 @@ export interface ITournament extends Document {
   status: TournamentStatus;
   isVisibleToMembers: boolean;
   allowTeamRegistration: boolean;
+  feedbackEnabled: boolean;
   registrationDeadline: Date | null;
   teams: ITournamentTeam[];
   registrations: ITournamentRegistration[];
@@ -135,6 +148,7 @@ export interface ITournament extends Document {
   auditHistory: ITournamentAuditEntry[];
   tournamentExpenses: ITournamentExpenseEntry[];
   tournamentIncomes: ITournamentIncomeEntry[];
+  feedbackSubmissions: ITournamentFeedbackSubmission[];
   matches: ITournamentMatch[];
   totalRounds: number;
   championTeamId: mongoose.Types.ObjectId | null;
@@ -242,6 +256,20 @@ const tournamentIncomeEntrySchema = new Schema<ITournamentIncomeEntry>(
   { _id: true, timestamps: true }
 );
 
+const tournamentFeedbackSubmissionSchema = new Schema<ITournamentFeedbackSubmission>(
+  {
+    userId: { type: String, required: true, trim: true },
+    organizationRating: { type: Number, required: true, min: 1, max: 5 },
+    courtFacilitiesRating: { type: Number, required: true, min: 1, max: 5 },
+    refreshmentsRating: { type: Number, required: true, min: 1, max: 5 },
+    schedulingRating: { type: Number, required: true, min: 1, max: 5 },
+    returnLikelihoodRating: { type: Number, required: true, min: 1, max: 5 },
+    comments: { type: String, trim: true, maxlength: 500, default: null },
+    submittedAt: { type: Date, default: Date.now },
+  },
+  { _id: true }
+);
+
 const matchSchema = new Schema<ITournamentMatch>(
   {
     matchId: { type: String, required: true },
@@ -340,6 +368,10 @@ const tournamentSchema = new Schema<ITournament>(
       type: Boolean,
       default: false,
     },
+    feedbackEnabled: {
+      type: Boolean,
+      default: false,
+    },
     registrationDeadline: {
       type: Date,
       default: null,
@@ -370,6 +402,10 @@ const tournamentSchema = new Schema<ITournament>(
     },
     tournamentIncomes: {
       type: [tournamentIncomeEntrySchema],
+      default: [],
+    },
+    feedbackSubmissions: {
+      type: [tournamentFeedbackSubmissionSchema],
       default: [],
     },
     matches: {

@@ -22,6 +22,7 @@ import {
   reviewTeamRegistration,
   setTournamentGroupLock,
   setTournamentVisibility,
+  submitTournamentFeedback,
   updateTournamentGroupTeams,
   updateMatchDetails,
   updateTeam,
@@ -48,6 +49,7 @@ const tournamentSchema = z.object({
   status: z.enum(["upcoming", "ongoing", "completed"]).optional(),
   isVisibleToMembers: z.boolean().optional(),
   allowTeamRegistration: z.boolean().optional(),
+  feedbackEnabled: z.boolean().optional(),
   registrationDeadline: z.string().or(z.date()).nullable().optional(),
 });
 
@@ -168,6 +170,16 @@ const groupTeamsSchema = z.object({
 const registerTeamSchema = z.object({
   teamName: z.string().min(1, "Team name is required"),
   contactMobileNumber: optionalMobileSchema.optional(),
+});
+
+const tournamentFeedbackSchema = z.object({
+  userId: z.string().trim().min(1, "Feedback user identifier is required"),
+  organizationRating: z.number().int().min(1).max(5),
+  courtFacilitiesRating: z.number().int().min(1).max(5),
+  refreshmentsRating: z.number().int().min(1).max(5),
+  schedulingRating: z.number().int().min(1).max(5),
+  returnLikelihoodRating: z.number().int().min(1).max(5),
+  comments: z.string().trim().max(500).optional().nullable(),
 });
 
 const reviewRegistrationSchema = z.object({
@@ -519,6 +531,21 @@ export const registerPublicTournamentTeam = async (req: Request, res: Response) 
       return res.status(400).json({ error: error.errors[0].message });
     }
     console.error("Register tournament team error:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+export const submitPublicTournamentFeedback = async (req: Request, res: Response) => {
+  try {
+    const payload = tournamentFeedbackSchema.parse(req.body);
+    const result = await submitTournamentFeedback(req.params.id, payload);
+    if (isServiceError(result)) return res.status(result.status).json({ error: result.error });
+    return res.status(201).json(result.tournament);
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: error.errors[0].message });
+    }
+    console.error("Submit tournament feedback error:", error);
     return res.status(500).json({ error: "Internal server error" });
   }
 };

@@ -456,6 +456,7 @@ class ApiClient {
     status?: "upcoming" | "ongoing" | "completed";
     isVisibleToMembers?: boolean;
     allowTeamRegistration?: boolean;
+    feedbackEnabled?: boolean;
     registrationDeadline?: string | null;
   }) {
     return this.request<Tournament>("/tournaments", {
@@ -479,6 +480,7 @@ class ApiClient {
     status: "upcoming" | "ongoing" | "completed";
     isVisibleToMembers: boolean;
     allowTeamRegistration: boolean;
+    feedbackEnabled: boolean;
     registrationDeadline: string | null;
   }>) {
     return this.request<Tournament>(`/tournaments/${id}`, {
@@ -749,6 +751,24 @@ class ApiClient {
     }
   ) {
     return this.request<Tournament>(`/public/tournaments/${id}/register-team`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async submitTournamentFeedback(
+    id: string,
+    data: {
+      userId: string;
+      organizationRating: number;
+      courtFacilitiesRating: number;
+      refreshmentsRating: number;
+      schedulingRating: number;
+      returnLikelihoodRating: number;
+      comments?: string | null;
+    }
+  ) {
+    return this.request<Tournament>(`/public/tournaments/${id}/feedback`, {
       method: "POST",
       body: JSON.stringify(data),
     });

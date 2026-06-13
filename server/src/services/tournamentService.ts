@@ -953,6 +953,18 @@ const serializeTournament = (tournament: ITournament) => {
     0
   );
   const incomingTotal = entryRegistrationTotal + donationTotal;
+  const feedbackSubmissions = (plain.feedbackSubmissions || [])
+    .slice()
+    .sort((a: any, b: any) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime());
+  const averageFeedbackRating = (key: string) =>
+    feedbackSubmissions.length
+      ? Number(
+          (
+            feedbackSubmissions.reduce((sum: number, submission: any) => sum + toNumber(submission[key]), 0) /
+            feedbackSubmissions.length
+          ).toFixed(1)
+        )
+      : null;
 
   return {
     ...plain,
@@ -961,6 +973,7 @@ const serializeTournament = (tournament: ITournament) => {
     groupDistributionMode: plain.groupDistributionMode || "random",
     teamsQualifyingPerGroup: plain.teamsQualifyingPerGroup || 2,
     enableManualGroupEditing: Boolean(plain.enableManualGroupEditing),
+    feedbackEnabled: Boolean(plain.feedbackEnabled),
     time: plain.time || "",
     championTeam: champion,
     teamRegistry: (plain.teamRegistry || []).map((entry: any) => ({
@@ -999,6 +1012,20 @@ const serializeTournament = (tournament: ITournament) => {
       totalIncoming: incomingTotal,
       netBalance: incomingTotal - expensesTotal,
     },
+    feedbackSubmissions: feedbackSubmissions.map((submission: any) => ({
+      ...submission,
+      userId: submission.userId || "",
+      comments: submission.comments || null,
+      submittedAt: submission.submittedAt || null,
+    })),
+    feedbackSummary: {
+      totalResponses: feedbackSubmissions.length,
+      organizationRating: averageFeedbackRating("organizationRating"),
+      courtFacilitiesRating: averageFeedbackRating("courtFacilitiesRating"),
+      refreshmentsRating: averageFeedbackRating("refreshmentsRating"),
+      schedulingRating: averageFeedbackRating("schedulingRating"),
+      returnLikelihoodRating: averageFeedbackRating("returnLikelihoodRating"),
+    },
     matches: plain.matches.map((match: any) => ({
       ...match,
       matchType:
@@ -1023,15 +1050,37 @@ const serializeTournament = (tournament: ITournament) => {
 const serializePublicTournament = (tournament: ITournament) => {
   const serialized = serializeTournament(tournament);
 
-  if (serialized.isVisibleToMembers) return serialized;
+  const publicSerialized = {
+    ...serialized,
+    feedbackSubmissions: [],
+    feedbackSummary: {
+      totalResponses: 0,
+      organizationRating: null,
+      courtFacilitiesRating: null,
+      refreshmentsRating: null,
+      schedulingRating: null,
+      returnLikelihoodRating: null,
+    },
+  };
+
+  if (serialized.isVisibleToMembers) return publicSerialized;
 
   return {
-    ...serialized,
+    ...publicSerialized,
     registrations: [],
     tournamentGroups: [],
     auditHistory: [],
     tournamentExpenses: [],
     tournamentIncomes: [],
+    feedbackSubmissions: [],
+    feedbackSummary: {
+      totalResponses: 0,
+      organizationRating: null,
+      courtFacilitiesRating: null,
+      refreshmentsRating: null,
+      schedulingRating: null,
+      returnLikelihoodRating: null,
+    },
     financeSummary: {
       totalExpenses: 0,
       totalEntryRegistration: 0,
@@ -1087,6 +1136,7 @@ type CreateTournamentInput = {
   status?: "upcoming" | "ongoing" | "completed";
   isVisibleToMembers?: boolean;
   allowTeamRegistration?: boolean;
+  feedbackEnabled?: boolean;
   registrationDeadline?: string | Date | null;
 };
 
@@ -1106,6 +1156,7 @@ export const createTournament = async (input: CreateTournamentInput) => {
     status: input.status || "upcoming",
     isVisibleToMembers: input.isVisibleToMembers ?? true,
     allowTeamRegistration: input.allowTeamRegistration ?? false,
+    feedbackEnabled: input.feedbackEnabled ?? false,
     registrationDeadline: input.registrationDeadline ? new Date(input.registrationDeadline) : null,
     teams: [],
     registrations: [],
@@ -1114,6 +1165,7 @@ export const createTournament = async (input: CreateTournamentInput) => {
     auditHistory: [],
     tournamentExpenses: [],
     tournamentIncomes: [],
+    feedbackSubmissions: [],
     matches: [],
     totalRounds: 0,
     championTeamId: null,
@@ -1149,6 +1201,7 @@ export const updateTournament = async (id: string, input: UpdateTournamentInput)
   if (input.status !== undefined) tournament.status = input.status;
   if (input.isVisibleToMembers !== undefined) tournament.isVisibleToMembers = input.isVisibleToMembers;
   if (input.allowTeamRegistration !== undefined) tournament.allowTeamRegistration = input.allowTeamRegistration;
+  if (input.feedbackEnabled !== undefined) tournament.feedbackEnabled = input.feedbackEnabled;
   if (input.registrationDeadline !== undefined) {
     tournament.registrationDeadline = input.registrationDeadline ? new Date(input.registrationDeadline) : null;
   }
@@ -1182,6 +1235,16 @@ type UpdateTeamInput = {
 type RegisterTeamInput = {
   teamName: string;
   contactMobileNumber?: string;
+};
+
+type TournamentFeedbackInput = {
+  userId: string;
+  organizationRating: number;
+  courtFacilitiesRating: number;
+  refreshmentsRating: number;
+  schedulingRating: number;
+  returnLikelihoodRating: number;
+  comments?: string | null;
 };
 
 type ReviewRegistrationInput = {
@@ -1651,6 +1714,46 @@ export const registerTeam = async (tournamentId: string, input: RegisterTeamInpu
 
   await tournament.save();
   return { tournament: serializeTournament(tournament) };
+};
+
+export const submitTournamentFeedback = async (tournamentId: string, input: TournamentFeedbackInput) => {
+  const tournament = await Tournament.findById(tournamentId);
+  if (!tournament) return { error: "Tournament not found", status: 404 as const };
+
+  const isTournamentFeatureEnabled = await getTournamentVisibility();
+  if (!isTournamentFeatureEnabled) return { error: "Tournament feature is disabled", status: 400 as const };
+  if (!tournament.feedbackEnabled) return { error: "Feedback form is not enabled for this tournament", status: 400 as const };
+
+  const userId = input.userId.trim();
+  if (!userId) return { error: "Feedback user identifier is required", status: 400 as const };
+  const alreadySubmitted = (tournament.feedbackSubmissions || []).some((submission) => submission.userId === userId);
+  if (alreadySubmitted) return { error: "Feedback already submitted for this tournament", status: 409 as const };
+
+  const ratings = [
+    input.organizationRating,
+    input.courtFacilitiesRating,
+    input.refreshmentsRating,
+    input.schedulingRating,
+    input.returnLikelihoodRating,
+  ];
+  if (ratings.some((rating) => !Number.isInteger(rating) || rating < 1 || rating > 5)) {
+    return { error: "All feedback ratings must be between 1 and 5", status: 400 as const };
+  }
+
+  tournament.feedbackSubmissions.push({
+    _id: new mongoose.Types.ObjectId(),
+    userId,
+    organizationRating: input.organizationRating,
+    courtFacilitiesRating: input.courtFacilitiesRating,
+    refreshmentsRating: input.refreshmentsRating,
+    schedulingRating: input.schedulingRating,
+    returnLikelihoodRating: input.returnLikelihoodRating,
+    comments: input.comments?.trim() || null,
+    submittedAt: new Date(),
+  } as any);
+
+  await tournament.save();
+  return { tournament: serializePublicTournament(tournament) };
 };
 
 export const reviewTeamRegistration = async (

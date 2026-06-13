@@ -1,7 +1,7 @@
 import type * as React from "react";
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, ChevronDown, ChevronUp, Download, Lock, Pencil, Plus, Trash2, Unlock, X } from "lucide-react";
+import { AlertTriangle, ChevronDown, ChevronUp, Download, Lock, Pencil, Plus, Star, Trash2, Unlock, X } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -30,6 +30,12 @@ import { TournamentOverview } from "@/components/tournament/TournamentOverview";
 import { TournamentPointsTable } from "@/components/tournament/TournamentPointsTable";
 import { buildTournamentGroupView } from "@/lib/tournamentGroups";
 import { buildCourtScheduleGroups, buildScheduleRows, formatScheduleDateTime } from "@/lib/tournamentSchedule";
+import {
+  buildScoresheetBuckets,
+  downloadScoresheetPdf,
+  downloadTournamentRecordSheetPdf,
+  type ScoresheetStage,
+} from "@/lib/scoresheetPdf";
 import type { Tournament, TournamentIncomingType, TournamentMatchType } from "@/types/tournament";
 
 const statusOptions = [
@@ -73,6 +79,14 @@ const customMatchTypeOptions: Array<{ label: string; value: TournamentMatchType 
   { label: "Final", value: "final" },
   { label: "Friendly", value: "friendly" },
   { label: "Practice", value: "practice" },
+];
+
+const feedbackRatingLabels: Array<{ key: keyof NonNullable<Tournament["feedbackSummary"]>; label: string }> = [
+  { key: "organizationRating", label: "Organization" },
+  { key: "courtFacilitiesRating", label: "Court & Facilities" },
+  { key: "refreshmentsRating", label: "Refreshments" },
+  { key: "schedulingRating", label: "Scheduling" },
+  { key: "returnLikelihoodRating", label: "Future Participation" },
 ];
 
 const formatMoney = (value: number) => `Rs ${Number(value || 0).toFixed(2)}`;
@@ -153,6 +167,7 @@ export default function Tournaments() {
     status: "upcoming" as "upcoming" | "ongoing" | "completed",
     isVisibleToMembers: true,
     allowTeamRegistration: false,
+    feedbackEnabled: false,
     registrationDeadline: "",
   });
   const [editForm, setEditForm] = useState({
@@ -170,6 +185,7 @@ export default function Tournaments() {
     status: "upcoming" as "upcoming" | "ongoing" | "completed",
     isVisibleToMembers: true,
     allowTeamRegistration: false,
+    feedbackEnabled: false,
     registrationDeadline: "",
   });
   const [teamPlayer1, setTeamPlayer1] = useState("");
@@ -220,6 +236,8 @@ export default function Tournaments() {
   const [teamToAddByGroup, setTeamToAddByGroup] = useState<Record<string, string>>({});
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleteConfirmationName, setDeleteConfirmationName] = useState("");
+  const [generatingScoresheetStage, setGeneratingScoresheetStage] = useState<ScoresheetStage | null>(null);
+  const [isGeneratingRecordSheet, setIsGeneratingRecordSheet] = useState(false);
 
   const { data: tournaments = [] } = useQuery<Tournament[]>({
     queryKey: ["tournaments"],
@@ -262,6 +280,7 @@ export default function Tournaments() {
       status: selectedTournament.status,
       isVisibleToMembers: selectedTournament.isVisibleToMembers,
       allowTeamRegistration: selectedTournament.allowTeamRegistration ?? false,
+      feedbackEnabled: selectedTournament.feedbackEnabled ?? false,
       registrationDeadline: selectedTournament.registrationDeadline ? selectedTournament.registrationDeadline.slice(0, 10) : "",
     });
   }, [selectedTournament]);
@@ -351,6 +370,7 @@ export default function Tournaments() {
         status: form.status,
         isVisibleToMembers: form.isVisibleToMembers,
         allowTeamRegistration: form.allowTeamRegistration,
+        feedbackEnabled: form.feedbackEnabled,
         registrationDeadline: form.registrationDeadline || null,
       }),
     onSuccess: async (created) => {
@@ -370,6 +390,7 @@ export default function Tournaments() {
         status: "upcoming",
         isVisibleToMembers: true,
         allowTeamRegistration: false,
+        feedbackEnabled: false,
         registrationDeadline: "",
       });
       await refresh();
@@ -403,6 +424,7 @@ export default function Tournaments() {
       status: "upcoming" | "ongoing" | "completed";
       isVisibleToMembers: boolean;
       allowTeamRegistration: boolean;
+      feedbackEnabled: boolean;
       registrationDeadline: string | null;
     }>) => api.updateTournament(selectedTournament!._id, payload),
     onSuccess: async () => {
@@ -765,6 +787,10 @@ export default function Tournaments() {
     }));
   }, [scheduleRows]);
   const groupView = useMemo(() => buildTournamentGroupView(selectedTournament), [selectedTournament]);
+  const scoresheetBuckets = useMemo(
+    () => (selectedTournament ? buildScoresheetBuckets(selectedTournament) : []),
+    [selectedTournament]
+  );
   const teamsById = useMemo(
     () => new Map((selectedTournament?.teams || []).map((team) => [team._id, team])),
     [selectedTournament?.teams]
@@ -917,6 +943,49 @@ export default function Tournaments() {
       note: income.note || "",
       date: income.date ? income.date.slice(0, 10) : "",
     });
+  };
+
+  const handleDownloadScoresheet = async (stage: ScoresheetStage) => {
+    if (!selectedTournament) return;
+    const bucket = scoresheetBuckets.find((item) => item.stage === stage);
+    if (!bucket || bucket.matches.length === 0) {
+      toast({ title: "No matches available", description: "There are no matches in this scoresheet stage yet." });
+      return;
+    }
+
+    setGeneratingScoresheetStage(stage);
+    toast({ title: "Generating scoresheets", description: `${bucket.matches.length} matches are being prepared.` });
+    try {
+      await downloadScoresheetPdf(selectedTournament.name, bucket);
+      toast({ title: "Scoresheets ready", description: `${bucket.label} PDF has been downloaded.` });
+    } catch (error) {
+      toast({
+        title: "Failed to generate scoresheets",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setGeneratingScoresheetStage(null);
+    }
+  };
+
+  const handleDownloadRecordSheet = async () => {
+    if (!selectedTournament) return;
+
+    setIsGeneratingRecordSheet(true);
+    toast({ title: "Generating record sheet", description: "The tournament master record sheet is being prepared." });
+    try {
+      await downloadTournamentRecordSheetPdf(selectedTournament);
+      toast({ title: "Record sheet ready", description: "Tournament record sheet PDF has been downloaded." });
+    } catch (error) {
+      toast({
+        title: "Failed to generate record sheet",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGeneratingRecordSheet(false);
+    }
   };
 
   return (
@@ -1112,6 +1181,13 @@ export default function Tournaments() {
                   onCheckedChange={(checked) => setForm((prev) => ({ ...prev, allowTeamRegistration: checked }))}
                 />
               </div>
+              <div className="flex items-center justify-between rounded-md border p-2">
+                <span className="text-sm">Enable Feedback Form</span>
+                <Switch
+                  checked={form.feedbackEnabled}
+                  onCheckedChange={(checked) => setForm((prev) => ({ ...prev, feedbackEnabled: checked }))}
+                />
+              </div>
               <Button
                 className="w-full"
                 onClick={() => createTournamentMutation.mutate()}
@@ -1147,6 +1223,55 @@ export default function Tournaments() {
                 <div className="space-y-5">
                   <TournamentOverview tournament={selectedTournament} />
                   <TournamentPointsTable tournament={selectedTournament} />
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-base">Download Scoresheets</CardTitle>
+                    </CardHeader>
+                    <CardContent className="grid gap-3 md:grid-cols-4">
+                      <Button
+                        type="button"
+                        variant="default"
+                        className="min-h-16 justify-start gap-3 text-left"
+                        disabled={isGeneratingRecordSheet || Boolean(generatingScoresheetStage)}
+                        onClick={handleDownloadRecordSheet}
+                      >
+                        {isGeneratingRecordSheet ? (
+                          <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-b-transparent" />
+                        ) : (
+                          <Download className="h-4 w-4 shrink-0" />
+                        )}
+                        <span className="min-w-0">
+                          <span className="block break-words">
+                            {isGeneratingRecordSheet ? "Generating PDF..." : "Tournament Record Sheet"}
+                          </span>
+                          <span className="block text-xs opacity-80">{selectedTournament.teams.length} teams</span>
+                        </span>
+                      </Button>
+                      {scoresheetBuckets.map((bucket) => {
+                        const isGenerating = generatingScoresheetStage === bucket.stage;
+                        return (
+                          <Button
+                            key={bucket.stage}
+                            type="button"
+                            variant={bucket.matches.length > 0 ? "default" : "outline"}
+                            className="min-h-16 justify-start gap-3 text-left"
+                            disabled={bucket.matches.length === 0 || Boolean(generatingScoresheetStage) || isGeneratingRecordSheet}
+                            onClick={() => handleDownloadScoresheet(bucket.stage)}
+                          >
+                            {isGenerating ? (
+                              <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-b-transparent" />
+                            ) : (
+                              <Download className="h-4 w-4 shrink-0" />
+                            )}
+                            <span className="min-w-0">
+                              <span className="block break-words">{isGenerating ? "Generating PDF..." : bucket.label}</span>
+                              <span className="block text-xs opacity-80">{bucket.matches.length} matches</span>
+                            </span>
+                          </Button>
+                        );
+                      })}
+                    </CardContent>
+                  </Card>
                   <Accordion type="multiple" className="overflow-hidden rounded-lg border">
                     {groupView.length > 0 && (
                     <TournamentSectionItem value={`groupAllocation-${selectedTournament._id}`} title="Group Allocation">
@@ -1524,6 +1649,66 @@ This data cannot be recovered.`}
                     </AlertDialog>
                   </div>
 
+                  <TournamentSectionItem value={`feedbackSummary-${selectedTournament._id}`} title="Feedback Summary">
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-base">Feedback Summary</CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div className="flex flex-col gap-2 rounded-md border p-3 sm:flex-row sm:items-center sm:justify-between">
+                          <div>
+                            <p className="text-sm font-medium">Feedback form</p>
+                            <p className="text-xs text-muted-foreground">
+                              {selectedTournament.feedbackEnabled ? "Visible on the public tournament page" : "Hidden from members"}
+                            </p>
+                          </div>
+                          <Badge variant={selectedTournament.feedbackEnabled ? "default" : "outline"}>
+                            {selectedTournament.feedbackEnabled ? "Enabled" : "Disabled"}
+                          </Badge>
+                        </div>
+
+                        {(selectedTournament.feedbackSummary?.totalResponses || 0) === 0 ? (
+                          <p className="text-sm text-muted-foreground">No feedback responses yet.</p>
+                        ) : (
+                          <>
+                            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                              {feedbackRatingLabels.map((item) => {
+                                const value = selectedTournament.feedbackSummary?.[item.key];
+                                return (
+                                  <div key={item.key} className="rounded-md border p-3">
+                                    <p className="text-xs text-muted-foreground">{item.label}</p>
+                                    <p className="mt-1 flex items-center gap-1 text-lg font-semibold">
+                                      {value?.toFixed(1) || "-"}
+                                      <Star className="h-4 w-4 fill-amber-500 text-amber-500" />
+                                    </p>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                            <p className="text-sm font-medium">
+                              Total responses: {selectedTournament.feedbackSummary?.totalResponses || 0}
+                            </p>
+                            <div className="max-h-64 space-y-2 overflow-y-auto">
+                              {(selectedTournament.feedbackSubmissions || [])
+                                .filter((submission) => Boolean(submission.comments))
+                                .map((submission) => (
+                                  <div key={submission._id} className="rounded-md border p-3 text-sm">
+                                    <p className="break-words">{submission.comments}</p>
+                                    <p className="mt-1 text-xs text-muted-foreground">
+                                      Submitted {formatShortDate(submission.submittedAt)}
+                                    </p>
+                                  </div>
+                                ))}
+                              {(selectedTournament.feedbackSubmissions || []).every((submission) => !submission.comments) && (
+                                <p className="text-sm text-muted-foreground">No written comments yet.</p>
+                              )}
+                            </div>
+                          </>
+                        )}
+                      </CardContent>
+                    </Card>
+                  </TournamentSectionItem>
+
                   <TournamentSectionItem value={`editTournament-${selectedTournament._id}`} title="Edit Tournament">
                     <Card>
                       <CardHeader>
@@ -1703,6 +1888,13 @@ This data cannot be recovered.`}
                           onCheckedChange={(checked) => setEditForm((prev) => ({ ...prev, allowTeamRegistration: checked }))}
                         />
                       </div>
+                      <div className="flex items-center justify-between rounded-md border p-2">
+                        <span className="text-sm">Enable Feedback Form</span>
+                        <Switch
+                          checked={editForm.feedbackEnabled}
+                          onCheckedChange={(checked) => setEditForm((prev) => ({ ...prev, feedbackEnabled: checked }))}
+                        />
+                      </div>
                       <Button
                         onClick={() =>
                           updateTournamentMutation.mutate({
@@ -1723,6 +1915,7 @@ This data cannot be recovered.`}
                             status: editForm.status,
                             isVisibleToMembers: editForm.isVisibleToMembers,
                             allowTeamRegistration: editForm.allowTeamRegistration,
+                            feedbackEnabled: editForm.feedbackEnabled,
                             registrationDeadline: editForm.registrationDeadline || null,
                           })
                         }

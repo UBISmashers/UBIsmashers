@@ -3,12 +3,13 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { format } from "date-fns";
-import { AlertTriangle, ChevronDown, ChevronRight, Circle, Trophy } from "lucide-react";
+import { AlertTriangle, ChevronDown, ChevronRight, Circle, Star, Trophy } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/hooks/use-toast";
 import { TournamentBracket } from "@/components/tournament/TournamentBracket";
 import { TournamentPointsTable } from "@/components/tournament/TournamentPointsTable";
@@ -21,6 +22,58 @@ import { buildCourtScheduleGroups, formatScheduleDateTime } from "@/lib/tourname
 import type { PublicTournamentPayload, Tournament, TournamentTeam } from "@/types/tournament";
 
 const publicApi = createApiClient(() => null, () => {});
+
+const feedbackUserStorageKey = "ubiTournamentFeedbackUserId";
+const submittedFeedbackStorageKey = "ubiSubmittedTournamentFeedback";
+
+type FeedbackDraft = {
+  organizationRating: number;
+  courtFacilitiesRating: number;
+  refreshmentsRating: number;
+  schedulingRating: number;
+  returnLikelihoodRating: number;
+  comments: string;
+};
+
+const emptyFeedbackDraft: FeedbackDraft = {
+  organizationRating: 0,
+  courtFacilitiesRating: 0,
+  refreshmentsRating: 0,
+  schedulingRating: 0,
+  returnLikelihoodRating: 0,
+  comments: "",
+};
+
+const feedbackQuestions: Array<{ key: keyof Omit<FeedbackDraft, "comments">; label: string }> = [
+  { key: "organizationRating", label: "How was the overall organization of the tournament?" },
+  { key: "courtFacilitiesRating", label: "How would you rate the court quality and facilities?" },
+  { key: "refreshmentsRating", label: "How satisfied were you with the refreshments provided?" },
+  { key: "schedulingRating", label: "How would you rate the match scheduling and waiting times?" },
+  { key: "returnLikelihoodRating", label: "How likely are you to participate in future UBI Smashers tournaments?" },
+];
+
+const getFeedbackUserId = () => {
+  if (typeof window === "undefined") return "anonymous";
+  const existing = window.localStorage.getItem(feedbackUserStorageKey);
+  if (existing) return existing;
+  const next = `anon_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+  window.localStorage.setItem(feedbackUserStorageKey, next);
+  return next;
+};
+
+const getSubmittedFeedbackIds = () => {
+  if (typeof window === "undefined") return new Set<string>();
+  try {
+    return new Set(JSON.parse(window.localStorage.getItem(submittedFeedbackStorageKey) || "[]"));
+  } catch {
+    return new Set<string>();
+  }
+};
+
+const storeSubmittedFeedbackIds = (ids: Set<string>) => {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(submittedFeedbackStorageKey, JSON.stringify([...ids]));
+};
 
 const tournamentFormatLabel: Record<Tournament["format"], string> = {
   knockout: "Knockout",
@@ -217,6 +270,41 @@ function TournamentSectionItem({
   );
 }
 
+function StarRating({
+  value,
+  onChange,
+}: {
+  value: number;
+  onChange: (value: number) => void;
+}) {
+  const [hovered, setHovered] = useState(0);
+  const activeValue = hovered || value;
+
+  return (
+    <div>
+      <div className="flex items-center gap-1" onMouseLeave={() => setHovered(0)}>
+        {[1, 2, 3, 4, 5].map((rating) => (
+          <button
+            key={rating}
+            type="button"
+            className="rounded-sm p-1 text-amber-500 transition hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+            onClick={() => onChange(rating)}
+            onMouseEnter={() => setHovered(rating)}
+            aria-label={`${rating} out of 5`}
+          >
+            <Star
+              className={`h-7 w-7 ${
+                rating <= activeValue ? "fill-amber-500 text-amber-500" : "fill-transparent text-amber-300"
+              }`}
+            />
+          </button>
+        ))}
+      </div>
+      {value > 0 && <p className="mt-1 text-xs font-medium text-amber-700">{value} / 5</p>}
+    </div>
+  );
+}
+
 export default function TournamentPage() {
   const queryClient = useQueryClient();
   const { data, isLoading } = useQuery<PublicTournamentPayload>({
@@ -231,6 +319,8 @@ export default function TournamentPage() {
   const [teamPlayer2, setTeamPlayer2] = useState("");
   const [contactMobileNumber, setContactMobileNumber] = useState("");
   const [selectedProfile, setSelectedProfile] = useState<{ tournamentId: string; teamId: string } | null>(null);
+  const [feedbackDrafts, setFeedbackDrafts] = useState<Record<string, FeedbackDraft>>({});
+  const [submittedFeedbackIds, setSubmittedFeedbackIds] = useState<Set<string>>(() => getSubmittedFeedbackIds());
 
   const registrationTournament = tournaments.find((item) => item._id === registrationTournamentId) || null;
   const profileTournament = selectedProfile
@@ -261,6 +351,31 @@ export default function TournamentPage() {
       setRegistrationTournamentId("");
       await refresh();
       toast({ title: "Team registration submitted" });
+    },
+    onError: (error: Error) => toast({ title: "Failed", description: error.message, variant: "destructive" }),
+  });
+
+  const feedbackMutation = useMutation({
+    mutationFn: ({ tournamentId, draft }: { tournamentId: string; draft: FeedbackDraft }) =>
+      publicApi.submitTournamentFeedback(tournamentId, {
+        userId: getFeedbackUserId(),
+        organizationRating: draft.organizationRating,
+        courtFacilitiesRating: draft.courtFacilitiesRating,
+        refreshmentsRating: draft.refreshmentsRating,
+        schedulingRating: draft.schedulingRating,
+        returnLikelihoodRating: draft.returnLikelihoodRating,
+        comments: draft.comments.trim() || null,
+      }),
+    onSuccess: async (_updated, variables) => {
+      setFeedbackDrafts((prev) => ({ ...prev, [variables.tournamentId]: emptyFeedbackDraft }));
+      setSubmittedFeedbackIds((prev) => {
+        const next = new Set(prev);
+        next.add(variables.tournamentId);
+        storeSubmittedFeedbackIds(next);
+        return next;
+      });
+      await refresh();
+      toast({ title: "Thanks for your feedback! 🎉" });
     },
     onError: (error: Error) => toast({ title: "Failed", description: error.message, variant: "destructive" }),
   });
@@ -730,6 +845,83 @@ export default function TournamentPage() {
                         </Card>
                       </TournamentSectionItem>
                     </Accordion>
+                      )}
+                      {tournament.feedbackEnabled && (
+                        <Card>
+                          <CardHeader>
+                            <CardTitle className="text-base">Share Your Feedback — {tournament.name}</CardTitle>
+                          </CardHeader>
+                          <CardContent className="space-y-4">
+                            {submittedFeedbackIds.has(tournament._id) ? (
+                              <div className="rounded-md border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
+                                Thanks for your feedback! 🎉
+                              </div>
+                            ) : (
+                              <>
+                                {feedbackQuestions.map((question) => {
+                                  const draft = feedbackDrafts[tournament._id] || emptyFeedbackDraft;
+                                  return (
+                                    <div key={question.key} className="rounded-md border p-3">
+                                      <p className="mb-2 text-sm font-medium">{question.label}</p>
+                                      <StarRating
+                                        value={draft[question.key]}
+                                        onChange={(rating) =>
+                                          setFeedbackDrafts((prev) => ({
+                                            ...prev,
+                                            [tournament._id]: {
+                                              ...(prev[tournament._id] || emptyFeedbackDraft),
+                                              [question.key]: rating,
+                                            },
+                                          }))
+                                        }
+                                      />
+                                    </div>
+                                  );
+                                })}
+
+                                <div className="space-y-1">
+                                  <Label>Any additional comments, suggestions, or feedback for the organizers?</Label>
+                                  <Textarea
+                                    rows={4}
+                                    maxLength={500}
+                                    value={(feedbackDrafts[tournament._id] || emptyFeedbackDraft).comments}
+                                    onChange={(event) =>
+                                      setFeedbackDrafts((prev) => ({
+                                        ...prev,
+                                        [tournament._id]: {
+                                          ...(prev[tournament._id] || emptyFeedbackDraft),
+                                          comments: event.target.value.slice(0, 500),
+                                        },
+                                      }))
+                                    }
+                                    placeholder="Tell us what you loved or what we can improve..."
+                                  />
+                                  <p className="text-right text-xs text-muted-foreground">
+                                    {(feedbackDrafts[tournament._id] || emptyFeedbackDraft).comments.length} / 500
+                                  </p>
+                                </div>
+
+                                <Button
+                                  className="min-h-11 w-full sm:w-auto"
+                                  disabled={
+                                    feedbackMutation.isPending ||
+                                    feedbackQuestions.some(
+                                      (question) => !(feedbackDrafts[tournament._id] || emptyFeedbackDraft)[question.key]
+                                    )
+                                  }
+                                  onClick={() =>
+                                    feedbackMutation.mutate({
+                                      tournamentId: tournament._id,
+                                      draft: feedbackDrafts[tournament._id] || emptyFeedbackDraft,
+                                    })
+                                  }
+                                >
+                                  Submit Feedback
+                                </Button>
+                              </>
+                            )}
+                          </CardContent>
+                        </Card>
                       )}
                     </CardContent>
                   )}
