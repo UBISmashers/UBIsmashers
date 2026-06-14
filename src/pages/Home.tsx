@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from "react";
 import HeroSection from "@/components/home/HeroSection";
-import TournamentPopup from "@/components/TournamentPopup";
+//import TournamentPopup from "@/components/TournamentPopup";
 
 const RulesSection = lazy(() => import("@/components/home/RulesSection"));
 const TeamCarousel = lazy(() => import("@/components/home/TeamCarousel"));
@@ -51,7 +51,6 @@ function DeferredSection({
 export default function Home() {
   return (
     <div className="relative min-h-screen overflow-x-hidden text-slate-900">
-      <TournamentPopup />
       <img
         src="/background.webp"
         alt=""
