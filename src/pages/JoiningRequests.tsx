@@ -64,9 +64,9 @@ export default function JoiningRequests() {
   const queryClient = useQueryClient();
   const [selectedRequest, setSelectedRequest] = useState<JoiningRequest | null>(null);
 
-  const { data: requests = [], isLoading } = useQuery<JoiningRequest[]>({
-    queryKey: ["joiningRequests"],
-    queryFn: () => api.getJoiningRequests(),
+  const { data: requests = [], isLoading, isError, error } = useQuery<JoiningRequest[]>({
+    queryKey: ["joiningRequests", "pending"],
+    queryFn: () => api.getJoiningRequests("pending"),
   });
 
   const updateStatusMutation = useMutation({
@@ -77,6 +77,7 @@ export default function JoiningRequests() {
         queryClient.invalidateQueries({ queryKey: ["joiningRequests"] }),
         queryClient.invalidateQueries({ queryKey: ["members"] }),
       ]);
+      setSelectedRequest(null);
       toast.success(
         variables.status === "approved"
           ? "Joining request approved and member created"
@@ -128,10 +129,16 @@ export default function JoiningRequests() {
               <div className="flex justify-center py-12">
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
               </div>
+            ) : isError ? (
+              <div className="rounded-md border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
+                {(error as Error)?.message || "Unable to load joining requests."}
+              </div>
             ) : requests.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-10">
-                No joining requests yet.
-              </p>
+              <div className="flex flex-col items-center justify-center py-12 text-center">
+                <UsersRound className="mb-3 h-10 w-10 text-muted-foreground" />
+                <p className="font-medium">No pending joining requests.</p>
+                <p className="mt-1 text-sm text-muted-foreground">New applications will appear here for review.</p>
+              </div>
             ) : (
               <div className="max-h-[600px] overflow-auto">
                 <Table>
@@ -161,7 +168,7 @@ export default function JoiningRequests() {
                             <div className="flex justify-end gap-2">
                               <Button size="sm" variant="outline" onClick={() => setSelectedRequest(request)}>
                                 <Eye className="mr-2 h-4 w-4" />
-                                Details
+                                View Details
                               </Button>
                               <Button
                                 size="sm"

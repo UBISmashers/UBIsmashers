@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { MainLayout } from "@/components/layout/MainLayout";
@@ -26,6 +26,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
+import {
   Table,
   TableBody,
   TableCell,
@@ -47,6 +55,7 @@ import {
   DollarSign,
   Pencil,
   CheckCheck,
+  SlidersHorizontal,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -55,6 +64,29 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
+
+type MemberSortOption =
+  | "name_asc"
+  | "name_desc"
+  | "recent"
+  | "oldest"
+  | "expense_low"
+  | "expense_high"
+  | "attendance_high"
+  | "attendance_low";
+type MemberStatusFilter = "all" | "active" | "inactive";
+type BillsFilter = "all" | "visible" | "hidden";
+type PaymentStatusFilter = "all" | "fully_paid" | "pending" | "partial" | "outstanding";
+type RoleFilter = "all" | "admin" | "member";
+type AttendanceFilter = "all" | "above_75" | "below_50";
+type DerivedPaymentStatus = "fully_paid" | "pending" | "partial" | "outstanding";
+
+const normalizeSearchText = (value: string | number | null | undefined) =>
+  String(value || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]/g, "");
 
 interface Member {
   _id: string;
@@ -82,6 +114,12 @@ export default function Members() {
   const { api, user } = useAuth();
   const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState("");
+  const [sortBy, setSortBy] = useState<MemberSortOption>("name_asc");
+  const [statusFilter, setStatusFilter] = useState<MemberStatusFilter>("all");
+  const [billsFilter, setBillsFilter] = useState<BillsFilter>("all");
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState<PaymentStatusFilter>("all");
+  const [roleFilter, setRoleFilter] = useState<RoleFilter>("all");
+  const [attendanceFilter, setAttendanceFilter] = useState<AttendanceFilter>("all");
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [newMember, setNewMember] = useState({
     name: "",
@@ -232,12 +270,6 @@ export default function Members() {
     },
   });
 
-  const filteredMembers = members.filter(
-    (m: Member) =>
-      m.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (m.email || "").toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
   const activeMembers = members.filter((m: Member) => m.status === "active").length;
   const adminCount = members.filter((m: Member) => m.role === "admin").length;
 
@@ -275,16 +307,113 @@ export default function Members() {
     markAllMemberPaidMutation.mutate(selectedMemberForPayments._id);
   };
 
+  const paymentByMemberId = useMemo(() => {
+    const map = new Map<string, any>();
+    paymentData?.memberPayments?.forEach((memberPayment: any) => {
+      const memberId = memberPayment.member?._id || memberPayment.member?.id;
+      if (memberId) map.set(memberId.toString(), memberPayment);
+    });
+    return map;
+  }, [paymentData]);
+
   // Get payment summary for a member
   const getMemberPaymentSummary = (memberId: string) => {
-    if (!paymentData?.memberPayments) return null;
-    const memberPayment = paymentData.memberPayments.find(
-      (mp: any) => {
-        const mpId = mp.member?._id || mp.member?.id;
-        return mpId === memberId || mpId?.toString() === memberId;
+    return paymentByMemberId.get(memberId) || null;
+  };
+
+  const getExpenseShare = (memberId: string) => Number(getMemberPaymentSummary(memberId)?.totalShare || 0);
+
+  const getDerivedPaymentStatus = (member: Member): DerivedPaymentStatus => {
+    const paymentSummary = getMemberPaymentSummary(member._id);
+    const totalShare = Number(paymentSummary?.totalShare || 0);
+    const totalPaid = Number(paymentSummary?.totalPaid || 0);
+    const totalUnpaid = Number(paymentSummary?.totalUnpaid ?? Math.max(Number(member.balance || 0), 0));
+
+    if (totalUnpaid <= 0) return "fully_paid";
+    if (totalPaid > 0 && totalUnpaid > 0) return "partial";
+    if (totalShare > 0 && totalPaid <= 0 && totalUnpaid > 0) return "outstanding";
+    return "pending";
+  };
+
+  const filteredMembers = useMemo(() => {
+    const normalizedQuery = normalizeSearchText(searchQuery);
+
+    const matchesPaymentFilter = (member: Member) => {
+      if (paymentStatusFilter === "all") return true;
+      const derivedStatus = getDerivedPaymentStatus(member);
+      if (paymentStatusFilter === "pending") {
+        return ["pending", "partial", "outstanding"].includes(derivedStatus);
       }
-    );
-    return memberPayment || null;
+      return derivedStatus === paymentStatusFilter;
+    };
+
+    return [...members]
+      .filter((member: Member) => {
+        const searchable = normalizeSearchText(
+          `${member.name} ${member.email || ""} ${member.phone || ""} ${member._id}`
+        );
+
+        return (
+          (!normalizedQuery || searchable.includes(normalizedQuery)) &&
+          (statusFilter === "all" || member.status === statusFilter) &&
+          (billsFilter === "all" ||
+            (billsFilter === "visible" && !member.hiddenFromPublicBills) ||
+            (billsFilter === "hidden" && member.hiddenFromPublicBills)) &&
+          (roleFilter === "all" || member.role === roleFilter) &&
+          (attendanceFilter === "all" ||
+            (attendanceFilter === "above_75" && Number(member.attendanceRate || 0) > 75) ||
+            (attendanceFilter === "below_50" && Number(member.attendanceRate || 0) < 50)) &&
+          matchesPaymentFilter(member)
+        );
+      })
+      .sort((a: Member, b: Member) => {
+        if (sortBy === "name_asc" || sortBy === "name_desc") {
+          const direction = sortBy === "name_asc" ? 1 : -1;
+          return normalizeSearchText(a.name).localeCompare(normalizeSearchText(b.name)) * direction;
+        }
+        if (sortBy === "recent" || sortBy === "oldest") {
+          const direction = sortBy === "recent" ? -1 : 1;
+          return (new Date(a.joinDate).getTime() - new Date(b.joinDate).getTime()) * direction;
+        }
+        if (sortBy === "expense_low" || sortBy === "expense_high") {
+          const direction = sortBy === "expense_low" ? 1 : -1;
+          return (getExpenseShare(a._id) - getExpenseShare(b._id)) * direction;
+        }
+        if (sortBy === "attendance_high" || sortBy === "attendance_low") {
+          const direction = sortBy === "attendance_high" ? -1 : 1;
+          return (Number(a.attendanceRate || 0) - Number(b.attendanceRate || 0)) * direction;
+        }
+        return 0;
+      });
+  }, [
+    attendanceFilter,
+    billsFilter,
+    members,
+    paymentByMemberId,
+    paymentStatusFilter,
+    roleFilter,
+    searchQuery,
+    sortBy,
+    statusFilter,
+  ]);
+
+  const hasActiveFilters =
+    Boolean(searchQuery.trim()) ||
+    sortBy !== "name_asc" ||
+    statusFilter !== "all" ||
+    billsFilter !== "all" ||
+    paymentStatusFilter !== "all" ||
+    roleFilter !== "all" ||
+    attendanceFilter !== "all";
+
+  const clearFilters = () => {
+    setSearchQuery("");
+    setSortBy("name_asc");
+    setStatusFilter("all");
+    setBillsFilter("all");
+    setPaymentStatusFilter("all");
+    setRoleFilter("all");
+    setAttendanceFilter("all");
   };
 
   const getMemberAdvanceAmount = (memberId: string) => {
@@ -325,6 +454,93 @@ export default function Members() {
     }
     return expense?.description || "Expense";
   };
+
+  const renderFilterControls = (isMobile = false) => (
+    <div className={isMobile ? "space-y-3" : "flex flex-wrap items-center gap-3"}>
+      <div className={isMobile ? "relative" : "relative min-w-[220px] flex-1"}>
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Input
+          placeholder="Search members..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="pl-10"
+        />
+      </div>
+      <Select value={sortBy} onValueChange={(value) => setSortBy(value as MemberSortOption)}>
+        <SelectTrigger className={isMobile ? "w-full" : "w-[170px]"}>
+          <SelectValue placeholder="Sort By" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="name_asc">Name (A-Z)</SelectItem>
+          <SelectItem value="name_desc">Name (Z-A)</SelectItem>
+          <SelectItem value="recent">Recently Joined</SelectItem>
+          <SelectItem value="oldest">Oldest Members</SelectItem>
+          <SelectItem value="expense_low">Expense: Lowest</SelectItem>
+          <SelectItem value="expense_high">Expense: Highest</SelectItem>
+          <SelectItem value="attendance_high">Attendance: Highest</SelectItem>
+          <SelectItem value="attendance_low">Attendance: Lowest</SelectItem>
+        </SelectContent>
+      </Select>
+      <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as MemberStatusFilter)}>
+        <SelectTrigger className={isMobile ? "w-full" : "w-[150px]"}>
+          <SelectValue placeholder="Status" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">All Members</SelectItem>
+          <SelectItem value="active">Active</SelectItem>
+          <SelectItem value="inactive">Inactive</SelectItem>
+        </SelectContent>
+      </Select>
+      <Select value={billsFilter} onValueChange={(value) => setBillsFilter(value as BillsFilter)}>
+        <SelectTrigger className={isMobile ? "w-full" : "w-[165px]"}>
+          <SelectValue placeholder="Bills" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">All Bills</SelectItem>
+          <SelectItem value="visible">Visible in Bills</SelectItem>
+          <SelectItem value="hidden">Hidden in Bills</SelectItem>
+        </SelectContent>
+      </Select>
+      <Select
+        value={paymentStatusFilter}
+        onValueChange={(value) => setPaymentStatusFilter(value as PaymentStatusFilter)}
+      >
+        <SelectTrigger className={isMobile ? "w-full" : "w-[180px]"}>
+          <SelectValue placeholder="Payment" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">All Payments</SelectItem>
+          <SelectItem value="fully_paid">Fully Paid</SelectItem>
+          <SelectItem value="pending">Pending</SelectItem>
+          <SelectItem value="partial">Partial Payment</SelectItem>
+          <SelectItem value="outstanding">Outstanding Balance</SelectItem>
+        </SelectContent>
+      </Select>
+      <Select value={roleFilter} onValueChange={(value) => setRoleFilter(value as RoleFilter)}>
+        <SelectTrigger className={isMobile ? "w-full" : "w-[135px]"}>
+          <SelectValue placeholder="Role" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">All Roles</SelectItem>
+          <SelectItem value="admin">Admin</SelectItem>
+          <SelectItem value="member">Member</SelectItem>
+        </SelectContent>
+      </Select>
+      <Select value={attendanceFilter} onValueChange={(value) => setAttendanceFilter(value as AttendanceFilter)}>
+        <SelectTrigger className={isMobile ? "w-full" : "w-[170px]"}>
+          <SelectValue placeholder="Attendance" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">All Attendance</SelectItem>
+          <SelectItem value="above_75">Above 75%</SelectItem>
+          <SelectItem value="below_50">Below 50%</SelectItem>
+        </SelectContent>
+      </Select>
+      <Button variant="outline" onClick={clearFilters} disabled={!hasActiveFilters} className={isMobile ? "w-full" : ""}>
+        Clear Filters
+      </Button>
+    </div>
+  );
 
   return (
     <MainLayout>
@@ -500,20 +716,32 @@ export default function Members() {
         {/* Members Table */}
         <Card>
           <CardHeader>
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-              <CardTitle>All Members</CardTitle>
-              <div className="relative w-full sm:w-64">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search members..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10"
-                />
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <CardTitle>All Members</CardTitle>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Showing {filteredMembers.length} of {members.length} members
+                </p>
               </div>
+              <Sheet>
+                <SheetTrigger asChild>
+                  <Button variant="outline" size="sm" className="md:hidden">
+                    <SlidersHorizontal className="mr-2 h-4 w-4" />
+                    Filters
+                  </Button>
+                </SheetTrigger>
+                <SheetContent side="right" className="w-[88vw] overflow-y-auto sm:max-w-sm">
+                  <SheetHeader>
+                    <SheetTitle>Filters & Sort</SheetTitle>
+                    <SheetDescription>Refine the member list instantly.</SheetDescription>
+                  </SheetHeader>
+                  <div className="mt-6">{renderFilterControls(true)}</div>
+                </SheetContent>
+              </Sheet>
             </div>
           </CardHeader>
           <CardContent>
+            <div className="mb-4 hidden md:block">{renderFilterControls()}</div>
             <Table>
               <TableHeader>
                 <TableRow>

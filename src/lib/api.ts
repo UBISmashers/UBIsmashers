@@ -20,8 +20,11 @@ class ApiClient {
     const headers = new Headers(options.headers);
     const hasBody = options.body !== undefined && options.body !== null;
     const isFormDataBody = typeof FormData !== "undefined" && options.body instanceof FormData;
+    const method = (options.method || "GET").toUpperCase();
     const isPublicEndpoint =
-      endpoint.startsWith("/public") || endpoint === "/auth/login" || endpoint === "/joining-requests";
+      endpoint.startsWith("/public") ||
+      endpoint === "/auth/login" ||
+      (endpoint === "/joining-requests" && method === "POST");
 
     if (hasBody && !isFormDataBody && !headers.has("Content-Type")) {
       headers.set("Content-Type", "application/json");
@@ -137,8 +140,8 @@ class ApiClient {
     });
   }
 
-  async getJoiningRequests() {
-    return this.request<any[]>("/joining-requests");
+  async getJoiningRequests(status: "pending" | "approved" | "rejected" | "all" = "pending") {
+    return this.request<any[]>(`/joining-requests?status=${status}`);
   }
 
   async updateJoiningRequestStatus(id: string, status: "pending" | "approved" | "rejected") {

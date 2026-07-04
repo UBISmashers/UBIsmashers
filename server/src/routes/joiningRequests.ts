@@ -30,6 +30,12 @@ const normalizeStatus = (status: string) => {
   return status;
 };
 
+const statusQueryMap: Record<string, any> = {
+  pending: { status: { $in: ['pending', 'new'] } },
+  approved: { status: { $in: ['approved', 'reviewed'] } },
+  rejected: { status: 'rejected' },
+};
+
 const serializeRequest = (request: any) => ({
   ...request.toObject(),
   status: normalizeStatus(request.status),
@@ -40,6 +46,28 @@ const serializeRequest = (request: any) => ({
 router.post('/', async (req: Request, res: Response) => {
   try {
     const payload = createJoiningRequestSchema.parse(req.body);
+
+    const existingPendingRequest = await JoiningRequest.findOne({
+      status: { $in: ['pending', 'new'] },
+      $or: [{ email: payload.email }, { mobileNumber: payload.mobileNumber }],
+    });
+
+    if (existingPendingRequest) {
+      return res.status(409).json({
+        error: 'A pending joining request already exists for this email or mobile number',
+      });
+    }
+
+    const existingMember = await Member.findOne({
+      isDeleted: { $ne: true },
+      $or: [{ email: payload.email }, { phone: payload.mobileNumber }],
+    });
+
+    if (existingMember) {
+      return res.status(409).json({
+        error: 'A member already exists with this email or mobile number',
+      });
+    }
 
     const joiningRequest = await JoiningRequest.create(payload);
 
@@ -64,7 +92,7 @@ router.post('/', async (req: Request, res: Response) => {
 
     return res.status(201).json({
       message: 'Joining request submitted successfully',
-      request: joiningRequest,
+      request: serializeRequest(joiningRequest),
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -78,9 +106,11 @@ router.post('/', async (req: Request, res: Response) => {
 // Admin endpoints
 router.use(authenticate, authorize('admin'));
 
-router.get('/', async (_req: Request, res: Response) => {
+router.get('/', async (req: Request, res: Response) => {
   try {
-    const requests = await JoiningRequest.find().sort({ createdAt: -1 });
+    const requestedStatus = typeof req.query.status === 'string' ? req.query.status : 'pending';
+    const query = requestedStatus === 'all' ? {} : statusQueryMap[requestedStatus] || statusQueryMap.pending;
+    const requests = await JoiningRequest.find(query).sort({ createdAt: -1 });
     return res.json(requests.map(serializeRequest));
   } catch (error) {
     console.error('Get joining requests error:', error);
@@ -95,6 +125,11 @@ router.patch('/:id/status', async (req: Request, res: Response) => {
     const request = await JoiningRequest.findById(req.params.id);
     if (!request) {
       return res.status(404).json({ error: 'Joining request not found' });
+    }
+
+    const currentStatus = normalizeStatus(request.status);
+    if (currentStatus !== 'pending') {
+      return res.status(409).json({ error: `Joining request is already ${currentStatus}` });
     }
 
     request.status = status;
@@ -112,17 +147,21 @@ router.patch('/:id/status', async (req: Request, res: Response) => {
           })
         : null;
 
-      if (!member) {
-        member = await Member.create({
-          name: request.name,
-          email: request.email,
-          phone: request.mobileNumber,
-          role: 'member',
-          status: 'active',
-          hiddenFromPublicBills: false,
-          userId: null,
+      if (member) {
+        return res.status(409).json({
+          error: 'A member already exists with this email or mobile number',
         });
       }
+
+      member = await Member.create({
+        name: request.name,
+        email: request.email,
+        phone: request.mobileNumber,
+        role: 'member',
+        status: 'active',
+        hiddenFromPublicBills: false,
+        userId: null,
+      });
     }
 
     await request.save();
