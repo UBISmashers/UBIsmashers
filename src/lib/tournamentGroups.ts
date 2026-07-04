@@ -6,7 +6,7 @@ export type TournamentGroupView = {
 };
 
 export const buildTournamentGroupView = (tournament: Tournament | null | undefined): TournamentGroupView[] => {
-  if (!tournament || tournament.format !== "group_knockout") return [];
+  if (!tournament || !["group_stage", "group_knockout"].includes(tournament.format)) return [];
 
   const groupTeamIds = new Map<string, Set<string>>();
   tournament.matches.forEach((match) => {
@@ -33,3 +33,4 @@ export const buildTournamentGroupView = (tournament: Tournament | null | undefin
         .sort((a, b) => a.name.localeCompare(b.name)),
     }));
 };
+

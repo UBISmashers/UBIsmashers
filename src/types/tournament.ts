@@ -1,6 +1,6 @@
 export type TournamentType = "singles" | "doubles";
 export type TournamentStatus = "upcoming" | "ongoing" | "completed";
-export type TournamentFormat = "knockout" | "round_robin" | "group_knockout";
+export type TournamentFormat = "knockout" | "round_robin" | "group_stage" | "group_knockout";
 export type GroupDistributionMode = "random" | "balanced" | "manual";
 export type TournamentMatchType = "league" | "semifinal" | "final" | "friendly" | "practice";
 export type TournamentRegistrationStatus = "pending" | "accepted" | "rejected";
@@ -191,3 +191,4 @@ export interface PublicTournamentPayload {
   tournaments: Tournament[];
   history: TournamentHistoryItem[];
 }
+

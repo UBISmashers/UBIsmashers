@@ -40,7 +40,7 @@ const tournamentSchema = z.object({
   time: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Time must be in HH:mm format").optional(),
   location: z.string().min(1, "Location is required"),
   type: z.enum(["singles", "doubles"]),
-  format: z.enum(["knockout", "round_robin", "group_knockout"]).optional(),
+  format: z.enum(["knockout", "round_robin", "group_stage", "group_knockout"]).optional(),
   groupCount: z.number().int().min(2).max(16).nullable().optional(),
   groupDistributionMode: z.enum(["random", "balanced", "manual"]).optional(),
   teamsQualifyingPerGroup: z.number().int().min(1).max(8).optional(),
@@ -639,3 +639,4 @@ export const updateAdminTournamentIncome = async (req: Request, res: Response) =
     return res.status(500).json({ error: "Internal server error" });
   }
 };
+

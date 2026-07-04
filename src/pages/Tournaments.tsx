@@ -47,6 +47,7 @@ const statusOptions = [
 const formatOptions = [
   { label: "Knockout", value: "knockout" },
   { label: "Round Robin", value: "round_robin" },
+  { label: "Group Stage", value: "group_stage" },
   { label: "Group + Knockout", value: "group_knockout" },
 ] as const;
 
@@ -109,11 +110,18 @@ const isAdminGroupLeagueMatch = (match: Tournament["matches"][number]) =>
 
 const isAdminKnockoutStageMatch = (match: Tournament["matches"][number]) =>
   !isAdminGroupLeagueMatch(match) &&
+  match.matchType !== "league" &&
   match.matchType !== "friendly" &&
   match.matchType !== "practice" &&
   match.roundNumber >= 2;
 
 const getBracketActionState = (tournament: Tournament) => {
+  if (tournament.format === "group_stage") {
+    const groupMatches = tournament.matches.filter(isAdminGroupLeagueMatch);
+    return groupMatches.length > 0
+      ? { label: "Group Fixtures Generated", disabled: true }
+      : { label: "Generate Group Fixtures", disabled: false };
+  }
   if (tournament.format !== "group_knockout") {
     return { label: "Generate Bracket", disabled: false };
   }
@@ -137,7 +145,7 @@ const getBracketActionState = (tournament: Tournament) => {
 
 const getAdminBracketMatches = (tournament: Tournament) => {
   if (tournament.format === "knockout") return tournament.matches;
-  if (tournament.format === "round_robin") return tournament.matches.filter(isAdminKnockoutStageMatch);
+  if (tournament.format === "round_robin" || tournament.format === "group_stage") return tournament.matches.filter(isAdminKnockoutStageMatch);
 
   const groupMatches = tournament.matches.filter(isAdminGroupLeagueMatch);
   const allGroupMatchesCompleted = groupMatches.length > 0 && groupMatches.every((match) => match.isCompleted);
@@ -158,7 +166,7 @@ export default function Tournaments() {
     time: "",
     location: "",
     type: "doubles" as "singles" | "doubles",
-    format: "knockout" as "knockout" | "round_robin" | "group_knockout",
+    format: "knockout" as Tournament["format"],
     groupCount: "",
     groupDistributionMode: "random" as "random" | "balanced" | "manual",
     teamsQualifyingPerGroup: "2",
@@ -176,7 +184,7 @@ export default function Tournaments() {
     time: "",
     location: "",
     type: "doubles" as "singles" | "doubles",
-    format: "knockout" as "knockout" | "round_robin" | "group_knockout",
+    format: "knockout" as Tournament["format"],
     groupCount: "",
     groupDistributionMode: "random" as "random" | "balanced" | "manual",
     teamsQualifyingPerGroup: "2",
@@ -362,7 +370,7 @@ export default function Tournaments() {
         location: form.location,
         type: form.type,
         format: form.format,
-        groupCount: form.format === "group_knockout" && form.groupCount ? Number(form.groupCount) : null,
+        groupCount: ["group_stage", "group_knockout"].includes(form.format) && form.groupCount ? Number(form.groupCount) : null,
         groupDistributionMode: form.groupDistributionMode,
         teamsQualifyingPerGroup: Number(form.teamsQualifyingPerGroup || 2),
         enableManualGroupEditing: form.enableManualGroupEditing,
@@ -415,7 +423,7 @@ export default function Tournaments() {
       time: string;
       location: string;
       type: "singles" | "doubles";
-      format: "knockout" | "round_robin" | "group_knockout";
+      format: Tournament["format"];
       groupCount: number | null;
       groupDistributionMode: "random" | "balanced" | "manual";
       teamsQualifyingPerGroup: number;
@@ -503,7 +511,7 @@ export default function Tournaments() {
     mutationFn: () => api.generateTournamentBracket(selectedTournament!._id),
     onSuccess: async () => {
       await refresh();
-      toast({ title: selectedTournament?.format === "group_knockout" ? "Tournament stage generated" : "Bracket generated" });
+      toast({ title: ["group_stage", "group_knockout"].includes(selectedTournament?.format || "") ? "Tournament stage generated" : "Bracket generated" });
     },
     onError: (error: Error) => toast({ title: "Failed", description: error.message, variant: "destructive" }),
   });
@@ -1051,7 +1059,7 @@ export default function Tournaments() {
                   <Label>Format</Label>
                   <Select
                     value={form.format}
-                    onValueChange={(value: "knockout" | "round_robin" | "group_knockout") =>
+                    onValueChange={(value: Tournament["format"]) =>
                       setForm((prev) => ({ ...prev, format: value }))
                     }
                   >
@@ -1077,7 +1085,7 @@ export default function Tournaments() {
                   />
                 </div>
               </div>
-              {form.format === "group_knockout" && (
+              {["group_stage", "group_knockout"].includes(form.format) && (
                 <div className="space-y-3 rounded-md border p-3">
                   <div>
                     <h3 className="text-sm font-semibold">Group Configuration</h3>
@@ -1312,7 +1320,7 @@ export default function Tournaments() {
                     </TournamentSectionItem>
                   )}
 
-                  {selectedTournament.format === "group_knockout" && (
+                  {["group_stage", "group_knockout"].includes(selectedTournament.format) && (
                     <TournamentSectionItem value={`groupManagement-${selectedTournament._id}`} title="Group Management">
                       <Card>
                       <CardHeader>
@@ -1753,7 +1761,7 @@ This data cannot be recovered.`}
                           <Label>Format</Label>
                           <Select
                             value={editForm.format}
-                            onValueChange={(value: "knockout" | "round_robin" | "group_knockout") =>
+                            onValueChange={(value: Tournament["format"]) =>
                               setEditForm((prev) => ({ ...prev, format: value }))
                             }
                           >
@@ -1779,7 +1787,7 @@ This data cannot be recovered.`}
                           />
                         </div>
                       </div>
-                      {editForm.format === "group_knockout" && (
+                      {["group_stage", "group_knockout"].includes(editForm.format) && (
                         <div className="space-y-3 rounded-md border p-3">
                           <div>
                             <h3 className="text-sm font-semibold">Group Configuration</h3>
@@ -1905,7 +1913,7 @@ This data cannot be recovered.`}
                             type: editForm.type,
                             format: editForm.format,
                             groupCount:
-                              editForm.format === "group_knockout" && editForm.groupCount
+                              ["group_stage", "group_knockout"].includes(editForm.format) && editForm.groupCount
                                 ? Number(editForm.groupCount)
                                 : null,
                             groupDistributionMode: editForm.groupDistributionMode,
@@ -3077,3 +3085,4 @@ This data cannot be recovered.`}
     </MainLayout>
   );
 }
+

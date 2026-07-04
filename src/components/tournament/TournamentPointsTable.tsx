@@ -415,7 +415,7 @@ export function TournamentPointsTable({
 
   if (tournament.format === "knockout") return null;
 
-  if (tournament.format === "group_knockout") {
+  if (tournament.format === "group_stage" || tournament.format === "group_knockout") {
     const groupStageComplete =
       standingsGroups.length > 0 &&
       standingsGroups.every((group) => group.totalMatches > 0 && group.pendingMatches === 0);
@@ -472,7 +472,7 @@ export function TournamentPointsTable({
               <CardContent className="p-4">
                 <p className="font-semibold text-emerald-800">Group Stage Complete</p>
                 <p className="text-sm text-emerald-700">
-                  All group matches are complete. Admin can verify standings and generate the knockout bracket.
+                  All group matches are complete. Admin can verify final group standings.
                 </p>
               </CardContent>
             </Card>
@@ -500,3 +500,4 @@ export function TournamentPointsTable({
     </Card>
   );
 }
+

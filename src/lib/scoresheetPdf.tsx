@@ -624,6 +624,7 @@ const formatTournamentFormat = (format: Tournament["format"]) => {
   const labels: Record<Tournament["format"], string> = {
     knockout: "Knockout",
     round_robin: "Round Robin",
+    group_stage: "Group Stage",
     group_knockout: "Group Stage + Knockout",
   };
   return labels[format] || format;
@@ -844,3 +845,4 @@ export function ScoresheetDocument({
     </Document>
   );
 }
+

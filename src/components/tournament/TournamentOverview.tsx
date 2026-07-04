@@ -13,6 +13,7 @@ const statusStyle: Record<Tournament["status"], string> = {
 const formatLabel: Record<Tournament["format"], string> = {
   knockout: "Knockout",
   round_robin: "Round Robin",
+  group_stage: "Group Stage",
   group_knockout: "Group + Knockout",
 };
 
@@ -66,3 +67,4 @@ export function TournamentOverview({ tournament }: { tournament: Tournament }) {
     </Card>
   );
 }
+

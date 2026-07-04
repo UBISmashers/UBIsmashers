@@ -2,7 +2,7 @@ import mongoose, { Document, Schema } from "mongoose";
 
 export type TournamentType = "singles" | "doubles";
 export type TournamentStatus = "upcoming" | "ongoing" | "completed";
-export type TournamentFormat = "knockout" | "round_robin" | "group_knockout";
+export type TournamentFormat = "knockout" | "round_robin" | "group_stage" | "group_knockout";
 export type GroupDistributionMode = "random" | "balanced" | "manual";
 
 export interface ITournamentTeam {
@@ -326,7 +326,7 @@ const tournamentSchema = new Schema<ITournament>(
     },
     format: {
       type: String,
-      enum: ["knockout", "round_robin", "group_knockout"],
+      enum: ["knockout", "round_robin", "group_stage", "group_knockout"],
       default: "knockout",
     },
     groupCount: {
@@ -434,3 +434,4 @@ tournamentSchema.index({ date: -1 });
 tournamentSchema.index({ status: 1 });
 
 export const Tournament = mongoose.model<ITournament>("Tournament", tournamentSchema);
+

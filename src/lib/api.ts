@@ -447,7 +447,7 @@ class ApiClient {
     time?: string;
     location: string;
     type: "singles" | "doubles";
-    format?: "knockout" | "round_robin" | "group_knockout";
+    format?: "knockout" | "round_robin" | "group_stage" | "group_knockout";
     groupCount?: number | null;
     groupDistributionMode?: "random" | "balanced" | "manual";
     teamsQualifyingPerGroup?: number;
@@ -471,7 +471,7 @@ class ApiClient {
     time: string;
     location: string;
     type: "singles" | "doubles";
-    format: "knockout" | "round_robin" | "group_knockout";
+    format: "knockout" | "round_robin" | "group_stage" | "group_knockout";
     groupCount: number | null;
     groupDistributionMode: "random" | "balanced" | "manual";
     teamsQualifyingPerGroup: number;
@@ -778,3 +778,4 @@ class ApiClient {
 export const createApiClient = (getAuthToken: () => string | null, clearTokens: () => void) => {
   return new ApiClient(getAuthToken, clearTokens);
 };
+

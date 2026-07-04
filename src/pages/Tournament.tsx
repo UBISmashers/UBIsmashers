@@ -78,6 +78,7 @@ const storeSubmittedFeedbackIds = (ids: Set<string>) => {
 const tournamentFormatLabel: Record<Tournament["format"], string> = {
   knockout: "Knockout",
   round_robin: "Round Robin",
+  group_stage: "Group Stage",
   group_knockout: "Group + Knockout",
 };
 
@@ -86,6 +87,7 @@ const isGroupLeagueMatch = (match: Tournament["matches"][number]) =>
 
 const isKnockoutStageMatch = (match: Tournament["matches"][number]) =>
   !isGroupLeagueMatch(match) &&
+  match.matchType !== "league" &&
   match.matchType !== "friendly" &&
   match.matchType !== "practice" &&
   (match.roundNumber >= 2 || match.matchType === "semifinal" || match.matchType === "final");
@@ -507,7 +509,7 @@ export default function TournamentPage() {
                         </div>
                         <div className="rounded-md border p-3 text-sm">Teams: {tournament.teams.length}</div>
                         <div className="rounded-md border p-3 text-sm">
-                          {tournament.format === "group_knockout"
+                          {["group_stage", "group_knockout"].includes(tournament.format)
                             ? `Groups: ${tournament.tournamentGroups.length || tournament.groupCount || 0}`
                             : "Groups: Not used"}
                         </div>
@@ -515,6 +517,8 @@ export default function TournamentPage() {
                           Qualification Rule:{" "}
                           {tournament.format === "group_knockout"
                             ? `Top ${tournament.teamsQualifyingPerGroup || 2} teams per group advance to knockout`
+                            : tournament.format === "group_stage"
+                            ? "Teams play within groups; each group has its own standings"
                             : tournament.format === "round_robin"
                             ? "All teams share one overall standings table"
                             : "Pure knockout bracket; standings are hidden"}
