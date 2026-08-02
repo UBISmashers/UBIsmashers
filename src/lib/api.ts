@@ -450,10 +450,17 @@ class ApiClient {
     time?: string;
     location: string;
     type: "singles" | "doubles";
-    format?: "knockout" | "round_robin" | "group_stage" | "group_knockout";
+    format?: "knockout" | "round_robin" | "group_stage" | "group_knockout" | "round_robin_knockout";
     groupCount?: number | null;
     groupDistributionMode?: "random" | "balanced" | "manual";
     teamsQualifyingPerGroup?: number;
+    teamsPerGroup?: number | null;
+    directQualifierCount?: number;
+    qfQualifierCount?: number;
+    matchDurationMinutes?: number;
+    breakDurationMinutes?: number;
+    assemblyTime?: string;
+    closingEvent?: string;
     enableManualGroupEditing?: boolean;
     entryFee?: number;
     status?: "upcoming" | "ongoing" | "completed";
@@ -474,10 +481,17 @@ class ApiClient {
     time: string;
     location: string;
     type: "singles" | "doubles";
-    format: "knockout" | "round_robin" | "group_stage" | "group_knockout";
+    format: "knockout" | "round_robin" | "group_stage" | "group_knockout" | "round_robin_knockout";
     groupCount: number | null;
     groupDistributionMode: "random" | "balanced" | "manual";
     teamsQualifyingPerGroup: number;
+    teamsPerGroup: number | null;
+    directQualifierCount: number;
+    qfQualifierCount: number;
+    matchDurationMinutes: number;
+    breakDurationMinutes: number;
+    assemblyTime: string;
+    closingEvent: string;
     enableManualGroupEditing: boolean;
     entryFee: number;
     status: "upcoming" | "ongoing" | "completed";
@@ -781,4 +795,5 @@ class ApiClient {
 export const createApiClient = (getAuthToken: () => string | null, clearTokens: () => void) => {
   return new ApiClient(getAuthToken, clearTokens);
 };
+
 

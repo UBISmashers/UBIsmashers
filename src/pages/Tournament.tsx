@@ -78,6 +78,7 @@ const storeSubmittedFeedbackIds = (ids: Set<string>) => {
 const tournamentFormatLabel: Record<Tournament["format"], string> = {
   knockout: "Knockout",
   round_robin: "Round Robin",
+  round_robin_knockout: "Round Robin + Knockout",
   group_stage: "Group Stage",
   group_knockout: "Group + Knockout",
 };
@@ -113,14 +114,6 @@ const getPublicVisibleMatches = (tournament: Tournament) => {
   const bracketMatches = new Set(getPublicBracketMatches(tournament).map((match) => match.matchId));
   return tournament.matches.filter((match) => isGroupLeagueMatch(match) || bracketMatches.has(match.matchId));
 };
-
-const getTeamInitials = (team?: TournamentTeam | null) =>
-  (team?.name || "TBD")
-    .split(/[\s+]+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
-    .join("") || "T";
 
 function TeamButton({ team, onClick }: { team: TournamentTeam | null; onClick: (teamId: string) => void }) {
   if (!team) return <span>TBD</span>;
@@ -519,6 +512,8 @@ export default function TournamentPage() {
                             ? `Top ${tournament.teamsQualifyingPerGroup || 2} teams per group advance to knockout`
                             : tournament.format === "group_stage"
                             ? "Teams play within groups; each group has its own standings"
+                            : tournament.format === "round_robin_knockout"
+                            ? "Round robin groups feed into a knockout bracket for later rounds"
                             : tournament.format === "round_robin"
                             ? "All teams share one overall standings table"
                             : "Pure knockout bracket; standings are hidden"}

@@ -36,6 +36,7 @@ import {
   downloadTournamentRecordSheetPdf,
   type ScoresheetStage,
 } from "@/lib/scoresheetPdf";
+import { downloadMatchSchedulePdf } from "@/lib/matchSchedulePdf";
 import type { Tournament, TournamentIncomingType, TournamentMatchType } from "@/types/tournament";
 
 const statusOptions = [
@@ -47,6 +48,7 @@ const statusOptions = [
 const formatOptions = [
   { label: "Knockout", value: "knockout" },
   { label: "Round Robin", value: "round_robin" },
+  { label: "Round Robin + Knockout", value: "round_robin_knockout" },
   { label: "Group Stage", value: "group_stage" },
   { label: "Group + Knockout", value: "group_knockout" },
 ] as const;
@@ -146,6 +148,7 @@ const getBracketActionState = (tournament: Tournament) => {
 const getAdminBracketMatches = (tournament: Tournament) => {
   if (tournament.format === "knockout") return tournament.matches;
   if (tournament.format === "round_robin" || tournament.format === "group_stage") return tournament.matches.filter(isAdminKnockoutStageMatch);
+  if (tournament.format === "round_robin_knockout") return tournament.matches.filter(isAdminKnockoutStageMatch);
 
   const groupMatches = tournament.matches.filter(isAdminGroupLeagueMatch);
   const allGroupMatchesCompleted = groupMatches.length > 0 && groupMatches.every((match) => match.isCompleted);
@@ -246,6 +249,7 @@ export default function Tournaments() {
   const [deleteConfirmationName, setDeleteConfirmationName] = useState("");
   const [generatingScoresheetStage, setGeneratingScoresheetStage] = useState<ScoresheetStage | null>(null);
   const [isGeneratingRecordSheet, setIsGeneratingRecordSheet] = useState(false);
+  const [isGeneratingSchedulePdf, setIsGeneratingSchedulePdf] = useState(false);
 
   const { data: tournaments = [] } = useQuery<Tournament[]>({
     queryKey: ["tournaments"],
@@ -370,7 +374,7 @@ export default function Tournaments() {
         location: form.location,
         type: form.type,
         format: form.format,
-        groupCount: ["group_stage", "group_knockout"].includes(form.format) && form.groupCount ? Number(form.groupCount) : null,
+        groupCount: ["group_stage", "group_knockout", "round_robin_knockout"].includes(form.format) && form.groupCount ? Number(form.groupCount) : null,
         groupDistributionMode: form.groupDistributionMode,
         teamsQualifyingPerGroup: Number(form.teamsQualifyingPerGroup || 2),
         enableManualGroupEditing: form.enableManualGroupEditing,
@@ -996,6 +1000,25 @@ export default function Tournaments() {
     }
   };
 
+  const handleDownloadMatchSchedule = async () => {
+    if (!selectedTournament) return;
+
+    setIsGeneratingSchedulePdf(true);
+    toast({ title: "Preparing match schedule", description: "The match schedule PDF is being generated." });
+    try {
+      await downloadMatchSchedulePdf(selectedTournament);
+      toast({ title: "Schedule PDF ready", description: "Match schedule PDF has been downloaded." });
+    } catch (error) {
+      toast({
+        title: "Failed to download schedule",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGeneratingSchedulePdf(false);
+    }
+  };
+
   return (
     <MainLayout>
       <div className="space-y-6">
@@ -1240,7 +1263,7 @@ export default function Tournaments() {
                         type="button"
                         variant="default"
                         className="min-h-16 justify-start gap-3 text-left"
-                        disabled={isGeneratingRecordSheet || Boolean(generatingScoresheetStage)}
+                        disabled={isGeneratingRecordSheet || Boolean(generatingScoresheetStage) || isGeneratingSchedulePdf}
                         onClick={handleDownloadRecordSheet}
                       >
                         {isGeneratingRecordSheet ? (
@@ -1253,6 +1276,25 @@ export default function Tournaments() {
                             {isGeneratingRecordSheet ? "Generating PDF..." : "Tournament Record Sheet"}
                           </span>
                           <span className="block text-xs opacity-80">{selectedTournament.teams.length} teams</span>
+                        </span>
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="default"
+                        className="min-h-16 justify-start gap-3 text-left"
+                        disabled={isGeneratingRecordSheet || Boolean(generatingScoresheetStage) || isGeneratingSchedulePdf}
+                        onClick={handleDownloadMatchSchedule}
+                      >
+                        {isGeneratingSchedulePdf ? (
+                          <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-b-transparent" />
+                        ) : (
+                          <Download className="h-4 w-4 shrink-0" />
+                        )}
+                        <span className="min-w-0">
+                          <span className="block break-words">
+                            {isGeneratingSchedulePdf ? "Generating PDF..." : "Match Schedule PDF"}
+                          </span>
+                          <span className="block text-xs opacity-80">{selectedTournament.matches.length} matches</span>
                         </span>
                       </Button>
                       {scoresheetBuckets.map((bucket) => {
@@ -3085,4 +3127,5 @@ This data cannot be recovered.`}
     </MainLayout>
   );
 }
+
 

@@ -663,6 +663,217 @@ const buildGroupKnockoutMatches = (
   return { matches: [...groupMatches, ...knockoutMatches], totalRounds: knockoutRounds + 1 };
 };
 
+const buildRoundRobinKnockoutMatches = (
+  teams: ITournament["teams"],
+  options: {
+    groupCount?: number | null;
+    distributionMode?: GroupDistributionMode;
+    directQualifierCount?: number;
+    qfQualifierCount?: number;
+    tournamentGroups?: ITournament["tournamentGroups"];
+  } = {}
+) => {
+  const teamIds = teams.map((team) => team._id);
+  const groupCount = clampGroupCount(options.groupCount, teamIds.length);
+  const groupsFromModel = [...(options.tournamentGroups || [])]
+    .sort((a, b) => a.groupOrder - b.groupOrder)
+    .map((group) => group.teamIds.filter((teamId) => teamIds.some((id) => id.toString() === teamId.toString())));
+  const groups = groupsFromModel.length > 0
+    ? groupsFromModel
+    : distributeTeamsToGroups(teamIds, groupCount, options.distributionMode || "random");
+
+  const groupMatches: ITournamentMatch[] = [];
+  let matchNumber = 1;
+
+  groups.forEach((groupTeams, groupIndex) => {
+    const groupName = getGroupLabel(groupIndex);
+    const scheduledMatches = buildRoundRobinSchedule(groupTeams, {
+      matchIdPrefix: `RRKO-${String.fromCharCode(65 + groupIndex)}`,
+      fixedRoundLabel: groupName,
+    });
+
+    scheduledMatches.forEach((match) => {
+      if (Math.random() > 0.5) {
+        const nextA = match.teamBId;
+        match.teamBId = match.teamAId;
+        match.teamAId = nextA;
+      }
+      match.matchNumber = matchNumber;
+      match.matchId = `RRKO-${String.fromCharCode(65 + groupIndex)}-R${match.roundNumber}-M${matchNumber}`;
+      groupMatches.push(match);
+      matchNumber += 1;
+    });
+  });
+
+  const makeKnockoutMatch = (
+    matchId: string,
+    roundNumber: number,
+    roundLabel: string,
+    matchNumber: number,
+    matchType: ITournamentMatch["matchType"]
+  ): ITournamentMatch => ({
+    matchId,
+    roundNumber,
+    roundLabel,
+    matchNumber,
+    matchType,
+    isManual: false,
+    manualOverrideTeams: false,
+    scheduledAt: null,
+    scheduledEndAt: null,
+    court: null,
+    teamAId: null,
+    teamBId: null,
+    scoreA: null,
+    scoreB: null,
+    winnerTeamId: null,
+    isCompleted: false,
+  } as ITournamentMatch);
+
+  const qfQualifierCount = Math.max(0, Math.min(8, options.qfQualifierCount ?? 2));
+  const qfMatchCount = Math.max(0, Math.ceil((groups.length * qfQualifierCount) / 2));
+  const knockoutMatches: ITournamentMatch[] = [];
+
+  for (let index = 0; index < qfMatchCount; index += 1) {
+    knockoutMatches.push(makeKnockoutMatch(`RRKO-QF${index + 1}`, 2, `Quarter Final ${index + 1}`, index + 1, "quarterfinal"));
+  }
+
+  const semiCount = Math.max(1, Math.ceil((groups.length * Math.max(1, options.directQualifierCount ?? 1) + qfMatchCount) / 2));
+  for (let index = 0; index < semiCount; index += 1) {
+    knockoutMatches.push(makeKnockoutMatch(`RRKO-SF${index + 1}`, 3, `Semi Final ${index + 1}`, index + 1, "semifinal"));
+  }
+
+  knockoutMatches.push(makeKnockoutMatch("RRKO-FINAL", 4, "Final", 1, "final"));
+  knockoutMatches.push(makeKnockoutMatch("RRKO-THIRD", 4, "3rd Place Match", 2, "third_place"));
+
+  return { matches: [...groupMatches, ...knockoutMatches], totalRounds: 4 };
+};
+
+const getMatchLoserId = (match: ITournamentMatch) => {
+  if (!match.isCompleted || !match.teamAId || !match.teamBId || !match.winnerTeamId) return null;
+  return match.winnerTeamId.toString() === match.teamAId.toString() ? match.teamBId : match.teamAId;
+};
+
+const reconcileScoredMatch = (match: ITournamentMatch) => {
+  if (!match.teamAId || !match.teamBId) {
+    resetInvalidMatch(match);
+    return;
+  }
+  if (!match.isCompleted) {
+    match.winnerTeamId = null;
+    return;
+  }
+  if (match.scoreA === null || match.scoreB === null || match.scoreA === match.scoreB) {
+    resetInvalidMatch(match);
+    return;
+  }
+  match.winnerTeamId = match.scoreA > match.scoreB ? match.teamAId : match.teamBId;
+};
+
+const reconcileRoundRobinKnockoutState = (tournament: ITournament) => {
+  const groupMatches = tournament.matches.filter((match) => !match.isManual && match.matchType === "league" && /^Group\s/i.test(match.roundLabel || ""));
+  groupMatches.forEach(reconcileScoredMatch);
+
+  const knockoutMatches = tournament.matches.filter((match) => !match.isManual && match.matchType !== "league");
+  const allGroupsCompleted = groupMatches.length > 0 && groupMatches.every((match) => match.isCompleted);
+
+  if (!allGroupsCompleted) {
+    knockoutMatches.forEach((match) => {
+      if (!match.manualOverrideTeams) {
+        match.teamAId = null;
+        match.teamBId = null;
+      }
+      resetInvalidMatch(match);
+    });
+    tournament.championTeamId = null;
+    tournament.finalScore = null;
+    tournament.status = tournament.matches.some((match) => match.isCompleted) ? "ongoing" : "upcoming";
+    return;
+  }
+
+  const groupLabels = [...new Set(groupMatches.map((match) => match.roundLabel))]
+    .filter(Boolean)
+    .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  const standingsByGroup = groupLabels.map((label) => {
+    const matches = groupMatches.filter((match) => match.roundLabel === label);
+    const teamIds = new Set<string>();
+    matches.forEach((match) => {
+      if (match.teamAId) teamIds.add(match.teamAId.toString());
+      if (match.teamBId) teamIds.add(match.teamBId.toString());
+    });
+    return buildStandings(tournament.teams.filter((team) => teamIds.has(team._id.toString())), matches);
+  });
+
+  const directCount = Math.max(0, Math.min(8, tournament.directQualifierCount ?? 1));
+  const qfCount = Math.max(0, Math.min(8, tournament.qfQualifierCount ?? 2));
+  const qfMatches = tournament.matches.filter((match) => !match.isManual && match.matchType === "quarterfinal").sort((a, b) => a.matchNumber - b.matchNumber);
+  const semiMatches = tournament.matches.filter((match) => !match.isManual && match.matchType === "semifinal").sort((a, b) => a.matchNumber - b.matchNumber);
+  const finalMatch = tournament.matches.find((match) => !match.isManual && match.matchType === "final");
+  const thirdMatch = tournament.matches.find((match) => !match.isManual && match.matchType === "third_place");
+
+  const qfPairs: Array<[mongoose.Types.ObjectId | null, mongoose.Types.ObjectId | null]> = [];
+  if (standingsByGroup.length === 2 && qfCount >= 2) {
+    qfPairs.push([standingsByGroup[0]?.[directCount]?.teamId || null, standingsByGroup[1]?.[directCount + 1]?.teamId || null]);
+    qfPairs.push([standingsByGroup[1]?.[directCount]?.teamId || null, standingsByGroup[0]?.[directCount + 1]?.teamId || null]);
+  }
+  if (qfPairs.length === 0) {
+    const qfSeeds = standingsByGroup.flatMap((standings) => standings.slice(directCount, directCount + qfCount).map((row) => row.teamId));
+    for (let index = 0; index < qfSeeds.length; index += 2) qfPairs.push([qfSeeds[index] || null, qfSeeds[index + 1] || null]);
+  }
+
+  qfMatches.forEach((match, index) => {
+    if (!match.manualOverrideTeams) {
+      const [teamAId, teamBId] = qfPairs[index] || [null, null];
+      match.teamAId = teamAId;
+      match.teamBId = teamBId;
+    }
+    reconcileScoredMatch(match);
+  });
+
+  if (standingsByGroup.length === 2 && directCount >= 1 && semiMatches.length >= 2) {
+    if (!semiMatches[0].manualOverrideTeams) {
+      semiMatches[0].teamAId = standingsByGroup[0]?.[0]?.teamId || null;
+      semiMatches[0].teamBId = qfMatches[1]?.isCompleted ? qfMatches[1].winnerTeamId : null;
+    }
+    if (!semiMatches[1].manualOverrideTeams) {
+      semiMatches[1].teamAId = standingsByGroup[1]?.[0]?.teamId || null;
+      semiMatches[1].teamBId = qfMatches[0]?.isCompleted ? qfMatches[0].winnerTeamId : null;
+    }
+  } else {
+    const directSeeds = standingsByGroup.flatMap((standings) => standings.slice(0, directCount).map((row) => row.teamId));
+    const qfWinners = qfMatches.map((match) => (match.isCompleted ? match.winnerTeamId : null)).filter(Boolean) as mongoose.Types.ObjectId[];
+    const semiSeeds = [...directSeeds, ...qfWinners];
+    semiMatches.forEach((match, index) => {
+      if (match.manualOverrideTeams) return;
+      match.teamAId = semiSeeds[index * 2] || null;
+      match.teamBId = semiSeeds[index * 2 + 1] || null;
+    });
+  }
+
+  semiMatches.forEach(reconcileScoredMatch);
+
+  if (finalMatch && !finalMatch.manualOverrideTeams) {
+    finalMatch.teamAId = semiMatches[0]?.isCompleted ? semiMatches[0].winnerTeamId : null;
+    finalMatch.teamBId = semiMatches[1]?.isCompleted ? semiMatches[1].winnerTeamId : null;
+  }
+  if (thirdMatch && !thirdMatch.manualOverrideTeams) {
+    thirdMatch.teamAId = semiMatches[0]?.isCompleted ? getMatchLoserId(semiMatches[0]) : null;
+    thirdMatch.teamBId = semiMatches[1]?.isCompleted ? getMatchLoserId(semiMatches[1]) : null;
+  }
+  if (finalMatch) reconcileScoredMatch(finalMatch);
+  if (thirdMatch) reconcileScoredMatch(thirdMatch);
+
+  if (finalMatch?.isCompleted && finalMatch.winnerTeamId) {
+    tournament.championTeamId = finalMatch.winnerTeamId;
+    tournament.finalScore = finalMatch.scoreA !== null && finalMatch.scoreB !== null ? `${finalMatch.scoreA}-${finalMatch.scoreB}` : null;
+    tournament.status = "completed";
+    return;
+  }
+
+  tournament.championTeamId = null;
+  tournament.finalScore = null;
+  tournament.status = tournament.matches.some((match) => match.isCompleted) ? "ongoing" : "upcoming";
+};
 const resetInvalidMatch = (match: ITournamentMatch) => {
   match.scoreA = null;
   match.scoreB = null;
@@ -1565,7 +1776,7 @@ export const updateTeam = async (
 export const generateGroups = async (tournamentId: string, userId?: string | null) => {
   const tournament = await Tournament.findById(tournamentId);
   if (!tournament) return { error: "Tournament not found", status: 404 as const };
-  if (!["group_stage", "group_knockout"].includes(tournament.format || "knockout")) {
+  if (!["group_stage", "group_knockout", "round_robin_knockout"].includes(tournament.format || "knockout")) {
     return { error: "Groups are only available for group-stage tournaments", status: 400 as const };
   }
   if (tournament.teams.length < 2) {
@@ -1826,14 +2037,14 @@ export const generateBracket = async (tournamentId: string) => {
   }
 
   const format = tournament.format || "knockout";
-  if (format === "group_knockout" && tournament.teams.length < 4) {
+  if ((format === "group_knockout" || format === "round_robin_knockout") && tournament.teams.length < 4) {
     return { error: "At least 4 teams are required for Group + Knockout format", status: 400 as const };
   }
   if (format === "group_stage" && tournament.teams.length < 2) {
     return { error: "At least 2 teams are required for Group Stage format", status: 400 as const };
   }
 
-  if ((format === "group_stage" || format === "group_knockout") && tournament.tournamentGroups.length === 0) {
+  if ((format === "group_stage" || format === "group_knockout" || format === "round_robin_knockout") && tournament.tournamentGroups.length === 0) {
     const groupCount = clampGroupCount(tournament.groupCount, tournament.teams.length);
     tournament.tournamentGroups = makeTournamentGroups(
       tournament.teams.map((team) => team._id),
@@ -2608,4 +2819,8 @@ export const getPublicTournamentById = async (id: string) => {
     tournament: serializePublicTournament(tournament),
   };
 };
+
+
+
+
 

@@ -1,8 +1,8 @@
 export type TournamentType = "singles" | "doubles";
 export type TournamentStatus = "upcoming" | "ongoing" | "completed";
-export type TournamentFormat = "knockout" | "round_robin" | "group_stage" | "group_knockout";
+export type TournamentFormat = "knockout" | "round_robin" | "group_stage" | "group_knockout" | "round_robin_knockout";
 export type GroupDistributionMode = "random" | "balanced" | "manual";
-export type TournamentMatchType = "league" | "semifinal" | "final" | "friendly" | "practice";
+export type TournamentMatchType = "league" | "quarterfinal" | "semifinal" | "third_place" | "final" | "friendly" | "practice";
 export type TournamentRegistrationStatus = "pending" | "accepted" | "rejected";
 export type RegistrationGender = "male" | "female" | "other";
 
@@ -153,6 +153,13 @@ export interface Tournament {
   groupCount: number | null;
   groupDistributionMode: GroupDistributionMode;
   teamsQualifyingPerGroup: number;
+  teamsPerGroup: number | null;
+  directQualifierCount: number;
+  qfQualifierCount: number;
+  matchDurationMinutes: number;
+  breakDurationMinutes: number;
+  assemblyTime: string;
+  closingEvent: string;
   enableManualGroupEditing: boolean;
   entryFee: number;
   status: TournamentStatus;
@@ -191,4 +198,6 @@ export interface PublicTournamentPayload {
   tournaments: Tournament[];
   history: TournamentHistoryItem[];
 }
+
+
 

@@ -2,7 +2,7 @@ import mongoose, { Document, Schema } from "mongoose";
 
 export type TournamentType = "singles" | "doubles";
 export type TournamentStatus = "upcoming" | "ongoing" | "completed";
-export type TournamentFormat = "knockout" | "round_robin" | "group_stage" | "group_knockout";
+export type TournamentFormat = "knockout" | "round_robin" | "group_stage" | "group_knockout" | "round_robin_knockout";
 export type GroupDistributionMode = "random" | "balanced" | "manual";
 
 export interface ITournamentTeam {
@@ -108,7 +108,7 @@ export interface ITournamentMatch {
   roundNumber: number;
   roundLabel: string;
   matchNumber: number;
-  matchType: "league" | "semifinal" | "final" | "friendly" | "practice";
+  matchType: "league" | "quarterfinal" | "semifinal" | "third_place" | "final" | "friendly" | "practice";
   isManual: boolean;
   manualOverrideTeams: boolean;
   scheduledAt: Date | null;
@@ -134,6 +134,13 @@ export interface ITournament extends Document {
   groupCount: number | null;
   groupDistributionMode: GroupDistributionMode;
   teamsQualifyingPerGroup: number;
+  teamsPerGroup: number | null;
+  directQualifierCount: number;
+  qfQualifierCount: number;
+  matchDurationMinutes: number;
+  breakDurationMinutes: number;
+  assemblyTime: string;
+  closingEvent: string;
   enableManualGroupEditing: boolean;
   entryFee?: number;
   status: TournamentStatus;
@@ -278,7 +285,7 @@ const matchSchema = new Schema<ITournamentMatch>(
     matchNumber: { type: Number, required: true },
     matchType: {
       type: String,
-      enum: ["league", "semifinal", "final", "friendly", "practice"],
+      enum: ["league", "quarterfinal", "semifinal", "third_place", "final", "friendly", "practice"],
       default: "league",
     },
     isManual: { type: Boolean, default: false },
@@ -326,7 +333,7 @@ const tournamentSchema = new Schema<ITournament>(
     },
     format: {
       type: String,
-      enum: ["knockout", "round_robin", "group_stage", "group_knockout"],
+      enum: ["knockout", "round_robin", "group_stage", "group_knockout", "round_robin_knockout"],
       default: "knockout",
     },
     groupCount: {
@@ -345,6 +352,46 @@ const tournamentSchema = new Schema<ITournament>(
       min: 1,
       max: 8,
       default: 2,
+    },
+    teamsPerGroup: {
+      type: Number,
+      min: 2,
+      max: 32,
+      default: null,
+    },
+    directQualifierCount: {
+      type: Number,
+      min: 0,
+      max: 8,
+      default: 1,
+    },
+    qfQualifierCount: {
+      type: Number,
+      min: 0,
+      max: 8,
+      default: 2,
+    },
+    matchDurationMinutes: {
+      type: Number,
+      min: 1,
+      max: 240,
+      default: 10,
+    },
+    breakDurationMinutes: {
+      type: Number,
+      min: 0,
+      max: 240,
+      default: 10,
+    },
+    assemblyTime: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    closingEvent: {
+      type: String,
+      trim: true,
+      default: "",
     },
     enableManualGroupEditing: {
       type: Boolean,
@@ -434,4 +481,7 @@ tournamentSchema.index({ date: -1 });
 tournamentSchema.index({ status: 1 });
 
 export const Tournament = mongoose.model<ITournament>("Tournament", tournamentSchema);
+
+
+
 

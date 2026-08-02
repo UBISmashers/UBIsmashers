@@ -40,10 +40,17 @@ const tournamentSchema = z.object({
   time: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Time must be in HH:mm format").optional(),
   location: z.string().min(1, "Location is required"),
   type: z.enum(["singles", "doubles"]),
-  format: z.enum(["knockout", "round_robin", "group_stage", "group_knockout"]).optional(),
+  format: z.enum(["knockout", "round_robin", "group_stage", "group_knockout", "round_robin_knockout"]).optional(),
   groupCount: z.number().int().min(2).max(16).nullable().optional(),
   groupDistributionMode: z.enum(["random", "balanced", "manual"]).optional(),
   teamsQualifyingPerGroup: z.number().int().min(1).max(8).optional(),
+  teamsPerGroup: z.number().int().min(2).max(32).nullable().optional(),
+  directQualifierCount: z.number().int().min(0).max(8).optional(),
+  qfQualifierCount: z.number().int().min(0).max(8).optional(),
+  matchDurationMinutes: z.number().int().min(1).max(240).optional(),
+  breakDurationMinutes: z.number().int().min(0).max(240).optional(),
+  assemblyTime: z.string().optional(),
+  closingEvent: z.string().optional(),
   enableManualGroupEditing: z.boolean().optional(),
   entryFee: z.number().min(0).optional(),
   status: z.enum(["upcoming", "ongoing", "completed"]).optional(),
@@ -134,7 +141,7 @@ const playoffTeamsSchema = z.object({
 });
 
 const customMatchSchema = z.object({
-  matchType: z.enum(["league", "semifinal", "final", "friendly", "practice"]),
+  matchType: z.enum(["league", "quarterfinal", "semifinal", "third_place", "final", "friendly", "practice"]),
   teamAId: z.string().nullable(),
   teamBId: z.string().nullable(),
   scheduledAt: z.string().or(z.date()).nullable().optional(),
@@ -639,4 +646,6 @@ export const updateAdminTournamentIncome = async (req: Request, res: Response) =
     return res.status(500).json({ error: "Internal server error" });
   }
 };
+
+
 
