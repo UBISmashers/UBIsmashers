@@ -1122,7 +1122,6 @@ export default function Tournaments() {
                       <Input
                         type="number"
                         min={2}
-                        max={16}
                         placeholder="Auto"
                         value={form.groupCount}
                         onChange={(e) => setForm((prev) => ({ ...prev, groupCount: e.target.value }))}
@@ -1153,7 +1152,6 @@ export default function Tournaments() {
                       <Input
                         type="number"
                         min={1}
-                        max={8}
                         value={form.teamsQualifyingPerGroup}
                         onChange={(e) =>
                           setForm((prev) => ({ ...prev, teamsQualifyingPerGroup: e.target.value }))
@@ -1843,7 +1841,6 @@ This data cannot be recovered.`}
                               <Input
                                 type="number"
                                 min={2}
-                                max={16}
                                 placeholder="Auto"
                                 value={editForm.groupCount}
                                 onChange={(e) => setEditForm((prev) => ({ ...prev, groupCount: e.target.value }))}
@@ -1874,7 +1871,6 @@ This data cannot be recovered.`}
                               <Input
                                 type="number"
                                 min={1}
-                                max={8}
                                 value={editForm.teamsQualifyingPerGroup}
                                 onChange={(e) =>
                                   setEditForm((prev) => ({

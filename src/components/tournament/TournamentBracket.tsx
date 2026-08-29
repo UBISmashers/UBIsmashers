@@ -38,7 +38,8 @@ const compareMatchesBySchedule = (a: TournamentMatch, b: TournamentMatch) => {
 const getRoundSortKey = (match: TournamentMatch) => {
   const normalized = (match.roundLabel || "").trim();
   if (!normalized) return 9999;
-  if (/group stage/i.test(normalized) || /league stage/i.test(normalized)) return 0;
+  if (/league stage/i.test(normalized)) return -200_000;
+  if (/group stage/i.test(normalized) || /^group\s/i.test(normalized)) return -100_000;
   if (match.matchType === "final" || /final/i.test(normalized)) return 1_000_000;
   if (match.matchType === "semifinal" || /semi/i.test(normalized)) return 500_000;
   if (match.matchType === "quarterfinal" || /quarter/i.test(normalized)) return 250_000;
@@ -55,24 +56,36 @@ const getRoundSortKey = (match: TournamentMatch) => {
 export function TournamentBracket({ tournament, editable = false, onSubmitScore }: Props) {
   const [scoresByMatch, setScoresByMatch] = useState<Record<string, { scoreA: string; scoreB: string }>>({});
   const rounds = useMemo(() => {
-    const map = new Map<number, TournamentMatch[]>();
+    const map = new Map<string, { roundNumber: number; label: string; matches: TournamentMatch[] }>();
     tournament.matches.forEach((match) => {
-      if (!map.has(match.roundNumber)) map.set(match.roundNumber, []);
-      map.get(match.roundNumber)!.push(match);
+      // Group schedules reuse round numbers across groups.  Keep each group
+      // distinct so Group B matches never appear under a Group A header.
+      const isGroupRound = match.matchType === "league" && /^group\s/i.test(match.roundLabel || "");
+      const key = isGroupRound
+        ? `group:${match.roundLabel}:${match.roundNumber}`
+        : `round:${match.roundNumber}`;
+      if (!map.has(key)) {
+        map.set(key, {
+          roundNumber: match.roundNumber,
+          label: isGroupRound ? `${match.roundLabel} — Round ${match.roundNumber}` : match.roundLabel || `Round ${match.roundNumber}`,
+          matches: [],
+        });
+      }
+      map.get(key)!.matches.push(match);
     });
-    return [...map.entries()]
+    return [...map.values()]
       .sort((a, b) => {
-        const aMatch = a[1][0];
-        const bMatch = b[1][0];
+        const aMatch = a.matches[0];
+        const bMatch = b.matches[0];
         const aSort = aMatch ? getRoundSortKey(aMatch) : 9999;
         const bSort = bMatch ? getRoundSortKey(bMatch) : 9999;
         if (aSort !== bSort) return aSort - bSort;
-        return a[0] - b[0];
+        if (a.label !== b.label) return a.label.localeCompare(b.label, undefined, { numeric: true });
+        return a.roundNumber - b.roundNumber;
       })
-      .map(([roundNumber, matches]) => ({
-        roundNumber,
-        label: matches[0]?.roundLabel || `Round ${roundNumber}`,
-        matches: [...matches].sort(compareMatchesBySchedule),
+      .map((round) => ({
+        ...round,
+        matches: [...round.matches].sort(compareMatchesBySchedule),
       }));
   }, [tournament.matches]);
 
@@ -91,7 +104,7 @@ export function TournamentBracket({ tournament, editable = false, onSubmitScore 
       <div className="overflow-x-auto pb-2">
         <div className="flex min-w-max gap-4">
           {rounds.map((round) => (
-            <div key={round.roundNumber} className="w-[290px] shrink-0">
+            <div key={`${round.label}-${round.roundNumber}`} className="w-[290px] shrink-0">
               <div className="mb-3 rounded-md bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground">
                 {round.label}
               </div>

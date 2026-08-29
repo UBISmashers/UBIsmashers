@@ -624,6 +624,7 @@ const formatTournamentFormat = (format: Tournament["format"]) => {
   const labels: Record<Tournament["format"], string> = {
     knockout: "Knockout",
     round_robin: "Round Robin",
+    round_robin_knockout: "Round Robin + Knockout",
     group_stage: "Group Stage",
     group_knockout: "Group Stage + Knockout",
   };
@@ -683,7 +684,7 @@ const PrizeRow = ({
   gap = false,
 }: {
   label: string;
-  labelStyle: object;
+  labelStyle: any;
   gap?: boolean;
 }) => (
   <View style={[styles.prizeRow, gap && styles.prizeRowGap]}>

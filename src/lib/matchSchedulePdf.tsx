@@ -235,7 +235,8 @@ const buildScheduleRows = (
     const slotKey = `${match.scheduledAtDate.toISOString()}|${match.roundLabel || ""}`;
     const timeLabel = getTimeRange(match);
     const teamLabel = `${match.teamA?.name || "TBD"} vs ${match.teamB?.name || "TBD"}`;
-    const entry = slots.get(slotKey) || {
+    const existing = slots.get(slotKey);
+    const entry: Extract<ScheduleRow, { type: "match" }> = existing?.type === "match" ? existing : {
       type: "match",
       timeLabel,
       roundLabel: match.roundLabel || "",
@@ -251,7 +252,9 @@ const buildScheduleRows = (
     const aTime = a.timeLabel;
     const bTime = b.timeLabel;
     if (aTime !== bTime) return aTime.localeCompare(bTime, undefined, { numeric: true });
-    return a.roundLabel.localeCompare(b.roundLabel, undefined, { numeric: true });
+    const aRound = a.type === "match" ? a.roundLabel : "";
+    const bRound = b.type === "match" ? b.roundLabel : "";
+    return aRound.localeCompare(bRound, undefined, { numeric: true });
   });
 };
 
@@ -275,7 +278,7 @@ const insertBreaks = (
   if (groupRows.length > 0 && knockoutRows.length > 0) {
     const lastGroup = groupRows[groupRows.length - 1];
     const firstKnockout = knockoutRows[0];
-    const insertIndex = rowsWithBreaks.findIndex((row) => row.timeLabel === getTimeRange(lastGroup) && row.roundLabel === lastGroup.roundLabel);
+    const insertIndex = rowsWithBreaks.findIndex((row) => row.type === "match" && row.timeLabel === getTimeRange(lastGroup) && row.roundLabel === lastGroup.roundLabel);
     if (insertIndex >= 0) {
       rowsWithBreaks.splice(insertIndex + 1, 0, {
         type: "break",
@@ -290,7 +293,7 @@ const insertBreaks = (
   const finalMatches = scheduledMatches.filter((match) => match.matchType === "final");
   if (semiMatches.length > 0 && finalMatches.length > 0) {
     const lastSemi = semiMatches[semiMatches.length - 1];
-    const insertIndex = rowsWithBreaks.findIndex((row) => row.timeLabel === getTimeRange(lastSemi) && row.roundLabel === lastSemi.roundLabel);
+    const insertIndex = rowsWithBreaks.findIndex((row) => row.type === "match" && row.timeLabel === getTimeRange(lastSemi) && row.roundLabel === lastSemi.roundLabel);
     if (insertIndex >= 0) {
       rowsWithBreaks.splice(insertIndex + 1, 0, {
         type: "break",
@@ -303,7 +306,7 @@ const insertBreaks = (
 
   const finalMatch = scheduledMatches.find((match) => match.matchType === "final");
   if (finalMatch) {
-    const insertIndex = rowsWithBreaks.findIndex((row) => row.timeLabel === getTimeRange(finalMatch) && row.roundLabel === finalMatch.roundLabel);
+    const insertIndex = rowsWithBreaks.findIndex((row) => row.type === "match" && row.timeLabel === getTimeRange(finalMatch) && row.roundLabel === finalMatch.roundLabel);
     if (insertIndex >= 0) {
       rowsWithBreaks.splice(insertIndex + 1, 0, {
         type: "break",

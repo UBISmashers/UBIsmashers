@@ -64,7 +64,8 @@ const getFeedbackUserId = () => {
 const getSubmittedFeedbackIds = () => {
   if (typeof window === "undefined") return new Set<string>();
   try {
-    return new Set(JSON.parse(window.localStorage.getItem(submittedFeedbackStorageKey) || "[]"));
+    const parsed: unknown = JSON.parse(window.localStorage.getItem(submittedFeedbackStorageKey) || "[]");
+    return new Set<string>(Array.isArray(parsed) ? parsed.filter((value): value is string => typeof value === "string") : []);
   } catch {
     return new Set<string>();
   }

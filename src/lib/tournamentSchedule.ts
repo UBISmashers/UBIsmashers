@@ -147,7 +147,7 @@ export const buildScheduleRows = (matches: TournamentMatch[]): ScheduleRow[] => 
     previousTeams = new Map(currentTeams);
   });
 
-  const rows = matches.map((match) => {
+  const rows: ScheduleRow[] = matches.map((match) => {
     const slotStart = match.scheduledAt ? new Date(match.scheduledAt) : null;
     const slotKey = slotStart ? slotStart.toISOString() : `unscheduled-${match.matchId}`;
     const slotLabel = formatScheduleTime(match.scheduledAt);

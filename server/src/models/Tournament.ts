@@ -123,8 +123,10 @@ export interface ITournamentMatch {
   court_name?: string | null;
   teamAId: mongoose.Types.ObjectId | null;
   teamBId: mongoose.Types.ObjectId | null;
-  previousMatchAId?: mongoose.Types.ObjectId | string | null;
-  previousMatchBId?: mongoose.Types.ObjectId | string | null;
+  // These refer to `matchId`, not Mongo document ids.  Keep them as strings so
+  // values such as `KO-R1-M1` survive persistence.
+  previousMatchAId?: string | null;
+  previousMatchBId?: string | null;
   scoreA: number | null;
   scoreB: number | null;
   winnerTeamId: mongoose.Types.ObjectId | null;
@@ -304,8 +306,8 @@ const matchSchema = new Schema<ITournamentMatch>(
     court_name: { type: String, trim: true, default: null },
     teamAId: { type: Schema.Types.ObjectId, default: null },
     teamBId: { type: Schema.Types.ObjectId, default: null },
-    previousMatchAId: { type: Schema.Types.ObjectId, default: null },
-    previousMatchBId: { type: Schema.Types.ObjectId, default: null },
+    previousMatchAId: { type: String, default: null },
+    previousMatchBId: { type: String, default: null },
     scoreA: { type: Number, default: null },
     scoreB: { type: Number, default: null },
     winnerTeamId: { type: Schema.Types.ObjectId, default: null },
@@ -348,7 +350,6 @@ const tournamentSchema = new Schema<ITournament>(
     groupCount: {
       type: Number,
       min: 2,
-      max: 16,
       default: null,
     },
     groupDistributionMode: {
@@ -359,13 +360,11 @@ const tournamentSchema = new Schema<ITournament>(
     teamsQualifyingPerGroup: {
       type: Number,
       min: 1,
-      max: 8,
       default: 2,
     },
     teamsPerGroup: {
       type: Number,
       min: 2,
-      max: 32,
       default: null,
     },
     directQualifierCount: {
