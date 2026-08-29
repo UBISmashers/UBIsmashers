@@ -728,7 +728,7 @@ class ApiClient {
   async createTournamentCustomMatch(
     id: string,
     data: {
-      matchType: "league" | "semifinal" | "final" | "friendly" | "practice";
+      matchType: "league" | "quarterfinal" | "semifinal" | "third_place" | "final" | "round_of_16" | "round_of_32" | "round_of_64" | "friendly" | "practice";
       teamAId: string | null;
       teamBId: string | null;
       scheduledAt?: string | null;

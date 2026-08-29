@@ -248,6 +248,15 @@ const statusContent: Record<QualificationStatus, { label: string; className: str
     icon: null,
   },
 };
+export const getQualifiedTeamsFromGroups = (
+  standingsGroups: StandingsGroup[],
+  qualifyingCount: number
+) => {
+  return standingsGroups.map(group => ({
+    group: group.label,
+    qualified: group.rows.slice(0, qualifyingCount)
+  }));
+};
 
 function QualificationBadge({ status }: { status: QualificationStatus }) {
   if (status === "none") return null;

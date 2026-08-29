@@ -141,7 +141,7 @@ const playoffTeamsSchema = z.object({
 });
 
 const customMatchSchema = z.object({
-  matchType: z.enum(["league", "quarterfinal", "semifinal", "third_place", "final", "friendly", "practice"]),
+  matchType: z.enum(["league", "quarterfinal", "semifinal", "third_place", "final", "round_of_16", "round_of_32", "round_of_64", "friendly", "practice"]),
   teamAId: z.string().nullable(),
   teamBId: z.string().nullable(),
   scheduledAt: z.string().or(z.date()).nullable().optional(),

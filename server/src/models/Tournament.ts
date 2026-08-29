@@ -2,7 +2,12 @@ import mongoose, { Document, Schema } from "mongoose";
 
 export type TournamentType = "singles" | "doubles";
 export type TournamentStatus = "upcoming" | "ongoing" | "completed";
-export type TournamentFormat = "knockout" | "round_robin" | "group_stage" | "group_knockout" | "round_robin_knockout";
+export type TournamentFormat =
+  | "knockout"
+  | "round_robin"
+  | "round_robin_knockout"
+  | "group_stage"
+  | "group_knockout";
 export type GroupDistributionMode = "random" | "balanced" | "manual";
 
 export interface ITournamentTeam {
@@ -108,7 +113,7 @@ export interface ITournamentMatch {
   roundNumber: number;
   roundLabel: string;
   matchNumber: number;
-  matchType: "league" | "quarterfinal" | "semifinal" | "third_place" | "final" | "friendly" | "practice";
+  matchType: "league" | "quarterfinal" | "semifinal" | "third_place" | "final" | "round_of_16" | "round_of_32" | "round_of_64" | "friendly" | "practice";
   isManual: boolean;
   manualOverrideTeams: boolean;
   scheduledAt: Date | null;
@@ -118,6 +123,8 @@ export interface ITournamentMatch {
   court_name?: string | null;
   teamAId: mongoose.Types.ObjectId | null;
   teamBId: mongoose.Types.ObjectId | null;
+  previousMatchAId?: mongoose.Types.ObjectId | string | null;
+  previousMatchBId?: mongoose.Types.ObjectId | string | null;
   scoreA: number | null;
   scoreB: number | null;
   winnerTeamId: mongoose.Types.ObjectId | null;
@@ -285,7 +292,7 @@ const matchSchema = new Schema<ITournamentMatch>(
     matchNumber: { type: Number, required: true },
     matchType: {
       type: String,
-      enum: ["league", "quarterfinal", "semifinal", "third_place", "final", "friendly", "practice"],
+      enum: ["league", "quarterfinal", "semifinal", "third_place", "final", "round_of_16", "round_of_32", "round_of_64", "friendly", "practice"],
       default: "league",
     },
     isManual: { type: Boolean, default: false },
@@ -297,6 +304,8 @@ const matchSchema = new Schema<ITournamentMatch>(
     court_name: { type: String, trim: true, default: null },
     teamAId: { type: Schema.Types.ObjectId, default: null },
     teamBId: { type: Schema.Types.ObjectId, default: null },
+    previousMatchAId: { type: Schema.Types.ObjectId, default: null },
+    previousMatchBId: { type: Schema.Types.ObjectId, default: null },
     scoreA: { type: Number, default: null },
     scoreB: { type: Number, default: null },
     winnerTeamId: { type: Schema.Types.ObjectId, default: null },

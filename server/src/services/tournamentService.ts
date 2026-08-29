@@ -19,11 +19,62 @@ const toNumber = (value: unknown) => Number(value || 0);
 const getRoundLabel = (roundNumber: number, totalRounds: number) => {
   if (totalRounds <= 0) return `Round ${roundNumber}`;
   if (roundNumber === totalRounds) return "Final";
-  if (roundNumber === totalRounds - 1) return "Semi Finals";
-  if (roundNumber === totalRounds - 2) return "Quarter Finals";
+  if (roundNumber === totalRounds - 1) return "Semi Final";
+  if (roundNumber === totalRounds - 2) return "Quarter Final";
   const players = 2 ** (totalRounds - roundNumber + 1);
   if (players > 2) return `Round of ${players}`;
   return `Round ${roundNumber}`;
+};
+
+const getBracketRoundLabel = (bracketSize: number) => {
+  if (bracketSize <= 1) return "Final";
+  if (bracketSize === 2) return "Final";
+  if (bracketSize === 4) return "Semi Final";
+  if (bracketSize === 8) return "Quarter Final";
+  if (bracketSize === 16) return "Round of 16";
+  if (bracketSize === 32) return "Round of 32";
+  if (bracketSize === 64) return "Round of 64";
+  return `Round of ${bracketSize}`;
+};
+
+const getBracketMatchType = (bracketSize: number): ITournamentMatch["matchType"] => {
+  if (bracketSize <= 2) return "final";
+  if (bracketSize <= 4) return "semifinal";
+  if (bracketSize <= 8) return "quarterfinal";
+  if (bracketSize <= 16) return "round_of_16";
+  if (bracketSize <= 32) return "round_of_32";
+  if (bracketSize <= 64) return "round_of_64";
+  return "round_of_64";
+};
+
+export const getDynamicKnockoutConfig = (groupCount: number, teamsQualifyingPerGroup: number) => {
+  const effectiveGroups = Math.max(1, Number(groupCount) || 1);
+  const qualifiersPerGroup = Math.max(1, Number(teamsQualifyingPerGroup) || 1);
+  const totalQualified = Math.min(effectiveGroups * qualifiersPerGroup, 64);
+  const bracketSize = nextPowerOfTwo(Math.max(2, totalQualified));
+  const rounds: Array<{ roundNumber: number; roundLabel: string; matchType: ITournamentMatch["matchType"]; matchCount: number; bracketSize: number }> = [];
+  let currentSize = bracketSize;
+  let roundNumber = 1;
+
+  while (currentSize > 1) {
+    rounds.push({
+      roundNumber,
+      roundLabel: getBracketRoundLabel(currentSize),
+      matchType: getBracketMatchType(currentSize),
+      matchCount: currentSize / 2,
+      bracketSize: currentSize,
+    });
+    currentSize /= 2;
+    roundNumber += 1;
+  }
+
+  return {
+    groupCount: effectiveGroups,
+    teamsQualifyingPerGroup: qualifiersPerGroup,
+    totalQualified,
+    bracketSize,
+    rounds,
+  };
 };
 
 const nextPowerOfTwo = (value: number) => {
@@ -210,12 +261,16 @@ const setNextRoundSlot = (
   matchNumber: number,
   winnerTeamId: mongoose.Types.ObjectId | null
 ) => {
+  const currentMatch = findMatch(matches, roundNumber, matchNumber);
   const nextMatch = findMatch(matches, roundNumber + 1, Math.ceil(matchNumber / 2));
-  if (!nextMatch) return;
+  if (!nextMatch || !currentMatch) return;
+
   if (matchNumber % 2 === 1) {
     nextMatch.teamAId = winnerTeamId;
+    nextMatch.previousMatchAId = currentMatch.matchId;
   } else {
     nextMatch.teamBId = winnerTeamId;
+    nextMatch.previousMatchBId = currentMatch.matchId;
   }
 };
 
@@ -262,6 +317,8 @@ const resetDerivedMatches = (matches: ITournamentMatch[]) => {
       match.teamAId = null;
       match.teamBId = null;
     }
+    match.previousMatchAId = null;
+    match.previousMatchBId = null;
     match.scoreA = null;
     match.scoreB = null;
     match.winnerTeamId = null;
@@ -583,7 +640,7 @@ const reconcileRoundRobinPlayoffState = (tournament: ITournament) => {
   final.winnerTeamId = final.scoreA > final.scoreB ? final.teamAId : final.teamBId;
 };
 
-const buildGroupKnockoutMatches = (
+export const buildGroupKnockoutMatches = (
   teams: ITournament["teams"],
   options: {
     groupCount?: number | null;
@@ -615,6 +672,8 @@ const buildGroupKnockoutMatches = (
     scheduledMatches.forEach((match) => {
       match.matchNumber = matchNumber;
       match.matchId = `GR-${String.fromCharCode(65 + groupIndex)}-R${match.roundNumber}-M${matchNumber}`;
+      match.previousMatchAId = null;
+      match.previousMatchBId = null;
       groupMatches.push(match);
       matchNumber += 1;
     });
@@ -623,28 +682,38 @@ const buildGroupKnockoutMatches = (
   groups.forEach((groupTeams, index) => pushGroupMatches(getGroupLabel(index), index, groupTeams));
 
   const qualifierCount = Math.min(activeTeamIds.length, groups.length * teamsQualifyingPerGroup);
-  const knockoutSize = nextPowerOfTwo(Math.max(2, qualifierCount));
-  const knockoutRounds = Math.log2(knockoutSize);
+  const config = getDynamicKnockoutConfig(groups.length, teamsQualifyingPerGroup);
+  const knockoutSize = config.bracketSize;
+  const knockoutRounds = config.rounds.length;
   const knockoutMatches: ITournamentMatch[] = [];
 
   for (let knockoutRound = 1; knockoutRound <= knockoutRounds; knockoutRound += 1) {
     const roundNumber = knockoutRound + 1;
-    const matchCount = knockoutSize / 2 ** knockoutRound;
+    const configEntry = config.rounds[knockoutRound - 1];
+    const matchCount = configEntry?.matchCount ?? knockoutSize / 2 ** knockoutRound;
+    const previousRoundMatches = knockoutMatches.filter((match) => match.roundNumber === roundNumber - 1);
+
     for (let knockoutMatchNumber = 1; knockoutMatchNumber <= matchCount; knockoutMatchNumber += 1) {
+      const matchId =
+        knockoutRound === knockoutRounds
+          ? "KO-FINAL"
+          : `KO-R${knockoutRound}-M${knockoutMatchNumber}`;
+
+      const previousMatchAId =
+        knockoutRound > 1 && previousRoundMatches.length > 0
+          ? previousRoundMatches[(knockoutMatchNumber - 1) * 2]?.matchId || null
+          : null;
+      const previousMatchBId =
+        knockoutRound > 1 && previousRoundMatches.length > 0
+          ? previousRoundMatches[(knockoutMatchNumber - 1) * 2 + 1]?.matchId || null
+          : null;
+
       knockoutMatches.push({
-        matchId:
-          knockoutRound === knockoutRounds
-            ? "KO-FINAL"
-            : `KO-R${knockoutRound}-M${knockoutMatchNumber}`,
+        matchId,
         roundNumber,
-        roundLabel: getRoundLabel(knockoutRound, knockoutRounds),
+        roundLabel: configEntry?.roundLabel || getRoundLabel(knockoutRound, knockoutRounds),
         matchNumber: knockoutMatchNumber,
-        matchType:
-          knockoutRound === knockoutRounds
-            ? "final"
-            : knockoutRound === knockoutRounds - 1
-            ? "semifinal"
-            : "league",
+        matchType: configEntry?.matchType || "league",
         isManual: false,
         manualOverrideTeams: false,
         scheduledAt: null,
@@ -652,6 +721,8 @@ const buildGroupKnockoutMatches = (
         court: null,
         teamAId: null,
         teamBId: null,
+        previousMatchAId,
+        previousMatchBId,
         scoreA: null,
         scoreB: null,
         winnerTeamId: null,
@@ -660,7 +731,7 @@ const buildGroupKnockoutMatches = (
     }
   }
 
-  return { matches: [...groupMatches, ...knockoutMatches], totalRounds: knockoutRounds + 1 };
+  return { matches: [...groupMatches, ...knockoutMatches], totalRounds: knockoutRounds + 1, qualifierCount };
 };
 
 const buildRoundRobinKnockoutMatches = (
@@ -933,6 +1004,65 @@ const reconcileRoundRobinState = (tournament: ITournament) => {
   }
 };
 
+const buildRankedGroupQualifiers = (
+  standingsByGroup: TeamStanding[][],
+  qualifiersPerGroup: number
+): Array<mongoose.Types.ObjectId | null> => {
+  const seededQualifications: Array<mongoose.Types.ObjectId | null> = [];
+
+  for (let rankIndex = 0; rankIndex < qualifiersPerGroup; rankIndex += 1) {
+    standingsByGroup.forEach((standings) => {
+      const teamId = standings[rankIndex]?.teamId || null;
+      if (teamId) {
+        seededQualifications.push(teamId);
+      }
+    });
+  }
+
+  return seededQualifications;
+};
+
+const buildTwoGroupBalancedPairs = (
+  standingsByGroup: TeamStanding[][],
+  qualifiersPerGroup: number
+): Array<[mongoose.Types.ObjectId | null, mongoose.Types.ObjectId | null]> => {
+  const [groupA, groupB] = standingsByGroup;
+  if (!groupA || !groupB) {
+    return [];
+  }
+
+  const firstGroup = groupA.slice(0, qualifiersPerGroup).map((entry) => entry.teamId || null);
+  const secondGroup = groupB.slice(0, qualifiersPerGroup).map((entry) => entry.teamId || null);
+
+  if (qualifiersPerGroup === 1) {
+    return [[firstGroup[0] || null, secondGroup[0] || null]];
+  }
+
+  if (qualifiersPerGroup === 2) {
+    return [
+      [firstGroup[0] || null, secondGroup[1] || null],
+      [secondGroup[0] || null, firstGroup[1] || null],
+    ];
+  }
+
+  const pairs: Array<[mongoose.Types.ObjectId | null, mongoose.Types.ObjectId | null]> = [];
+  const half = Math.ceil(qualifiersPerGroup / 2);
+
+  for (let index = 0; index < half; index += 1) {
+    const aTeam = firstGroup[index] || null;
+    const bTeam = secondGroup[qualifiersPerGroup - 1 - index] || null;
+    pairs.push([aTeam, bTeam]);
+  }
+
+  for (let index = 0; index < qualifiersPerGroup - half; index += 1) {
+    const bTeam = secondGroup[index] || null;
+    const aTeam = firstGroup[qualifiersPerGroup - 1 - index] || null;
+    pairs.push([bTeam, aTeam]);
+  }
+
+  return pairs.slice(0, Math.max(1, qualifiersPerGroup));
+};
+
 const seedGroupKnockoutSlots = (tournament: ITournament) => {
   const groupMatches = tournament.matches.filter(
     (match) => !match.isManual && match.roundNumber === 1 && isGroupLeagueMatch(match)
@@ -975,24 +1105,12 @@ const seedGroupKnockoutSlots = (tournament: ITournament) => {
   const qualifiersPerGroup = Math.max(1, tournament.teamsQualifyingPerGroup || 2);
   const matchupPairs: Array<[mongoose.Types.ObjectId | null, mongoose.Types.ObjectId | null]> = [];
 
-  for (let i = 0; i < standingsByGroup.length; i += 2) {
-    const current = standingsByGroup[i] || [];
-    const next = standingsByGroup[i + 1] || [];
-
-    if (next.length > 0) {
-      if (qualifiersPerGroup >= 2) {
-        matchupPairs.push([current[0]?.teamId || null, next[1]?.teamId || null]);
-        matchupPairs.push([next[0]?.teamId || null, current[1]?.teamId || null]);
-        for (let rank = 2; rank < qualifiersPerGroup; rank += 1) {
-          matchupPairs.push([current[rank]?.teamId || null, next[rank]?.teamId || null]);
-        }
-      } else {
-        matchupPairs.push([current[0]?.teamId || null, next[0]?.teamId || null]);
-      }
-    } else {
-      for (let rank = 0; rank < qualifiersPerGroup; rank += 1) {
-        matchupPairs.push([current[rank]?.teamId || null, null]);
-      }
+  if (standingsByGroup.length === 2) {
+    matchupPairs.push(...buildTwoGroupBalancedPairs(standingsByGroup, qualifiersPerGroup));
+  } else {
+    const seededQualifications = buildRankedGroupQualifiers(standingsByGroup, qualifiersPerGroup);
+    for (let index = 0; index < seededQualifications.length; index += 2) {
+      matchupPairs.push([seededQualifications[index] || null, seededQualifications[index + 1] || null]);
     }
   }
 
@@ -2409,7 +2527,7 @@ export const updatePlayoffTeams = async (
   const match = tournament.matches.find((item) => item.matchId === matchId);
   if (!match) return { error: "Match not found", status: 404 as const };
 
-  const matchType = match.matchType || (match.roundLabel?.toLowerCase().includes("semi") ? "semifinal" : match.roundLabel === "Final" ? "final" : "league");
+  const matchType = match.matchType || (match.roundLabel?.toLowerCase().includes("semi") ? "semifinal" : match.roundLabel === "Final" ? "final" : match.roundLabel.toLowerCase().includes("quarter") ? "quarterfinal" : match.roundLabel.toLowerCase().includes("round of 16") ? "round_of_16" : match.roundLabel.toLowerCase().includes("round of 32") ? "round_of_32" : match.roundLabel.toLowerCase().includes("round of 64") ? "round_of_64" : "league");
   if (matchType !== "semifinal" && matchType !== "final") {
     return { error: "Only semifinal and final teams can be edited", status: 400 as const };
   }

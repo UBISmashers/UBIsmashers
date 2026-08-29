@@ -13,6 +13,7 @@ const statusStyle: Record<Tournament["status"], string> = {
 const formatLabel: Record<Tournament["format"], string> = {
   knockout: "Knockout",
   round_robin: "Round Robin",
+  round_robin_knockout: "Round Robin + Knockout",
   group_stage: "Group Stage",
   group_knockout: "Group + Knockout",
 };
@@ -55,6 +56,17 @@ export function TournamentOverview({ tournament }: { tournament: Tournament }) {
             <span>Entry Fee: {tournament.entryFee ? `$${tournament.entryFee}` : "Free"}</span>
           </div>
         </div>
+
+        {(tournament.format === "group_stage" || tournament.format === "group_knockout") && (
+          <div className="mt-4 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+            <Badge variant="outline">Groups: {tournament.groupCount || 0}</Badge>
+            <Badge variant="outline">Qualify: {tournament.teamsQualifyingPerGroup || 2} / group</Badge>
+            <Badge variant="outline">
+              Total qualifiers: {Math.max(1, (tournament.groupCount || 0) * (tournament.teamsQualifyingPerGroup || 2))}
+            </Badge>
+            <Badge variant="outline">Teams: {tournament.teams.length}</Badge>
+          </div>
+        )}
 
         {tournament.championTeam && (
           <div className="mt-5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4">

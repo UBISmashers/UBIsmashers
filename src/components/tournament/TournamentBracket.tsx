@@ -35,6 +35,23 @@ const compareMatchesBySchedule = (a: TournamentMatch, b: TournamentMatch) => {
   return a.matchId.localeCompare(b.matchId);
 };
 
+const getRoundSortKey = (match: TournamentMatch) => {
+  const normalized = (match.roundLabel || "").trim();
+  if (!normalized) return 9999;
+  if (/group stage/i.test(normalized) || /league stage/i.test(normalized)) return 0;
+  if (match.matchType === "final" || /final/i.test(normalized)) return 1_000_000;
+  if (match.matchType === "semifinal" || /semi/i.test(normalized)) return 500_000;
+  if (match.matchType === "quarterfinal" || /quarter/i.test(normalized)) return 250_000;
+  if (match.matchType === "round_of_16" || /round of 16/i.test(normalized)) return 125_000;
+  if (match.matchType === "round_of_32" || /round of 32/i.test(normalized)) return 62_500;
+  if (match.matchType === "round_of_64" || /round of 64/i.test(normalized)) return 31_250;
+  const roundOfMatch = normalized.match(/round of (\d+)/i);
+  if (roundOfMatch) return Number(roundOfMatch[1]) * 100;
+  const directMatch = normalized.match(/(\d+)/);
+  if (directMatch) return Number(directMatch[1]) * 100;
+  return 9999;
+};
+
 export function TournamentBracket({ tournament, editable = false, onSubmitScore }: Props) {
   const [scoresByMatch, setScoresByMatch] = useState<Record<string, { scoreA: string; scoreB: string }>>({});
   const rounds = useMemo(() => {
@@ -44,11 +61,18 @@ export function TournamentBracket({ tournament, editable = false, onSubmitScore 
       map.get(match.roundNumber)!.push(match);
     });
     return [...map.entries()]
-      .sort((a, b) => a[0] - b[0])
+      .sort((a, b) => {
+        const aMatch = a[1][0];
+        const bMatch = b[1][0];
+        const aSort = aMatch ? getRoundSortKey(aMatch) : 9999;
+        const bSort = bMatch ? getRoundSortKey(bMatch) : 9999;
+        if (aSort !== bSort) return aSort - bSort;
+        return a[0] - b[0];
+      })
       .map(([roundNumber, matches]) => ({
         roundNumber,
         label: matches[0]?.roundLabel || `Round ${roundNumber}`,
-        matches: matches.sort(compareMatchesBySchedule),
+        matches: [...matches].sort(compareMatchesBySchedule),
       }));
   }, [tournament.matches]);
 

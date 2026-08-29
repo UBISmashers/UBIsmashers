@@ -1,8 +1,23 @@
 export type TournamentType = "singles" | "doubles";
 export type TournamentStatus = "upcoming" | "ongoing" | "completed";
-export type TournamentFormat = "knockout" | "round_robin" | "group_stage" | "group_knockout" | "round_robin_knockout";
+export type TournamentFormat =
+  | "knockout"
+  | "round_robin"
+  | "round_robin_knockout"
+  | "group_stage"
+  | "group_knockout";
 export type GroupDistributionMode = "random" | "balanced" | "manual";
-export type TournamentMatchType = "league" | "quarterfinal" | "semifinal" | "third_place" | "final" | "friendly" | "practice";
+export type TournamentMatchType =
+  | "league"
+  | "quarterfinal"
+  | "semifinal"
+  | "third_place"
+  | "final"
+  | "round_of_16"
+  | "round_of_32"
+  | "round_of_64"
+  | "friendly"
+  | "practice";
 export type TournamentRegistrationStatus = "pending" | "accepted" | "rejected";
 export type RegistrationGender = "male" | "female" | "other";
 
@@ -44,6 +59,8 @@ export interface TournamentMatch {
   court_name?: string | null;
   teamAId: string | null;
   teamBId: string | null;
+  previousMatchAId?: string | null;
+  previousMatchBId?: string | null;
   scoreA: number | null;
   scoreB: number | null;
   winnerTeamId: string | null;
