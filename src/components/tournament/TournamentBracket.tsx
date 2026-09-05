@@ -57,14 +57,15 @@ export function TournamentBracket({ tournament, editable = false, onSubmitScore 
   const [scoresByMatch, setScoresByMatch] = useState<Record<string, { scoreA: string; scoreB: string }>>({});
   const rounds = useMemo(() => {
     const map = new Map<string, { roundNumber: number; label: string; matches: TournamentMatch[] }>();
-    const bracketMatches = tournament.format === "round_robin_knockout"
-      ? tournament.matches.filter((match) => match.matchType === "semifinal" || match.matchType === "final")
-      : tournament.matches;
+    const bracketMatches = tournament.matches;
     bracketMatches.forEach((match) => {
       // Group schedules reuse round numbers across groups.  Keep each group
       // distinct so Group B matches never appear under a Group A header.
       const isGroupRound = match.matchType === "league" && /^group\s/i.test(match.roundLabel || "");
-      const key = isGroupRound
+      const isRoundRobinKnockoutLeague = tournament.format === "round_robin_knockout" && match.matchType === "league";
+      const key = isRoundRobinKnockoutLeague
+        ? "rrko:league-stage"
+        : isGroupRound
         ? `group:${match.roundLabel}:${match.roundNumber}`
         : `round:${match.roundNumber}`;
       if (!map.has(key)) {
@@ -75,6 +76,7 @@ export function TournamentBracket({ tournament, editable = false, onSubmitScore 
         });
       }
       map.get(key)!.matches.push(match);
+      if (isRoundRobinKnockoutLeague) map.get(key)!.label = "League Stage";
     });
     return [...map.values()]
       .sort((a, b) => {
@@ -113,8 +115,10 @@ export function TournamentBracket({ tournament, editable = false, onSubmitScore 
               </div>
               <div className="space-y-3">
                 {round.matches.map((match) => {
-                  const teamAName = match.teamA?.name || "TBD";
-                  const teamBName = match.teamB?.name || "TBD";
+                  const teamAName = match.teamA?.name ||
+                    (tournament.format === "round_robin_knockout" && match.previousMatchAId ? "Winner of Semi Final 1" : "TBD");
+                  const teamBName = match.teamB?.name ||
+                    (tournament.format === "round_robin_knockout" && match.previousMatchBId ? "Winner of Semi Final 2" : "TBD");
                   const winnerId = match.winnerTeamId;
                   const teamAIsWinner = Boolean(match.teamAId && winnerId && match.teamAId === winnerId);
                   const teamBIsWinner = Boolean(match.teamBId && winnerId && match.teamBId === winnerId);

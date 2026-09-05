@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { buildGroupKnockoutMatches, buildRoundRobinKnockoutMatches, getDynamicKnockoutConfig } from "./tournamentService";
+import {
+  buildGroupKnockoutMatches,
+  buildRoundRobinKnockoutLeagueMatches,
+  buildRoundRobinKnockoutMatches,
+  getDynamicKnockoutConfig,
+} from "./tournamentService";
 
 const makeTeams = (count: number): Array<{ _id: string; name: string; players: string[] }> =>
   Array.from({ length: count }, (_, index) => ({
@@ -113,23 +118,31 @@ describe("dynamic group knockout configuration", () => {
 });
 
 describe("round robin + knockout fixed top-four playoff", () => {
-  it.each([6, 8, 10, 16])("creates a full league and exactly two semi-finals plus one final for %i teams", (teamCount) => {
-    const result = buildRoundRobinKnockoutMatches(makeTeams(teamCount) as any);
-    const leagueMatches = result.matches.filter((match) => match.matchType === "league");
-    const knockoutMatches = result.matches.filter((match) => match.matchType !== "league");
+  it.each([6, 8, 10, 16])("creates league fixtures only for %i teams", (teamCount) => {
+    const result = buildRoundRobinKnockoutLeagueMatches(makeTeams(teamCount) as any);
 
-    expect(leagueMatches).toHaveLength((teamCount * (teamCount - 1)) / 2);
-    expect(knockoutMatches).toHaveLength(3);
-    expect(knockoutMatches.filter((match) => match.matchType === "semifinal")).toHaveLength(2);
-    expect(knockoutMatches.filter((match) => match.matchType === "final")).toHaveLength(1);
-    expect(knockoutMatches.map((match) => match.roundLabel)).toEqual(["Semi Final 1", "Semi Final 2", "Final"]);
-    expect(knockoutMatches.some((match) => ["quarterfinal", "round_of_16", "round_of_32", "round_of_64"].includes(match.matchType))).toBe(false);
+    expect(result.matches).toHaveLength((teamCount * (teamCount - 1)) / 2);
+    expect(result.matches.every((match) => match.matchType === "league" && match.teamAId && match.teamBId)).toBe(true);
   });
 
-  it("links the final to the two semi-final winners", () => {
-    const result = buildRoundRobinKnockoutMatches(makeTeams(10) as any);
+  it("creates only the fixed top-four playoff after league completion", () => {
+    const teams = makeTeams(6);
+    const standings = teams.map((team, index) => ({
+      teamId: team._id,
+      points: 12 - index,
+      wins: 6 - index,
+      pointsFor: 20 - index,
+      pointsAgainst: index,
+    }));
+    const result = buildRoundRobinKnockoutMatches(standings as any, 5);
     const final = result.matches.find((match) => match.matchId === "RRKO-FINAL");
 
+    expect(result.matches).toHaveLength(3);
+    expect(result.matches.map((match) => match.roundLabel)).toEqual(["Semi Final 1", "Semi Final 2", "Final"]);
+    expect(result.matches[0].teamAId).toBe("team-1");
+    expect(result.matches[0].teamBId).toBe("team-4");
+    expect(result.matches[1].teamAId).toBe("team-2");
+    expect(result.matches[1].teamBId).toBe("team-3");
     expect(final?.previousMatchAId).toBe("RRKO-SF1");
     expect(final?.previousMatchBId).toBe("RRKO-SF2");
   });

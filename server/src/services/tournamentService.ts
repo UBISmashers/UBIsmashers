@@ -748,17 +748,19 @@ export const buildGroupKnockoutMatches = (
   return { matches: [...groupMatches, ...knockoutMatches], totalRounds: groupRoundCount + knockoutRounds, qualifierCount };
 };
 
-export const buildRoundRobinKnockoutMatches = (
-  teams: ITournament["teams"]
-) => {
-  // This format is one league table, not a group format.  Its playoff is
-  // deliberately fixed: ranks 1/4 and 2/3 meet in the semi-finals, then the
-  // two winners meet in the final.
-  const leagueMatches = buildRoundRobinSchedule(teams.map((team) => team._id), {
+export const buildRoundRobinKnockoutLeagueMatches = (teams: ITournament["teams"]) => {
+  const matches = buildRoundRobinSchedule(teams.map((team) => team._id), {
     matchIdPrefix: "RRKO",
     roundLabelPrefix: "League Stage",
   });
-  const leagueRoundCount = Math.max(1, ...leagueMatches.map((match) => match.roundNumber));
+  return { matches, totalRounds: Math.max(1, ...matches.map((match) => match.roundNumber)) };
+};
+
+export const buildRoundRobinKnockoutMatches = (
+  standings: TeamStanding[],
+  leagueRoundCount: number
+) => {
+  // The only permitted knockout structure is 1st v 4th, 2nd v 3rd, then final.
   const makePlayoffMatch = (
     matchId: string,
     roundNumber: number,
@@ -789,11 +791,16 @@ export const buildRoundRobinKnockoutMatches = (
   } as ITournamentMatch);
 
   const semiRound = leagueRoundCount + 1;
+  const semiFinal1 = makePlayoffMatch("RRKO-SF1", semiRound, "Semi Final 1", 1, "semifinal");
+  semiFinal1.teamAId = standings[0]?.teamId || null;
+  semiFinal1.teamBId = standings[3]?.teamId || null;
+  const semiFinal2 = makePlayoffMatch("RRKO-SF2", semiRound, "Semi Final 2", 2, "semifinal");
+  semiFinal2.teamAId = standings[1]?.teamId || null;
+  semiFinal2.teamBId = standings[2]?.teamId || null;
   return {
     matches: [
-      ...leagueMatches,
-      makePlayoffMatch("RRKO-SF1", semiRound, "Semi Final 1", 1, "semifinal"),
-      makePlayoffMatch("RRKO-SF2", semiRound, "Semi Final 2", 2, "semifinal"),
+      semiFinal1,
+      semiFinal2,
       makePlayoffMatch("RRKO-FINAL", semiRound + 1, "Final", 1, "final", "RRKO-SF1", "RRKO-SF2"),
     ],
     totalRounds: semiRound + 1,
@@ -1864,7 +1871,7 @@ export const updateTeam = async (
 export const generateGroups = async (tournamentId: string, userId?: string | null) => {
   const tournament = await Tournament.findById(tournamentId);
   if (!tournament) return { error: "Tournament not found", status: 404 as const };
-  if (!["group_stage", "group_knockout", "round_robin_knockout"].includes(tournament.format || "knockout")) {
+  if (!["group_stage", "group_knockout"].includes(tournament.format || "knockout")) {
     return { error: "Groups are only available for group-stage tournaments", status: 400 as const };
   }
   if (tournament.teams.length < 2) {
@@ -2125,8 +2132,11 @@ export const generateBracket = async (tournamentId: string) => {
   }
 
   const format = tournament.format || "knockout";
-  if ((format === "group_knockout" || format === "round_robin_knockout") && tournament.teams.length < 4) {
+  if (format === "group_knockout" && tournament.teams.length < 4) {
     return { error: "At least 4 teams are required for Group + Knockout format", status: 400 as const };
+  }
+  if (format === "round_robin_knockout" && tournament.teams.length < 4) {
+    return { error: "At least 4 teams are required for Round Robin + Knockout format", status: 400 as const };
   }
   if (format === "group_stage" && tournament.teams.length < 2) {
     return { error: "At least 2 teams are required for Group Stage format", status: 400 as const };
@@ -2143,12 +2153,31 @@ export const generateBracket = async (tournamentId: string) => {
   }
 
   if (format === "round_robin_knockout") {
-    // Clear legacy group assignments when regenerating this single-table format.
-    tournament.tournamentGroups = [] as any;
-    const { matches, totalRounds } = buildRoundRobinKnockoutMatches(tournament.teams);
-    tournament.matches = matches as any;
-    tournament.totalRounds = totalRounds;
-    recordAudit(tournament, "Generated single-league fixtures and fixed top-4 knockout", undefined);
+    const leagueMatches = tournament.matches.filter((match) => !match.isManual && match.matchType === "league");
+    const knockoutMatches = tournament.matches.filter(
+      (match) => !match.isManual && (match.matchType === "semifinal" || match.matchType === "final")
+    );
+
+    if (leagueMatches.length === 0) {
+      // Phase 1: creation generates fixtures for one league table only.
+      tournament.tournamentGroups = [] as any;
+      const { matches, totalRounds } = buildRoundRobinKnockoutLeagueMatches(tournament.teams);
+      tournament.matches = matches as any;
+      tournament.totalRounds = totalRounds;
+      recordAudit(tournament, "Generated Round Robin + Knockout league fixtures", undefined);
+    } else if (!leagueMatches.every((match) => match.isCompleted)) {
+      return { error: "Complete all league matches before generating knockout stage.", status: 400 as const };
+    } else if (knockoutMatches.length > 0) {
+      return { error: "Knockout stage has already been generated", status: 400 as const };
+    } else {
+      // Phase 2: standings are final, so seed the fixed top-four playoff.
+      const standings = buildStandings(tournament.teams, leagueMatches);
+      const leagueRoundCount = Math.max(1, ...leagueMatches.map((match) => match.roundNumber));
+      const { matches, totalRounds } = buildRoundRobinKnockoutMatches(standings, leagueRoundCount);
+      tournament.matches = [...tournament.matches, ...matches] as any;
+      tournament.totalRounds = totalRounds;
+      recordAudit(tournament, "Generated fixed top-4 knockout from final league standings", undefined);
+    }
   } else if (format === "group_stage" || format === "group_knockout") {
     const assignedTeamCount = new Set(
       tournament.tournamentGroups.flatMap((group) => group.teamIds.map((teamId) => teamId.toString()))

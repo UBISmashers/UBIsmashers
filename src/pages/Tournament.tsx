@@ -104,7 +104,8 @@ const getPublicBracketMatches = (tournament: Tournament) => {
   if (tournament.format === "round_robin_knockout") {
     const leagueMatches = tournament.matches.filter((match) => match.matchType === "league" && !match.isManual);
     const allLeagueCompleted = leagueMatches.length > 0 && leagueMatches.every((match) => match.isCompleted);
-    return allLeagueCompleted ? tournament.matches.filter(isKnockoutStageMatch) : [];
+    const knockoutGenerated = tournament.matches.some(isKnockoutStageMatch);
+    return allLeagueCompleted && knockoutGenerated ? tournament.matches : [];
   }
 
   const groupMatches = tournament.matches.filter(isGroupLeagueMatch);

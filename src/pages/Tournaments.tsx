@@ -118,6 +118,16 @@ const isAdminKnockoutStageMatch = (match: Tournament["matches"][number]) =>
   match.roundNumber >= 2;
 
 const getBracketActionState = (tournament: Tournament) => {
+  if (tournament.format === "round_robin_knockout") {
+    const leagueMatches = tournament.matches.filter((match) => !match.isManual && match.matchType === "league");
+    const knockoutMatches = tournament.matches.filter(isAdminKnockoutStageMatch);
+    if (leagueMatches.length === 0) return { label: "Generate League Fixtures", disabled: false };
+    if (knockoutMatches.length > 0) return { label: "Knockout Stage Generated", disabled: true };
+    if (!leagueMatches.every((match) => match.isCompleted)) {
+      return { label: "Complete All League Matches First", disabled: true };
+    }
+    return { label: "Generate Knockout Stage", disabled: false };
+  }
   if (tournament.format === "group_stage") {
     const groupMatches = tournament.matches.filter(isAdminGroupLeagueMatch);
     return groupMatches.length > 0
@@ -148,7 +158,7 @@ const getBracketActionState = (tournament: Tournament) => {
 const getAdminBracketMatches = (tournament: Tournament) => {
   if (tournament.format === "knockout") return tournament.matches;
   if (tournament.format === "round_robin" || tournament.format === "group_stage") return tournament.matches.filter(isAdminKnockoutStageMatch);
-  if (tournament.format === "round_robin_knockout") return tournament.matches.filter(isAdminKnockoutStageMatch);
+  if (tournament.format === "round_robin_knockout") return tournament.matches;
 
   const groupMatches = tournament.matches.filter(isAdminGroupLeagueMatch);
   const allGroupMatchesCompleted = groupMatches.length > 0 && groupMatches.every((match) => match.isCompleted);
