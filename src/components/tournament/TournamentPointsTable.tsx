@@ -190,12 +190,19 @@ const buildStandingsGroups = (tournament: Tournament): StandingsGroup[] => {
       : isLeagueStageMatch(match)
   );
 
-  if (tournament.format === "round_robin") {
+  if (tournament.format === "round_robin" || tournament.format === "round_robin_knockout") {
+    const leagueComplete = leagueMatches.length > 0 && leagueMatches.every((match) => match.isCompleted);
     return [
       {
         key: "overall",
         label: "Overall Tournament Standings",
-        rows: makeRows(tournament.teams, leagueMatches, pointRules),
+        rows: makeRows(
+          tournament.teams,
+          leagueMatches,
+          pointRules,
+          tournament.format === "round_robin_knockout" ? 4 : 0,
+          leagueComplete
+        ),
         pendingMatches: leagueMatches.filter((match) => !match.isCompleted).length,
         totalMatches: leagueMatches.length,
       },
@@ -500,12 +507,21 @@ export function TournamentPointsTable({
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">Overall Tournament Standings</CardTitle>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <CardTitle className="text-base">Overall Tournament Standings</CardTitle>
+          {tournament.format === "round_robin_knockout" && (
+            <Badge variant="secondary">Top 4 qualify</Badge>
+          )}
+        </div>
       </CardHeader>
       <CardContent>
         <StandingsTable
           rows={overall?.rows || []}
-          showQualification={false}
+          showQualification={
+            tournament.format === "round_robin_knockout" &&
+            Boolean(overall?.totalMatches) &&
+            overall.pendingMatches === 0
+          }
           schedulingMode={schedulingMode}
           onTeamClick={onTeamClick}
         />

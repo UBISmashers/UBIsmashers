@@ -502,20 +502,22 @@ export const sortScoresheetMatches = (matches: TournamentMatch[]) =>
     return a.matchId.localeCompare(b.matchId);
   });
 
-const isLeagueMatch = (match: TournamentMatch) =>
-  match.matchType === "league" && /^Group\s/i.test(match.roundLabel || "");
+const isLeagueMatch = (match: TournamentMatch, tournament: Tournament) =>
+  match.matchType === "league" &&
+  (/^Group\s/i.test(match.roundLabel || "") ||
+    (tournament.format === "round_robin_knockout" && /^RRKO-R\d+-M\d+$/i.test(match.matchId || "")));
 
 const isFinalsMatch = (match: TournamentMatch) =>
   match.matchType === "semifinal" ||
   match.matchType === "final" ||
   /semi\s*final|final/i.test(match.roundLabel || "");
 
-const isPlayableKnockout = (match: TournamentMatch) =>
-  !isLeagueMatch(match) && match.matchType !== "friendly" && match.matchType !== "practice";
+const isPlayableKnockout = (match: TournamentMatch, tournament: Tournament) =>
+  !isLeagueMatch(match, tournament) && match.matchType !== "friendly" && match.matchType !== "practice";
 
-const getStageForMatch = (match: TournamentMatch): ScoresheetStage | null => {
-  if (isLeagueMatch(match)) return "league";
-  if (!isPlayableKnockout(match)) return null;
+const getStageForMatch = (match: TournamentMatch, tournament: Tournament): ScoresheetStage | null => {
+  if (isLeagueMatch(match, tournament)) return "league";
+  if (!isPlayableKnockout(match, tournament)) return null;
   if (isFinalsMatch(match)) return "finals";
   return "playoffs";
 };
@@ -524,7 +526,7 @@ export const buildScoresheetBuckets = (tournament: Tournament): ScoresheetBucket
   let nextNumber = 1;
   return (["league", "playoffs", "finals"] as ScoresheetStage[]).map((stage) => {
     const matches = sortScoresheetMatches(
-      tournament.matches.filter((match) => getStageForMatch(match) === stage)
+      tournament.matches.filter((match) => getStageForMatch(match, tournament) === stage)
     ).map((match) => ({
       ...match,
       displayNumber: `M-${nextNumber++}`,
