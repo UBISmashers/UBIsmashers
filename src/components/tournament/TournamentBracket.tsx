@@ -57,7 +57,10 @@ export function TournamentBracket({ tournament, editable = false, onSubmitScore 
   const [scoresByMatch, setScoresByMatch] = useState<Record<string, { scoreA: string; scoreB: string }>>({});
   const rounds = useMemo(() => {
     const map = new Map<string, { roundNumber: number; label: string; matches: TournamentMatch[] }>();
-    tournament.matches.forEach((match) => {
+    const bracketMatches = tournament.format === "round_robin_knockout"
+      ? tournament.matches.filter((match) => match.matchType === "semifinal" || match.matchType === "final")
+      : tournament.matches;
+    bracketMatches.forEach((match) => {
       // Group schedules reuse round numbers across groups.  Keep each group
       // distinct so Group B matches never appear under a Group A header.
       const isGroupRound = match.matchType === "league" && /^group\s/i.test(match.roundLabel || "");
@@ -87,7 +90,7 @@ export function TournamentBracket({ tournament, editable = false, onSubmitScore 
         ...round,
         matches: [...round.matches].sort(compareMatchesBySchedule),
       }));
-  }, [tournament.matches]);
+  }, [tournament.format, tournament.matches]);
 
   return (
     <div className="space-y-3">

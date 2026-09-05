@@ -374,7 +374,7 @@ export default function Tournaments() {
         location: form.location,
         type: form.type,
         format: form.format,
-        groupCount: ["group_stage", "group_knockout", "round_robin_knockout"].includes(form.format) && form.groupCount ? Number(form.groupCount) : null,
+        groupCount: ["group_stage", "group_knockout"].includes(form.format) && form.groupCount ? Number(form.groupCount) : null,
         groupDistributionMode: form.groupDistributionMode,
         teamsQualifyingPerGroup: Number(form.teamsQualifyingPerGroup || 2),
         enableManualGroupEditing: form.enableManualGroupEditing,

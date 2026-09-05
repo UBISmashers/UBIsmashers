@@ -101,6 +101,12 @@ const getPublicBracketMatches = (tournament: Tournament) => {
     return tournament.matches.filter(isKnockoutStageMatch);
   }
 
+  if (tournament.format === "round_robin_knockout") {
+    const leagueMatches = tournament.matches.filter((match) => match.matchType === "league" && !match.isManual);
+    const allLeagueCompleted = leagueMatches.length > 0 && leagueMatches.every((match) => match.isCompleted);
+    return allLeagueCompleted ? tournament.matches.filter(isKnockoutStageMatch) : [];
+  }
+
   const groupMatches = tournament.matches.filter(isGroupLeagueMatch);
   const allGroupsCompleted = groupMatches.length > 0 && groupMatches.every((match) => match.isCompleted);
   const knockoutMatches = tournament.matches.filter(isKnockoutStageMatch);
@@ -514,7 +520,7 @@ export default function TournamentPage() {
                             : tournament.format === "group_stage"
                             ? "Teams play within groups; each group has its own standings"
                             : tournament.format === "round_robin_knockout"
-                            ? "Round robin groups feed into a knockout bracket for later rounds"
+                            ? "One league table; the top 4 qualify: Rank 1 vs Rank 4 and Rank 2 vs Rank 3 in the Semi Finals"
                             : tournament.format === "round_robin"
                             ? "All teams share one overall standings table"
                             : "Pure knockout bracket; standings are hidden"}

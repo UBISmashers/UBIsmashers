@@ -748,55 +748,26 @@ export const buildGroupKnockoutMatches = (
   return { matches: [...groupMatches, ...knockoutMatches], totalRounds: groupRoundCount + knockoutRounds, qualifierCount };
 };
 
-const buildRoundRobinKnockoutMatches = (
-  teams: ITournament["teams"],
-  options: {
-    groupCount?: number | null;
-    distributionMode?: GroupDistributionMode;
-    directQualifierCount?: number;
-    qfQualifierCount?: number;
-    tournamentGroups?: ITournament["tournamentGroups"];
-  } = {}
+export const buildRoundRobinKnockoutMatches = (
+  teams: ITournament["teams"]
 ) => {
-  const teamIds = teams.map((team) => team._id);
-  const groupCount = clampGroupCount(options.groupCount, teamIds.length);
-  const groupsFromModel = [...(options.tournamentGroups || [])]
-    .sort((a, b) => a.groupOrder - b.groupOrder)
-    .map((group) => group.teamIds.filter((teamId) => teamIds.some((id) => id.toString() === teamId.toString())));
-  const groups = groupsFromModel.length > 0
-    ? groupsFromModel
-    : distributeTeamsToGroups(teamIds, groupCount, options.distributionMode || "random");
-
-  const groupMatches: ITournamentMatch[] = [];
-  let matchNumber = 1;
-
-  groups.forEach((groupTeams, groupIndex) => {
-    const groupName = getGroupLabel(groupIndex);
-    const scheduledMatches = buildRoundRobinSchedule(groupTeams, {
-      matchIdPrefix: `RRKO-${String.fromCharCode(65 + groupIndex)}`,
-      fixedRoundLabel: groupName,
-    });
-
-    scheduledMatches.forEach((match) => {
-      if (Math.random() > 0.5) {
-        const nextA = match.teamBId;
-        match.teamBId = match.teamAId;
-        match.teamAId = nextA;
-      }
-      match.matchNumber = matchNumber;
-      match.matchId = `RRKO-${String.fromCharCode(65 + groupIndex)}-R${match.roundNumber}-M${matchNumber}`;
-      groupMatches.push(match);
-      matchNumber += 1;
-    });
+  // This format is one league table, not a group format.  Its playoff is
+  // deliberately fixed: ranks 1/4 and 2/3 meet in the semi-finals, then the
+  // two winners meet in the final.
+  const leagueMatches = buildRoundRobinSchedule(teams.map((team) => team._id), {
+    matchIdPrefix: "RRKO",
+    roundLabelPrefix: "League Stage",
   });
-
-  const makeKnockoutMatch = (
+  const leagueRoundCount = Math.max(1, ...leagueMatches.map((match) => match.roundNumber));
+  const makePlayoffMatch = (
     matchId: string,
     roundNumber: number,
     roundLabel: string,
     matchNumber: number,
-    matchType: ITournamentMatch["matchType"]
-  ): ITournamentMatch => ({
+    matchType: ITournamentMatch["matchType"],
+    previousMatchAId: string | null = null,
+    previousMatchBId: string | null = null
+  ) => ({
     matchId,
     roundNumber,
     roundLabel,
@@ -809,34 +780,24 @@ const buildRoundRobinKnockoutMatches = (
     court: null,
     teamAId: null,
     teamBId: null,
+    previousMatchAId,
+    previousMatchBId,
     scoreA: null,
     scoreB: null,
     winnerTeamId: null,
     isCompleted: false,
   } as ITournamentMatch);
 
-  const qfQualifierCount = Math.max(0, Math.min(8, options.qfQualifierCount ?? 2));
-  const qfMatchCount = Math.max(0, Math.ceil((groups.length * qfQualifierCount) / 2));
-  const knockoutMatches: ITournamentMatch[] = [];
-
-  for (let index = 0; index < qfMatchCount; index += 1) {
-    knockoutMatches.push(makeKnockoutMatch(`RRKO-QF${index + 1}`, 2, `Quarter Final ${index + 1}`, index + 1, "quarterfinal"));
-  }
-
-  const semiCount = Math.max(1, Math.ceil((groups.length * Math.max(1, options.directQualifierCount ?? 1) + qfMatchCount) / 2));
-  for (let index = 0; index < semiCount; index += 1) {
-    knockoutMatches.push(makeKnockoutMatch(`RRKO-SF${index + 1}`, 3, `Semi Final ${index + 1}`, index + 1, "semifinal"));
-  }
-
-  knockoutMatches.push(makeKnockoutMatch("RRKO-FINAL", 4, "Final", 1, "final"));
-  knockoutMatches.push(makeKnockoutMatch("RRKO-THIRD", 4, "3rd Place Match", 2, "third_place"));
-
-  return { matches: [...groupMatches, ...knockoutMatches], totalRounds: 4 };
-};
-
-const getMatchLoserId = (match: ITournamentMatch) => {
-  if (!match.isCompleted || !match.teamAId || !match.teamBId || !match.winnerTeamId) return null;
-  return match.winnerTeamId.toString() === match.teamAId.toString() ? match.teamBId : match.teamAId;
+  const semiRound = leagueRoundCount + 1;
+  return {
+    matches: [
+      ...leagueMatches,
+      makePlayoffMatch("RRKO-SF1", semiRound, "Semi Final 1", 1, "semifinal"),
+      makePlayoffMatch("RRKO-SF2", semiRound, "Semi Final 2", 2, "semifinal"),
+      makePlayoffMatch("RRKO-FINAL", semiRound + 1, "Final", 1, "final", "RRKO-SF1", "RRKO-SF2"),
+    ],
+    totalRounds: semiRound + 1,
+  };
 };
 
 const reconcileScoredMatch = (match: ITournamentMatch) => {
@@ -856,13 +817,14 @@ const reconcileScoredMatch = (match: ITournamentMatch) => {
 };
 
 const reconcileRoundRobinKnockoutState = (tournament: ITournament) => {
-  const groupMatches = tournament.matches.filter((match) => !match.isManual && match.matchType === "league" && /^Group\s/i.test(match.roundLabel || ""));
-  groupMatches.forEach(reconcileScoredMatch);
+  const leagueMatches = tournament.matches.filter((match) => !match.isManual && match.matchType === "league");
+  leagueMatches.forEach(reconcileScoredMatch);
+  const knockoutMatches = tournament.matches.filter(
+    (match) => !match.isManual && (match.matchType === "semifinal" || match.matchType === "final")
+  );
+  const allLeagueCompleted = leagueMatches.length > 0 && leagueMatches.every((match) => match.isCompleted);
 
-  const knockoutMatches = tournament.matches.filter((match) => !match.isManual && match.matchType !== "league");
-  const allGroupsCompleted = groupMatches.length > 0 && groupMatches.every((match) => match.isCompleted);
-
-  if (!allGroupsCompleted) {
+  if (!allLeagueCompleted) {
     knockoutMatches.forEach((match) => {
       if (!match.manualOverrideTeams) {
         match.teamAId = null;
@@ -876,63 +838,18 @@ const reconcileRoundRobinKnockoutState = (tournament: ITournament) => {
     return;
   }
 
-  const groupLabels = [...new Set(groupMatches.map((match) => match.roundLabel))]
-    .filter(Boolean)
-    .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
-  const standingsByGroup = groupLabels.map((label) => {
-    const matches = groupMatches.filter((match) => match.roundLabel === label);
-    const teamIds = new Set<string>();
-    matches.forEach((match) => {
-      if (match.teamAId) teamIds.add(match.teamAId.toString());
-      if (match.teamBId) teamIds.add(match.teamBId.toString());
-    });
-    return buildStandings(tournament.teams.filter((team) => teamIds.has(team._id.toString())), matches);
-  });
-
-  const directCount = Math.max(0, Math.min(8, tournament.directQualifierCount ?? 1));
-  const qfCount = Math.max(0, Math.min(8, tournament.qfQualifierCount ?? 2));
-  const qfMatches = tournament.matches.filter((match) => !match.isManual && match.matchType === "quarterfinal").sort((a, b) => a.matchNumber - b.matchNumber);
+  const standings = buildStandings(tournament.teams, leagueMatches);
   const semiMatches = tournament.matches.filter((match) => !match.isManual && match.matchType === "semifinal").sort((a, b) => a.matchNumber - b.matchNumber);
   const finalMatch = tournament.matches.find((match) => !match.isManual && match.matchType === "final");
-  const thirdMatch = tournament.matches.find((match) => !match.isManual && match.matchType === "third_place");
 
-  const qfPairs: Array<[mongoose.Types.ObjectId | null, mongoose.Types.ObjectId | null]> = [];
-  if (standingsByGroup.length === 2 && qfCount >= 2) {
-    qfPairs.push([standingsByGroup[0]?.[directCount]?.teamId || null, standingsByGroup[1]?.[directCount + 1]?.teamId || null]);
-    qfPairs.push([standingsByGroup[1]?.[directCount]?.teamId || null, standingsByGroup[0]?.[directCount + 1]?.teamId || null]);
+  // Fixed qualification rule: 1st v 4th and 2nd v 3rd, regardless of team count.
+  if (!semiMatches[0]?.manualOverrideTeams) {
+    semiMatches[0].teamAId = standings[0]?.teamId || null;
+    semiMatches[0].teamBId = standings[3]?.teamId || null;
   }
-  if (qfPairs.length === 0) {
-    const qfSeeds = standingsByGroup.flatMap((standings) => standings.slice(directCount, directCount + qfCount).map((row) => row.teamId));
-    for (let index = 0; index < qfSeeds.length; index += 2) qfPairs.push([qfSeeds[index] || null, qfSeeds[index + 1] || null]);
-  }
-
-  qfMatches.forEach((match, index) => {
-    if (!match.manualOverrideTeams) {
-      const [teamAId, teamBId] = qfPairs[index] || [null, null];
-      match.teamAId = teamAId;
-      match.teamBId = teamBId;
-    }
-    reconcileScoredMatch(match);
-  });
-
-  if (standingsByGroup.length === 2 && directCount >= 1 && semiMatches.length >= 2) {
-    if (!semiMatches[0].manualOverrideTeams) {
-      semiMatches[0].teamAId = standingsByGroup[0]?.[0]?.teamId || null;
-      semiMatches[0].teamBId = qfMatches[1]?.isCompleted ? qfMatches[1].winnerTeamId : null;
-    }
-    if (!semiMatches[1].manualOverrideTeams) {
-      semiMatches[1].teamAId = standingsByGroup[1]?.[0]?.teamId || null;
-      semiMatches[1].teamBId = qfMatches[0]?.isCompleted ? qfMatches[0].winnerTeamId : null;
-    }
-  } else {
-    const directSeeds = standingsByGroup.flatMap((standings) => standings.slice(0, directCount).map((row) => row.teamId));
-    const qfWinners = qfMatches.map((match) => (match.isCompleted ? match.winnerTeamId : null)).filter(Boolean) as mongoose.Types.ObjectId[];
-    const semiSeeds = [...directSeeds, ...qfWinners];
-    semiMatches.forEach((match, index) => {
-      if (match.manualOverrideTeams) return;
-      match.teamAId = semiSeeds[index * 2] || null;
-      match.teamBId = semiSeeds[index * 2 + 1] || null;
-    });
+  if (!semiMatches[1]?.manualOverrideTeams) {
+    semiMatches[1].teamAId = standings[1]?.teamId || null;
+    semiMatches[1].teamBId = standings[2]?.teamId || null;
   }
 
   semiMatches.forEach(reconcileScoredMatch);
@@ -941,12 +858,7 @@ const reconcileRoundRobinKnockoutState = (tournament: ITournament) => {
     finalMatch.teamAId = semiMatches[0]?.isCompleted ? semiMatches[0].winnerTeamId : null;
     finalMatch.teamBId = semiMatches[1]?.isCompleted ? semiMatches[1].winnerTeamId : null;
   }
-  if (thirdMatch && !thirdMatch.manualOverrideTeams) {
-    thirdMatch.teamAId = semiMatches[0]?.isCompleted ? getMatchLoserId(semiMatches[0]) : null;
-    thirdMatch.teamBId = semiMatches[1]?.isCompleted ? getMatchLoserId(semiMatches[1]) : null;
-  }
   if (finalMatch) reconcileScoredMatch(finalMatch);
-  if (thirdMatch) reconcileScoredMatch(thirdMatch);
 
   if (finalMatch?.isCompleted && finalMatch.winnerTeamId) {
     tournament.championTeamId = finalMatch.winnerTeamId;
@@ -1284,6 +1196,10 @@ const reconcileGroupKnockoutState = (tournament: ITournament) => {
 
 const reconcileTournamentState = (tournament: ITournament) => {
   const format = tournament.format || "knockout";
+  if (format === "round_robin_knockout") {
+    reconcileRoundRobinKnockoutState(tournament);
+    return;
+  }
   if (format === "round_robin") {
     reconcileRoundRobinState(tournament);
     return;
@@ -2216,7 +2132,7 @@ export const generateBracket = async (tournamentId: string) => {
     return { error: "At least 2 teams are required for Group Stage format", status: 400 as const };
   }
 
-  if ((format === "group_stage" || format === "group_knockout" || format === "round_robin_knockout") && tournament.tournamentGroups.length === 0) {
+  if ((format === "group_stage" || format === "group_knockout") && tournament.tournamentGroups.length === 0) {
     const groupCount = clampGroupCount(tournament.groupCount, tournament.teams.length);
     tournament.tournamentGroups = makeTournamentGroups(
       tournament.teams.map((team) => team._id),
@@ -2226,7 +2142,14 @@ export const generateBracket = async (tournamentId: string) => {
     recordAudit(tournament, `Generated ${groupCount} groups before bracket generation`, undefined);
   }
 
-  if (format === "group_stage" || format === "group_knockout") {
+  if (format === "round_robin_knockout") {
+    // Clear legacy group assignments when regenerating this single-table format.
+    tournament.tournamentGroups = [] as any;
+    const { matches, totalRounds } = buildRoundRobinKnockoutMatches(tournament.teams);
+    tournament.matches = matches as any;
+    tournament.totalRounds = totalRounds;
+    recordAudit(tournament, "Generated single-league fixtures and fixed top-4 knockout", undefined);
+  } else if (format === "group_stage" || format === "group_knockout") {
     const assignedTeamCount = new Set(
       tournament.tournamentGroups.flatMap((group) => group.teamIds.map((teamId) => teamId.toString()))
     ).size;
@@ -2348,7 +2271,7 @@ const isMatchReadyForScheduling = (tournament: ITournament, match: ITournamentMa
     return true;
   }
 
-  if (format === "round_robin") {
+  if (format === "round_robin" || format === "round_robin_knockout") {
     if (matchType === "league") return true;
 
     const leagueMatches = tournament.matches.filter(

@@ -68,6 +68,14 @@ export function TournamentOverview({ tournament }: { tournament: Tournament }) {
           </div>
         )}
 
+        {tournament.format === "round_robin_knockout" && (
+          <div className="mt-4 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+            <Badge variant="outline">Teams: {tournament.teams.length}</Badge>
+            <Badge variant="outline">Qualifiers: Top 4</Badge>
+            <Badge variant="outline">Format: Round Robin + Knockout</Badge>
+          </div>
+        )}
+
         {tournament.championTeam && (
           <div className="mt-5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4">
             <p className="text-xs uppercase tracking-wide text-emerald-700">Champion</p>

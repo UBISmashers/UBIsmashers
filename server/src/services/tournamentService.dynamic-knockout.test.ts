@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildGroupKnockoutMatches, getDynamicKnockoutConfig } from "./tournamentService";
+import { buildGroupKnockoutMatches, buildRoundRobinKnockoutMatches, getDynamicKnockoutConfig } from "./tournamentService";
 
 const makeTeams = (count: number): Array<{ _id: string; name: string; players: string[] }> =>
   Array.from({ length: count }, (_, index) => ({
@@ -109,5 +109,28 @@ describe("dynamic group knockout configuration", () => {
     expect(leagueMatches.every((match) => match.teamAId && match.teamBId)).toBe(true);
     expect(knockoutMatches.filter((match) => match.matchType === firstRoundType)).toHaveLength(firstRoundCount);
     expect(knockoutMatches.filter((match) => match.matchType === "final")).toHaveLength(1);
+  });
+});
+
+describe("round robin + knockout fixed top-four playoff", () => {
+  it.each([6, 8, 10, 16])("creates a full league and exactly two semi-finals plus one final for %i teams", (teamCount) => {
+    const result = buildRoundRobinKnockoutMatches(makeTeams(teamCount) as any);
+    const leagueMatches = result.matches.filter((match) => match.matchType === "league");
+    const knockoutMatches = result.matches.filter((match) => match.matchType !== "league");
+
+    expect(leagueMatches).toHaveLength((teamCount * (teamCount - 1)) / 2);
+    expect(knockoutMatches).toHaveLength(3);
+    expect(knockoutMatches.filter((match) => match.matchType === "semifinal")).toHaveLength(2);
+    expect(knockoutMatches.filter((match) => match.matchType === "final")).toHaveLength(1);
+    expect(knockoutMatches.map((match) => match.roundLabel)).toEqual(["Semi Final 1", "Semi Final 2", "Final"]);
+    expect(knockoutMatches.some((match) => ["quarterfinal", "round_of_16", "round_of_32", "round_of_64"].includes(match.matchType))).toBe(false);
+  });
+
+  it("links the final to the two semi-final winners", () => {
+    const result = buildRoundRobinKnockoutMatches(makeTeams(10) as any);
+    const final = result.matches.find((match) => match.matchId === "RRKO-FINAL");
+
+    expect(final?.previousMatchAId).toBe("RRKO-SF1");
+    expect(final?.previousMatchBId).toBe("RRKO-SF2");
   });
 });

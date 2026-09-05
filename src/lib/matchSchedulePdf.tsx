@@ -352,9 +352,9 @@ const formatPdfRuleText = (tournament: Tournament): string[] => {
       "Knockout winners advance until the final.",
     ],
     round_robin_knockout: [
-      "Teams start in round robin groups to guarantee multiple matches.",
-      "Top teams from each group advance to knockout rounds.",
-      "Knockout winners advance until the final.",
+      "Every team plays every other team once in one league table.",
+      "Only the top 4 teams qualify: Rank 1 vs Rank 4 and Rank 2 vs Rank 3 in the Semi Finals.",
+      "The two Semi Final winners play in the Final.",
     ],
   };
 
@@ -367,12 +367,10 @@ const formatPdfRuleText = (tournament: Tournament): string[] => {
 const buildPlanBullets = (tournament: Tournament): string[] => {
   if (tournament.format === "round_robin_knockout") {
     return [
-      `Each group will consist of ${tournament.teamsPerGroup ?? "N"} teams.`,
-      "Every team will play one match against each other team in their group.",
-      `The top ${tournament.directQualifierCount || 1} team(s) from each group will advance directly to the Semi-Finals.`,
-      `The next ${tournament.qfQualifierCount || 2} team(s) from each group will compete in the Quarter Finals.`,
-      "Quarter Final winners join direct qualifiers in the Semi-Finals.",
-      "Winners of the Semi-Finals play in the Final. Losers of the Semi-Finals play in the Third-Place Match.",
+      "Every team plays every other team once in a single league table.",
+      "Only the top 4 teams qualify for the knockout stage.",
+      "Semi Final 1: Rank 1 vs Rank 4. Semi Final 2: Rank 2 vs Rank 3.",
+      "The Semi Final winners play in the Final.",
     ];
   }
 
