@@ -510,7 +510,12 @@ export function TournamentPointsTable({
         <div className="flex flex-wrap items-center justify-between gap-2">
           <CardTitle className="text-base">Overall Tournament Standings</CardTitle>
           {tournament.format === "round_robin_knockout" && (
-            <Badge variant="secondary">Top 4 qualify</Badge>
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant="outline">
+                League: {(overall?.totalMatches || 0) - (overall?.pendingMatches || 0)} / {overall?.totalMatches || 0}
+              </Badge>
+              <Badge variant="secondary">Top 4 qualify</Badge>
+            </div>
           )}
         </div>
       </CardHeader>
