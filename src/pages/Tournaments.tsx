@@ -117,9 +117,14 @@ const isAdminKnockoutStageMatch = (match: Tournament["matches"][number]) =>
   match.matchType !== "practice" &&
   match.roundNumber >= 2;
 
+const isRoundRobinKnockoutLeagueMatch = (match: Tournament["matches"][number]) =>
+  match.matchType === "league" && /^RRKO-R\d+-M\d+$/i.test(match.matchId || "");
+
 const getBracketActionState = (tournament: Tournament) => {
   if (tournament.format === "round_robin_knockout") {
-    const leagueMatches = tournament.matches.filter((match) => !match.isManual && match.matchType === "league");
+    const leagueMatches = tournament.matches.filter(
+      (match) => !match.isManual && isRoundRobinKnockoutLeagueMatch(match)
+    );
     const knockoutMatches = tournament.matches.filter(isAdminKnockoutStageMatch);
     if (leagueMatches.length === 0) return { label: "Generate League Fixtures", disabled: false };
     if (knockoutMatches.length > 0) return { label: "Knockout Stage Generated", disabled: true };

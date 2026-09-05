@@ -184,7 +184,11 @@ const buildStandingsGroups = (tournament: Tournament): StandingsGroup[] => {
   if (tournament.format === "knockout") return [];
 
   const pointRules = getPointRules(tournament);
-  const leagueMatches = tournament.matches.filter(isLeagueStageMatch);
+  const leagueMatches = tournament.matches.filter((match) =>
+    tournament.format === "round_robin_knockout"
+      ? match.matchType === "league" && /^RRKO-R\d+-M\d+$/i.test(match.matchId || "")
+      : isLeagueStageMatch(match)
+  );
 
   if (tournament.format === "round_robin") {
     return [

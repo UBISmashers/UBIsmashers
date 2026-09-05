@@ -756,6 +756,12 @@ export const buildRoundRobinKnockoutLeagueMatches = (teams: ITournament["teams"]
   return { matches, totalRounds: Math.max(1, ...matches.map((match) => match.roundNumber)) };
 };
 
+// RRKO league fixtures have their own namespace.  This intentionally excludes
+// legacy generic-bracket matches, which may have been incorrectly stored as
+// `league` matches under labels such as "Quarter Final".
+const isRoundRobinKnockoutLeagueMatch = (match: ITournamentMatch) =>
+  match.matchType === "league" && /^RRKO-R\d+-M\d+$/i.test(match.matchId || "");
+
 export const buildRoundRobinKnockoutMatches = (
   standings: TeamStanding[],
   leagueRoundCount: number
@@ -824,7 +830,9 @@ const reconcileScoredMatch = (match: ITournamentMatch) => {
 };
 
 const reconcileRoundRobinKnockoutState = (tournament: ITournament) => {
-  const leagueMatches = tournament.matches.filter((match) => !match.isManual && match.matchType === "league");
+  const leagueMatches = tournament.matches.filter(
+    (match) => !match.isManual && isRoundRobinKnockoutLeagueMatch(match)
+  );
   leagueMatches.forEach(reconcileScoredMatch);
   const knockoutMatches = tournament.matches.filter(
     (match) => !match.isManual && (match.matchType === "semifinal" || match.matchType === "final")
@@ -2153,7 +2161,9 @@ export const generateBracket = async (tournamentId: string) => {
   }
 
   if (format === "round_robin_knockout") {
-    const leagueMatches = tournament.matches.filter((match) => !match.isManual && match.matchType === "league");
+    const leagueMatches = tournament.matches.filter(
+      (match) => !match.isManual && isRoundRobinKnockoutLeagueMatch(match)
+    );
     const knockoutMatches = tournament.matches.filter(
       (match) => !match.isManual && (match.matchType === "semifinal" || match.matchType === "final")
     );
@@ -2304,7 +2314,10 @@ const isMatchReadyForScheduling = (tournament: ITournament, match: ITournamentMa
     if (matchType === "league") return true;
 
     const leagueMatches = tournament.matches.filter(
-      (item) => item.matchType === "league" && !item.isManual
+      (item) =>
+        !item.isManual &&
+        (format !== "round_robin_knockout" || isRoundRobinKnockoutLeagueMatch(item)) &&
+        item.matchType === "league"
     );
     if (matchType === "semifinal") {
       return areAllMatchesCompleted(leagueMatches);
