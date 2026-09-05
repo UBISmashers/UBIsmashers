@@ -2412,6 +2412,25 @@ const buildTournamentSlotStart = (baseDate: Date, startTime: string) => {
 export const generateMatchSchedule = async (tournamentId: string, input: GenerateScheduleInput) => {
   const tournament = await Tournament.findById(tournamentId);
   if (!tournament) return { error: "Tournament not found", status: 404 as const };
+
+  // Self-heal old RRKO tournaments created by the generic knockout generator.
+  // Re-generating their schedule is an explicit admin action, so replace the
+  // invalid quarter-final/placeholder data with the required league phase.
+  if (tournament.format === "round_robin_knockout") {
+    const leagueMatches = tournament.matches.filter(
+      (match) => !match.isManual && isRoundRobinKnockoutLeagueMatch(match)
+    );
+    if (leagueMatches.length === 0) {
+      const generated = buildRoundRobinKnockoutLeagueMatches(tournament.teams);
+      tournament.matches = generated.matches as any;
+      tournament.totalRounds = generated.totalRounds;
+      tournament.tournamentGroups = [] as any;
+      tournament.championTeamId = null;
+      tournament.finalScore = null;
+      recordAudit(tournament, "Replaced legacy knockout bracket with Round Robin + Knockout league fixtures", undefined);
+      reconcileTournamentState(tournament);
+    }
+  }
   if (tournament.matches.length === 0) {
     return { error: "Generate matches before creating a schedule", status: 400 as const };
   }

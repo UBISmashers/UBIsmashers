@@ -2784,7 +2784,9 @@ This data cannot be recovered.`}
                         <div>
                           <h3 className="text-sm font-semibold">Court Settings</h3>
                           <p className="text-xs text-muted-foreground">
-                            Groups are assigned by order: Group A to the first court, Group B to the second, then the pattern repeats.
+                            {selectedTournament.format === "round_robin_knockout"
+                              ? "League fixtures are distributed across courts. The fixed top-four knockout is scheduled only after the league is complete."
+                              : "Groups are assigned by order: Group A to the first court, Group B to the second, then the pattern repeats."}
                           </p>
                         </div>
                       <div className="grid gap-2 md:grid-cols-4">
