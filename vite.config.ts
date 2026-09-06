@@ -13,36 +13,41 @@ export default defineConfig(({ mode }) => ({
   plugins: [
     react(),
 
-    VitePWA({
-      registerType: "autoUpdate",
-      manifest: {
-        name: "UBISmashers",
-        short_name: "UBISmashers",
-        description: "Badminton Club Management",
-        theme_color: "#ffffff",
-        background_color: "#ffffff",
-        display: "standalone",
-        start_url: "/",
-        icons: [
-          {
-            src: "icon-192.png",
-            sizes: "192x192",
-            type: "image/png",
-          },
-          {
-            src: "icon-512.png",
-            sizes: "512x512",
-            type: "image/png",
-          },
-          {
-            src: "maskable-icon.png",
-            sizes: "512x512",
-            type: "image/png",
-            purpose: "maskable",
-          },
-        ],
+   VitePWA({
+  registerType: "autoUpdate",
+
+  workbox: {
+    maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5MB
+  },
+
+  manifest: {
+    name: "UBISmashers",
+    short_name: "UBISmashers",
+    description: "Badminton Club Management",
+    theme_color: "#ffffff",
+    background_color: "#ffffff",
+    display: "standalone",
+    start_url: "/",
+    icons: [
+      {
+        src: "icon-192.png",
+        sizes: "192x192",
+        type: "image/png",
       },
-    }),
+      {
+        src: "icon-512.png",
+        sizes: "512x512",
+        type: "image/png",
+      },
+      {
+        src: "maskable-icon.png",
+        sizes: "512x512",
+        type: "image/png",
+        purpose: "maskable",
+      },
+    ],
+  },
+}),
 
     mode === "development" && componentTagger(),
   ].filter(Boolean),
