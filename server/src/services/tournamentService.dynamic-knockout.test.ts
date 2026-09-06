@@ -1,8 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import mongoose from "mongoose";
+import { Tournament } from "../models/Tournament";
 import {
   buildGroupKnockoutMatches,
   buildRoundRobinKnockoutLeagueMatches,
   buildRoundRobinKnockoutMatches,
+  generateBracket,
   getDynamicKnockoutConfig,
   reconcileRoundRobinKnockoutState,
 } from "./tournamentService";
@@ -171,5 +174,36 @@ describe("round robin + knockout fixed top-four playoff", () => {
     expect(tournament.matches.every((match: any) => match.matchType === "league")).toBe(true);
     expect(tournament.status).toBe("ongoing");
     expect(tournament.championTeamId).toBeNull();
+  });
+
+  it("does not fall through to the generic quarter-final bracket during RRKO league generation", async () => {
+    const teams = Array.from({ length: 8 }, (_, index) => ({
+      _id: new mongoose.Types.ObjectId(),
+      name: `Team ${index + 1}`,
+      players: [`P${index + 1}A`, `P${index + 1}B`],
+    }));
+    const tournament = new Tournament({
+      name: "RRKO regression",
+      date: new Date(),
+      location: "Court A",
+      type: "doubles",
+      format: "round_robin_knockout",
+      teams,
+    });
+    const findById = vi.spyOn(Tournament, "findById").mockResolvedValue(tournament as any);
+    const save = vi.spyOn(tournament, "save").mockResolvedValue(tournament as any);
+
+    try {
+      const result = await generateBracket(tournament._id.toString());
+
+      expect("error" in result).toBe(false);
+      expect(tournament.matches).toHaveLength(28);
+      expect(tournament.matches.every((match) => match.matchType === "league")).toBe(true);
+      expect(tournament.matches.some((match) => /quarter|semi|final/i.test(match.roundLabel))).toBe(false);
+      expect(save).toHaveBeenCalledOnce();
+    } finally {
+      findById.mockRestore();
+      save.mockRestore();
+    }
   });
 });

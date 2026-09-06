@@ -1536,6 +1536,8 @@ type TeamRegistryMemberInput = {
 export const updateTournament = async (id: string, input: UpdateTournamentInput) => {
   const tournament = await Tournament.findById(id);
   if (!tournament) return null;
+  const switchesToRoundRobinKnockout =
+    input.format === "round_robin_knockout" && tournament.format !== "round_robin_knockout";
 
   if (input.name !== undefined) tournament.name = input.name.trim();
   if (input.date !== undefined) tournament.date = new Date(input.date);
@@ -1554,6 +1556,13 @@ export const updateTournament = async (id: string, input: UpdateTournamentInput)
   if (input.feedbackEnabled !== undefined) tournament.feedbackEnabled = input.feedbackEnabled;
   if (input.registrationDeadline !== undefined) {
     tournament.registrationDeadline = input.registrationDeadline ? new Date(input.registrationDeadline) : null;
+  }
+
+  // A bracket generated under another format is invalid RRKO state.  Clear it
+  // when converting into RRKO so the next generation action starts at league
+  // fixtures rather than displaying an inherited generic bracket.
+  if (switchesToRoundRobinKnockout && tournament.matches.length > 0) {
+    resetTournamentProgress(tournament, "Changed format to Round Robin + Knockout; generated matches were cleared");
   }
 
   await tournament.save();
@@ -2251,7 +2260,7 @@ export const generateBracket = async (tournamentId: string) => {
       tournament.totalRounds = generated.totalRounds;
       recordAudit(tournament, "Generated knockout bracket from final group standings", undefined);
     }
-  } else {
+  } else if (format !== "round_robin_knockout") {
     const { matches, totalRounds } =
       format === "round_robin" ? buildRoundRobinMatches(tournament.teams) : buildBracketMatches(tournament.teams);
     tournament.matches = matches as any;
@@ -2574,6 +2583,9 @@ export const updatePlayoffTeams = async (
 ) => {
   const tournament = await Tournament.findById(tournamentId);
   if (!tournament) return { error: "Tournament not found", status: 404 as const };
+  if (tournament.format === "round_robin_knockout") {
+    return { error: "Round Robin + Knockout playoff teams are seeded from standings and cannot be assigned manually", status: 400 as const };
+  }
   const match = tournament.matches.find((item) => item.matchId === matchId);
   if (!match) return { error: "Match not found", status: 404 as const };
 
@@ -2629,6 +2641,9 @@ export const updateMatchDetails = async (
   if (match.isCompleted) return { error: "Completed matches cannot be edited", status: 400 as const };
 
   const hasTeamUpdates = input.teamAId !== undefined || input.teamBId !== undefined;
+  if (tournament.format === "round_robin_knockout" && hasTeamUpdates) {
+    return { error: "Round Robin + Knockout teams are fixed by league fixtures, standings, and winner propagation", status: 400 as const };
+  }
   if (hasTeamUpdates) {
     const teamAId = input.teamAId !== undefined ? (input.teamAId ? input.teamAId.toString() : null) : toId(match.teamAId);
     const teamBId = input.teamBId !== undefined ? (input.teamBId ? input.teamBId.toString() : null) : toId(match.teamBId);
@@ -2713,6 +2728,9 @@ const getCustomMatchLabel = (matchType: CreateCustomMatchInput["matchType"]) => 
 export const createCustomMatch = async (tournamentId: string, input: CreateCustomMatchInput) => {
   const tournament = await Tournament.findById(tournamentId);
   if (!tournament) return { error: "Tournament not found", status: 404 as const };
+  if (tournament.format === "round_robin_knockout") {
+    return { error: "Custom matches are disabled for Round Robin + Knockout to preserve its fixed league and top-4 playoff structure", status: 400 as const };
+  }
 
   const teamAId = input.teamAId ? input.teamAId.toString() : null;
   const teamBId = input.teamBId ? input.teamBId.toString() : null;
