@@ -494,11 +494,11 @@ export default function TournamentPage() {
 
                   {isExpanded && (
                     <CardContent className="space-y-5 px-3 pb-4 sm:px-6">
-                      <img
+                     {/*  <img
                         src="/tournamentbanner.png"
                         alt={`${tournament.name} poster`}
                         className="max-h-[420px] w-full rounded-md border object-contain bg-black"
-                      />
+                      /> */}
                       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
                         <div className="rounded-md border p-3 text-sm">Type: {tournament.type}</div>
                         <div className="rounded-md border p-3 text-sm">
