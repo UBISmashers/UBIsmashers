@@ -4,6 +4,7 @@ import {
   buildRoundRobinKnockoutLeagueMatches,
   buildRoundRobinKnockoutMatches,
   getDynamicKnockoutConfig,
+  reconcileRoundRobinKnockoutState,
 } from "./tournamentService";
 
 const makeTeams = (count: number): Array<{ _id: string; name: string; players: string[] }> =>
@@ -145,5 +146,30 @@ describe("round robin + knockout fixed top-four playoff", () => {
     expect(result.matches[1].teamBId).toBe("team-3");
     expect(final?.previousMatchAId).toBe("RRKO-SF1");
     expect(final?.previousMatchBId).toBe("RRKO-SF2");
+  });
+
+  it("does not crash or create a playoff while saving the final league score", () => {
+    const teams = makeTeams(4);
+    const league = buildRoundRobinKnockoutLeagueMatches(teams as any);
+    league.matches.forEach((match, index) => {
+      match.scoreA = 21;
+      match.scoreB = 10 + index;
+      match.winnerTeamId = match.teamAId;
+      match.isCompleted = true;
+    });
+    const tournament = {
+      format: "round_robin_knockout",
+      teams,
+      matches: league.matches,
+      championTeamId: null,
+      finalScore: null,
+      status: "ongoing",
+    } as any;
+
+    expect(() => reconcileRoundRobinKnockoutState(tournament)).not.toThrow();
+    expect(tournament.matches).toHaveLength(6);
+    expect(tournament.matches.every((match: any) => match.matchType === "league")).toBe(true);
+    expect(tournament.status).toBe("ongoing");
+    expect(tournament.championTeamId).toBeNull();
   });
 });

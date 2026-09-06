@@ -829,7 +829,7 @@ const reconcileScoredMatch = (match: ITournamentMatch) => {
   match.winnerTeamId = match.scoreA > match.scoreB ? match.teamAId : match.teamBId;
 };
 
-const reconcileRoundRobinKnockoutState = (tournament: ITournament) => {
+export const reconcileRoundRobinKnockoutState = (tournament: ITournament) => {
   const leagueMatches = tournament.matches.filter(
     (match) => !match.isManual && isRoundRobinKnockoutLeagueMatch(match)
   );
@@ -857,14 +857,26 @@ const reconcileRoundRobinKnockoutState = (tournament: ITournament) => {
   const semiMatches = tournament.matches.filter((match) => !match.isManual && match.matchType === "semifinal").sort((a, b) => a.matchNumber - b.matchNumber);
   const finalMatch = tournament.matches.find((match) => !match.isManual && match.matchType === "final");
 
-  // Fixed qualification rule: 1st v 4th and 2nd v 3rd, regardless of team count.
-  if (!semiMatches[0]?.manualOverrideTeams) {
-    semiMatches[0].teamAId = standings[0]?.teamId || null;
-    semiMatches[0].teamBId = standings[3]?.teamId || null;
+  // League completion is only the qualification boundary.  The three playoff
+  // matches are created by the explicit Generate Knockout Stage action; they
+  // must not be assumed to exist while saving the last league result.
+  if (semiMatches.length === 0 && !finalMatch) {
+    tournament.championTeamId = null;
+    tournament.finalScore = null;
+    tournament.status = "ongoing";
+    return;
   }
-  if (!semiMatches[1]?.manualOverrideTeams) {
-    semiMatches[1].teamAId = standings[1]?.teamId || null;
-    semiMatches[1].teamBId = standings[2]?.teamId || null;
+
+  // Fixed qualification rule: 1st v 4th and 2nd v 3rd, regardless of team count.
+  const semiFinal1 = semiMatches[0];
+  const semiFinal2 = semiMatches[1];
+  if (semiFinal1 && !semiFinal1.manualOverrideTeams) {
+    semiFinal1.teamAId = standings[0]?.teamId || null;
+    semiFinal1.teamBId = standings[3]?.teamId || null;
+  }
+  if (semiFinal2 && !semiFinal2.manualOverrideTeams) {
+    semiFinal2.teamAId = standings[1]?.teamId || null;
+    semiFinal2.teamBId = standings[2]?.teamId || null;
   }
 
   semiMatches.forEach(reconcileScoredMatch);
