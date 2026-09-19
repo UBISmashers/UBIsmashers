@@ -44,6 +44,8 @@ YOUTUBE_API_KEY=your-youtube-data-api-v3-key
 YOUTUBE_CHANNEL_ID=your-youtube-channel-id
 # Used only when YOUTUBE_CHANNEL_ID is omitted; defaults to @ubismashers.
 YOUTUBE_CHANNEL_HANDLE=@ubismashers
+# Temporary live-detection diagnostics; remove after investigating a stream.
+YOUTUBE_DEBUG=true
 ```
 
 Optional mail env vars for the monthly public bills email:
