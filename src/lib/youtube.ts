@@ -33,6 +33,8 @@ export function createYouTubeEmbedConfig(videoId: string): YouTubeEmbedConfig | 
   const chatUrl = new URL("https://www.youtube.com/live_chat");
   chatUrl.searchParams.set("v", videoId);
   chatUrl.searchParams.set("embed_domain", embedDomain);
+  // Keep YouTube Live Chat in its default light theme for browser compatibility.
+  chatUrl.searchParams.delete("dark_theme");
 
   return {
     videoId,
