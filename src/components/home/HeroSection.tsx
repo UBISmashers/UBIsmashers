@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { ClipboardList, Image, ShieldCheck, Trophy, UserPlus, Users, Wallet } from "lucide-react";
 import { createApiClient } from "@/lib/api";
+import LiveBanner from "@/components/live/LiveBanner";
 
 const HeroLoginDialog = lazy(() => import("@/components/home/HeroLoginDialog"));
 const publicApi = createApiClient(() => null, () => {});
@@ -45,6 +46,7 @@ export default function HeroSection() {
         </div>
 
         <div className="mt-10 w-full max-w-3xl sm:mt-12">
+          <LiveBanner />
           {showTournament && (
             <div className="mb-3 sm:mb-4">
               <Link to="/tournament" className={glassButtonClass}>

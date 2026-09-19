@@ -21,6 +21,8 @@ import JoiningRequests from "./pages/JoiningRequests";
 import TournamentPage from "./pages/Tournament";
 import Tournaments from "./pages/Tournaments";
 import NotFound from "./pages/NotFound";
+import Live from "./pages/Live";
+import FloatingLiveButton from "./components/live/FloatingLiveButton";
 
 const queryClient = new QueryClient();
 
@@ -33,6 +35,7 @@ const App = () => (
         <BrowserRouter>
           <Routes>
             <Route path="/" element={<Home />} />
+            <Route path="/live" element={<Live />} />
             <Route path="/admin-login" element={<Login />} />
             <Route path="/member-bills" element={<PublicBills />} />
             <Route path="/tournament" element={<TournamentPage />} />
@@ -121,6 +124,7 @@ const App = () => (
             />
             <Route path="*" element={<NotFound />} />
           </Routes>
+          <FloatingLiveButton />
         </BrowserRouter>
       </TooltipProvider>
     </AuthProvider>

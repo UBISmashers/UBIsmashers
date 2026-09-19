@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { Phone, Mail, Instagram } from "lucide-react";
+import { Phone, Mail, Instagram, Youtube } from "lucide-react";
 
 export default function Footer() {
   return (
@@ -7,7 +7,7 @@ export default function Footer() {
       <div className="mx-auto flex max-w-6xl flex-col gap-6">
         <div className="rounded-xl border border-slate-700 bg-slate-900/70 p-4">
           <p className="mb-3 text-sm font-semibold text-white">Contact</p>
-          <div className="grid gap-2 text-sm sm:grid-cols-3">
+          <div className="grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-4">
             <a href="tel:+6586152500" className="flex items-center gap-2 hover:text-emerald-300">
               <Phone className="h-4 w-4" />
               +65 86152500
@@ -24,6 +24,15 @@ export default function Footer() {
             >
               <Instagram className="h-4 w-4" />
               @ubi_smashers
+            </a>
+            <a
+              href="https://youtube.com/@ubismashers"
+              target="_blank"
+              rel="noreferrer"
+              className="flex items-center gap-2 hover:text-emerald-300"
+            >
+              <Youtube className="h-4 w-4" />
+              @ubismashers
             </a>
           </div>
         </div>

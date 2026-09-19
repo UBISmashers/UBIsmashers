@@ -23,6 +23,7 @@ class ApiClient {
     const method = (options.method || "GET").toUpperCase();
     const isPublicEndpoint =
       endpoint.startsWith("/public") ||
+      endpoint.startsWith("/youtube") ||
       endpoint === "/auth/login" ||
       (endpoint === "/joining-requests" && method === "POST");
 
@@ -750,6 +751,13 @@ class ApiClient {
 
   async getPublicTournamentConfig() {
     return this.request<{ enabled: boolean }>("/public/tournaments/config");
+  }
+
+  async getYouTubeLiveStatus() {
+    return this.request<
+      | { isLive: false }
+      | { isLive: true; videoId: string; title: string; viewers: number }
+    >("/youtube/live-status");
   }
 
   async getPublicTournaments() {

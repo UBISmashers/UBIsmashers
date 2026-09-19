@@ -37,6 +37,13 @@ JWT_EXPIRES_IN=15m
 JWT_REFRESH_EXPIRES_IN=7d
 NODE_ENV=development
 FRONTEND_URL=http://localhost:8080
+
+# YouTube live-stream integration (required to enable /api/youtube/live-status)
+YOUTUBE_API_KEY=your-youtube-data-api-v3-key
+# Optional but recommended: set the channel ID to avoid resolving the handle on each cache refresh.
+YOUTUBE_CHANNEL_ID=your-youtube-channel-id
+# Used only when YOUTUBE_CHANNEL_ID is omitted; defaults to @ubismashers.
+YOUTUBE_CHANNEL_HANDLE=@ubismashers
 ```
 
 Optional mail env vars for the monthly public bills email:
@@ -65,6 +72,8 @@ RESEND_FROM=sender@yourdomain.com
 ```
 
 Notes:
+- Enable **YouTube Data API v3** for `YOUTUBE_API_KEY` in Google Cloud. Keep this key server-only and restrict it to the YouTube Data API v3 plus your production server's outbound IP addresses where possible.
+- `YOUTUBE_CHANNEL_ID` is recommended in production. It avoids a channel-handle lookup before each 30-second status refresh; the endpoint otherwise resolves `@ubismashers` automatically.
 - For Gmail, use an App Password, not your regular Gmail password.
 - If you set `MAIL_SERVICE=gmail` without explicit `SMTP_*`, the server now defaults to `smtp.gmail.com:465` with `secure=true`.
 - For Render production, `RESEND_API_KEY` is recommended because it avoids SMTP connection timeouts entirely.

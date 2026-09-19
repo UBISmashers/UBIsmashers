@@ -16,6 +16,7 @@ import publicRoutes from "./routes/public.js";
 import publicTournamentRoutes from "./routes/publicTournaments.js";
 import reportRoutes from "./routes/reports.js";
 import tournamentRoutes from "./routes/tournaments.js";
+import youtubeRoutes from "./routes/youtube.js";
 
 dotenv.config();
 
@@ -102,6 +103,7 @@ app.use("/api/equipment", equipmentRoutes);
 app.use("/api/joining-fees", joiningFeeRoutes);
 app.use("/api/joining-requests", joiningRequestRoutes);
 app.use("/api/tournaments", tournamentRoutes);
+app.use("/api/youtube", youtubeRoutes);
 
 const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
   console.error("Error:", err.message);
