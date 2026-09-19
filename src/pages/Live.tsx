@@ -49,14 +49,18 @@ export default function Live() {
 
             <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start">
               <YouTubeLivePlayer title={liveStatus.title} config={embedConfig} />
-              <div className="hidden overflow-hidden rounded-2xl border border-white/10 bg-black md:block md:h-[28rem] lg:h-[min(56.25vw,31rem)]">
-                <iframe
-                  className="h-full w-full"
-                  src={embedConfig.chatUrl}
-                  title="UBI Smashers live chat"
-                  loading="lazy"
-                  referrerPolicy="strict-origin-when-cross-origin"
-                />
+              <div className="hidden md:block">
+                <p className="mb-2 px-1 text-sm font-bold text-white">YouTube Live Chat</p>
+                <div className="overflow-hidden rounded-2xl border border-slate-700 bg-white shadow-lg md:h-[28rem] lg:h-[min(56.25vw,31rem)]">
+                  <iframe
+                    className="h-full w-full bg-white"
+                    src={embedConfig.chatUrl}
+                    title="UBI Smashers live chat"
+                    loading="lazy"
+                    referrerPolicy="strict-origin-when-cross-origin"
+                  />
+                </div>
+                <p className="mt-2 px-1 text-xs text-slate-300">Sign in with your Google account to participate.</p>
               </div>
             </div>
             <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4 text-center md:hidden">
