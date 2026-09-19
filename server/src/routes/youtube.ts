@@ -10,6 +10,8 @@ type LiveStatus =
 let cachedStatus: LiveStatus | undefined;
 let cacheExpiresAt = 0;
 
+const YOUTUBE_VIDEO_ID_PATTERN = /^[A-Za-z0-9_-]{11}$/;
+
 const youtubeApiUrl = (path: string, params: Record<string, string>) => {
   const search = new URLSearchParams(params);
   return `https://www.googleapis.com/youtube/v3/${path}?${search.toString()}`;
@@ -44,7 +46,10 @@ const fetchLiveStatus = async (): Promise<LiveStatus> => {
       channelId,
       eventType: "live",
       type: "video",
-      maxResults: "1",
+      // eventType=live excludes upcoming/scheduled broadcasts. Fetch a small set
+      // and validate each resource below so an API search result can never be
+      // returned directly as an embeddable live video.
+      maxResults: "5",
       key: apiKey,
     })
   );
@@ -53,13 +58,19 @@ const fetchLiveStatus = async (): Promise<LiveStatus> => {
   const searchPayload = (await searchResponse.json()) as {
     items?: Array<{ id?: { videoId?: string } }>;
   };
-  const videoId = searchPayload.items?.[0]?.id?.videoId;
-  if (!videoId) return { isLive: false };
+  const candidateVideoIds = Array.from(
+    new Set(
+      (searchPayload.items || [])
+        .map((item) => item.id?.videoId)
+        .filter((videoId): videoId is string => Boolean(videoId && YOUTUBE_VIDEO_ID_PATTERN.test(videoId)))
+    )
+  );
+  if (candidateVideoIds.length === 0) return { isLive: false };
 
   const videoResponse = await fetch(
     youtubeApiUrl("videos", {
-      part: "snippet,liveStreamingDetails",
-      id: videoId,
+      part: "snippet,liveStreamingDetails,status",
+      id: candidateVideoIds.join(","),
       key: apiKey,
     })
   );
@@ -67,16 +78,24 @@ const fetchLiveStatus = async (): Promise<LiveStatus> => {
 
   const videoPayload = (await videoResponse.json()) as {
     items?: Array<{
-      snippet?: { title?: string };
+      id?: string;
+      snippet?: { title?: string; liveBroadcastContent?: string };
+      status?: { embeddable?: boolean; privacyStatus?: string };
       liveStreamingDetails?: { concurrentViewers?: string };
     }>;
   };
-  const video = videoPayload.items?.[0];
+  const video = videoPayload.items?.find(
+    (item) =>
+      Boolean(item.id && YOUTUBE_VIDEO_ID_PATTERN.test(item.id)) &&
+      item.snippet?.liveBroadcastContent === "live" &&
+      item.status?.embeddable === true &&
+      item.status?.privacyStatus === "public"
+  );
   if (!video) return { isLive: false };
 
   return {
     isLive: true,
-    videoId,
+    videoId: video.id!,
     title: video.snippet?.title || "UBI Smashers Live Stream",
     viewers: Number.parseInt(video.liveStreamingDetails?.concurrentViewers || "0", 10) || 0,
   };
