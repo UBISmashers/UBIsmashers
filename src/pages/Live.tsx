@@ -60,7 +60,17 @@ export default function Live() {
                     referrerPolicy="strict-origin-when-cross-origin"
                   />
                 </div>
-                <p className="mt-2 px-1 text-xs text-slate-300">Sign in with your Google account to participate.</p>
+                <div className="mt-2 flex flex-wrap items-center justify-between gap-2 px-1 text-xs text-slate-300">
+                  <p>Sign in with your Google account to participate. Select Live Chat, not Top Chat, to see every message.</p>
+                  <a
+                    href={embedConfig.watchUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex shrink-0 items-center gap-1 font-bold text-emerald-200 transition hover:text-white"
+                  >
+                    Open chat on YouTube <ExternalLink className="h-3.5 w-3.5" />
+                  </a>
+                </div>
               </div>
             </div>
             <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4 text-center md:hidden">
